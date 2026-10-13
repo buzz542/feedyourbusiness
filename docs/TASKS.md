@@ -28,7 +28,7 @@ Legend: `[x]` done and verified. `[ ]` not done. `(you)` means it needs the foun
 - [x] Placeholder legal pages (privacy, terms, acceptable use, cookies, remove my post) and footer. Test: all return 200 and pass `compliance:copy`.
 - [x] Claude Code hooks (install denylist, format and lint, stop check, session start), two review subagents, path-scoped rules. Test: `tests/hooks/hooks.test.ts` runs the hooks as Claude Code does.
 - [x] CI workflow in `.github/workflows/ci.yml`.
-- [ ] CI is green on GitHub on an empty app. Test: the `check` job passes on the pushed branch.
+- [x] CI is green on GitHub on an empty app. Test: the `check` job passes on the pushed branch. First run: `npm ci`, the four compliance gates, `npm run check` and `npm run build` all succeeded.
 - [ ] (you) Vercel project connected to the repo, with environment variables from `.env.example`. Test: a preview deploy serves the placeholder site.
 - [ ] (you) Supabase Auth settings: site URL, redirect URLs, Google provider, custom SMTP through Resend. Test: a magic link arrives and signs in (M1).
 - [ ] (you) Move the Supabase organization to Pro before real users: backups, no auto-pause. Test: dashboard shows the Pro plan.
