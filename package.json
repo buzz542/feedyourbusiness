@@ -1,0 +1,52 @@
+{
+  "name": "askedfor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AskedFor (codename FYB): who to reply to today, what to build next.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "compliance:hosts": "vitest run tests/compliance/hosts.test.ts",
+    "compliance:deps": "vitest run tests/compliance/deps.test.ts",
+    "compliance:schema": "vitest run tests/compliance/schema.test.ts",
+    "compliance:copy": "vitest run tests/compliance/copy.test.ts",
+    "compliance": "npm run compliance:hosts && npm run compliance:deps && npm run compliance:schema && npm run compliance:copy",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "db:migrate": "supabase db push --linked",
+    "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.3",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "resend": "6.32.1",
+    "server-only": "0.0.1",
+    "stripe": "23.0.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.9",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.0",
+    "postcss": "8.5.30",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  }
+}

@@ -1,0 +1,25 @@
+# dependencies
+node_modules
+
+# next
+.next
+out
+next-env.d.ts
+
+# tests and tooling
+coverage
+*.tsbuildinfo
+
+# secrets: never commit. Use Vercel env vars and a local .env.local.
+.env
+.env.*
+!.env.example
+
+# platform
+.vercel
+supabase/.temp
+supabase/.branches
+
+# os / editor
+.DS_Store
+*.log

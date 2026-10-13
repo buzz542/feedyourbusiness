@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+  Placeholder tokens for M0. Direction from docs/BRIEF.md: warm off-white paper, near-black ink,
+  one deep ink blue accent, a real dark mode. Fonts and the highlighter mark land in M7.
+  Contrast checked against WCAG 2.2 AA for text on paper in both themes.
+*/
+:root {
+  --paper: #fbf8f1;
+  --ink: #17150f;
+  --ink-muted: #565143;
+  --rule: #d9d2c0;
+  --accent: #1b2a5c;
+  --accent-ink: #fbf8f1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12110e;
+    --ink: #ede8db;
+    --ink-muted: #aaa392;
+    --rule: #34302a;
+    --accent: #9db4ff;
+    --accent-ink: #12110e;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --font-serif: ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
