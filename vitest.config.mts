@@ -20,5 +20,7 @@ export default defineConfig({
       "emails/**/*.test.ts",
     ],
     testTimeout: 30_000,
+    // PGlite boots Postgres in WASM in beforeAll; with many workers starting at once it can exceed 10s.
+    hookTimeout: 90_000,
   },
 });
