@@ -1,15 +1,16 @@
-import { facebook, indiehackers, linkedin, reddit, threads, xLinks } from "./link-sources";
+import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import type { CollectSource, LinkSource, Source } from "./types";
 
 /**
- * The only allowlist (docs/BRIEF.md, "Source module contract").
+ * The only allowlist (docs/PLAN.md, "Sources").
  *
- * M0 ships link-mode sources only. Bluesky and Hacker News are added in M2, and the first M2 task
- * is to confirm their hosts and auth rules against the current docs before listing them here.
- * Until then no host is allowed, and safeFetch() refuses every request.
+ * Link-mode sources only so far. The collect sources (hackernews, bluesky, reddit through the data
+ * vendor, x through the official API) are added by the Collection milestone, each after its hosts,
+ * auth and terms are confirmed against the current docs. Until then no host is allowed, and
+ * safeFetch() refuses every request.
  */
 export const sources: readonly Source[] = [
-  reddit,
+  redditLinks,
   linkedin,
   facebook,
   threads,

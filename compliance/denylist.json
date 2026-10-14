@@ -1,5 +1,5 @@
 {
-  "_comment": "Single source of truth for the compliance gates and the PreToolUse install hook. Changing it changes a hard compliance rule, so it needs founder approval (see docs/BRIEF.md, Hard compliance rules).",
+  "_comment": "Single source of truth for the compliance gates and the PreToolUse install hook. Changing it changes a hard rule, so it needs founder approval (docs/PLAN.md, section 2). Route C keeps every package here blocked: vendors are called through their REST APIs with safeFetch().",
 
   "packages": {
     "blocked": [

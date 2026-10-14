@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Claude Code PreToolUse hook (matcher: Bash).
-// Blocks installing or running a package on the compliance denylist: scraping SDKs, scraping
-// services, stealth browser plugins. Exit 2 blocks the command and sends stderr back to Claude.
+// Blocks installing or running a package on the compliance denylist: scraping SDKs, vendor SDKs,
+// stealth browser plugins. Exit 2 blocks the command and sends stderr back to Claude.
 // This is a guard rail. The authoritative check is CI (npm run compliance:deps).
+// Route C (docs/PLAN.md, D1) does not change this: the Reddit data vendor is called through its
+// REST API with safeFetch(), so its SDK stays blocked.
 
 import { installTargets, isBlockedPackage, loadDenylist } from "../../compliance/lib/denylist.mjs";
 
@@ -22,8 +24,8 @@ const blocked = installTargets(command).filter((name) => isBlockedPackage(name, 
 if (blocked.length > 0) {
   console.error(
     `Blocked: ${blocked.join(", ")} is on the compliance denylist (compliance/denylist.json).\n` +
-      "AskedFor never scrapes: official APIs and user-opened search links only (docs/BRIEF.md, Hard compliance rules).\n" +
-      "If this is a mistake, ask the founder to change the brief on purpose. Do not work around the hook.",
+      "AskedFor reaches sources only through safeFetch(): official APIs, and the contracted data vendor's REST API (docs/PLAN.md, section 2).\n" +
+      "No scraping SDKs, vendor SDKs or browser automation. If this is a mistake, ask the founder. Do not work around the hook.",
   );
   process.exit(2);
 }

@@ -1,5 +1,10 @@
 # Phase 0 findings
 
+> **Superseded in part on 14 Oct 2026 by `docs/PLAN.md`.** Finding 1 (thin signal from two sources) is
+> answered by route C (decision D1: Reddit through a contracted data vendor, X through its official API).
+> Finding 2 still stands until the founder completes F11. The instant preview (item 11) and metrics (item 12)
+> are specified in the plan, sections 8.5 and 12.6. Everything else here is history.
+
 Everything I found while turning `docs/BRIEF.md` into a working foundation: contradictions, gaps and risky
 assumptions, each with a proposed fix. Read "Read this first", then approve or amend the rest. Nothing past
 M0 and the billing plumbing was built, on purpose: the brief says to stop for approval here.

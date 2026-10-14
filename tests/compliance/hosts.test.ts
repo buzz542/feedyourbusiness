@@ -85,11 +85,14 @@ describe("compliance:hosts (runtime)", () => {
     expect(allowedHosts({})).toEqual([]);
   });
 
-  it("never allows a platform the hard rules say is not collected, whatever the env says", () => {
+  it("never lets us fetch a platform's own site, whatever the env says", () => {
+    // Route C (docs/PLAN.md, D1): Reddit content arrives through the contracted vendor's API host.
+    // We never request reddit.com ourselves, and the other platforms are never collected at all.
     const everythingOn = Object.fromEntries(
       sources.map((s) => [`SOURCE_${s.id.toUpperCase()}_ENABLED`, "true"]),
     );
-    const NEVER = /reddit|linkedin|facebook|instagram|tiktok|threads|youtube|discord|producthunt/i;
+    const NEVER =
+      /reddit|redd\.it|linkedin|facebook|instagram|tiktok|threads|youtube|discord|producthunt/i;
     const hosts = [...allowedHosts(everythingOn), ...sources.flatMap((s) => s.allowedHosts)];
     expect(hosts.filter((h) => NEVER.test(h))).toEqual([]);
   });

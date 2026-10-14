@@ -1,11 +1,12 @@
 import type { LinkSource, SearchLink } from "./types";
 
 /**
- * Link-mode sources. AskedFor never fetches these. It builds a search URL and the user opens it
- * in their own browser. No API, no RSS, no scraping, no scraping services.
+ * Link-mode sources. AskedFor never fetches these hosts. It builds a search URL and the user opens
+ * it in their own browser.
  *
- * Reddit stops accepting new public API access on 31 Oct 2026 and commercial use needs a
- * contract, so Reddit stays link-only. See docs/BRIEF.md, "Data sources".
+ * Reddit and X also get a collect source under their own ids ("reddit" through the contracted data
+ * vendor, "x" through the official API; docs/PLAN.md, decision D1). Their search links stay here,
+ * under "reddit_links" and "x_links", for searches the user wants to run themselves.
  */
 
 function makeLinkSource(args: {
@@ -32,8 +33,8 @@ function makeLinkSource(args: {
   };
 }
 
-export const reddit = makeLinkSource({
-  id: "reddit",
+export const redditLinks = makeLinkSource({
+  id: "reddit_links",
   displayName: "Reddit",
   termsUrl: "https://www.redditinc.com/policies/data-api-terms",
   host: "www.reddit.com",
@@ -73,7 +74,7 @@ export const indiehackers = makeLinkSource({
   build: (q) => `https://www.indiehackers.com/search?q=${q}`,
 });
 
-/** X as a search link only. Collection through the official API is phase 2 and off by default. */
+/** X search links. Collection is the separate "x" source: official API only, off by default. */
 export const xLinks = makeLinkSource({
   id: "x_links",
   displayName: "X",

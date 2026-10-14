@@ -8,9 +8,12 @@ import {
   sources,
 } from "./registry";
 
-/** Hard compliance rules: these platforms are never collected. */
+/**
+ * Hard rules (docs/PLAN.md, section 2): these platforms are never collected, by us or by a vendor.
+ * Reddit left this list on 14 Oct 2026 (decision D1): it is collected through a contracted data
+ * vendor's API. compliance:hosts still guarantees we never fetch reddit.com ourselves.
+ */
 const NEVER_COLLECTED = [
-  "reddit",
   "linkedin",
   "facebook",
   "instagram",
@@ -42,9 +45,15 @@ describe("source registry", () => {
     for (const source of sources) expect(new URL(source.termsUrl).protocol).toBe("https:");
   });
 
-  it("allows no outbound host at M0, because no collect source exists yet", () => {
+  it("allows no outbound host until a collect source is registered", () => {
     expect(allowedHosts({})).toEqual([]);
-    expect(allowedHosts({ SOURCE_REDDIT_ENABLED: "true" })).toEqual([]);
+    expect(allowedHosts({ SOURCE_REDDIT_LINKS_ENABLED: "true" })).toEqual([]);
+  });
+
+  it("keeps a search-link source for each platform users search themselves", () => {
+    const linkIds = sources.filter((s) => s.mode === "link").map((s) => s.id);
+    for (const id of ["reddit_links", "x_links", "linkedin", "facebook", "threads"])
+      expect(linkIds).toContain(id);
   });
 
   it("keeps link sources fetch-free: no allowed hosts and a zero budget", () => {
@@ -56,27 +65,29 @@ describe("source registry", () => {
 });
 
 describe("kill switches", () => {
-  const reddit = sources.find((s) => s.id === "reddit")!;
+  const redditLinks = sources.find((s) => s.id === "reddit_links")!;
 
   it("derives the env name from the source id", () => {
     expect(killSwitchName({ id: "x_links" })).toBe("SOURCE_X_LINKS_ENABLED");
+    expect(killSwitchName({ id: "reddit" })).toBe("SOURCE_REDDIT_ENABLED");
   });
 
   it("keeps link sources on unless explicitly set to false", () => {
-    expect(isEnabled(reddit, {})).toBe(true);
-    expect(isEnabled(reddit, { SOURCE_REDDIT_ENABLED: "false" })).toBe(false);
-    expect(isEnabled(reddit, { SOURCE_REDDIT_ENABLED: "no" })).toBe(true);
+    expect(isEnabled(redditLinks, {})).toBe(true);
+    expect(isEnabled(redditLinks, { SOURCE_REDDIT_LINKS_ENABLED: "false" })).toBe(false);
+    expect(isEnabled(redditLinks, { SOURCE_REDDIT_LINKS_ENABLED: "no" })).toBe(true);
   });
 
   it("can pause a link source", () => {
-    const ids = enabledSources({ SOURCE_REDDIT_ENABLED: "false" }).map((s) => s.id);
-    expect(ids).not.toContain("reddit");
+    const ids = enabledSources({ SOURCE_REDDIT_LINKS_ENABLED: "false" }).map((s) => s.id);
+    expect(ids).not.toContain("reddit_links");
     expect(ids).toContain("linkedin");
   });
 
   it("keeps collect sources off unless set to exactly true", () => {
     const collect = {
-      ...reddit,
+      ...redditLinks,
+      id: "reddit",
       mode: "collect" as const,
       allowedHosts: ["api.example.test"],
       dailyBudget: 1,
@@ -95,7 +106,7 @@ describe("link sources", () => {
   };
 
   it("builds https search links on the declared host, newest first where supported", () => {
-    const [first] = link("reddit").searchLinks(["invoice tool"]);
+    const [first] = link("reddit_links").searchLinks(["invoice tool"]);
     expect(first?.url).toBe("https://www.reddit.com/search/?q=invoice%20tool&sort=new");
     expect(new URL(first!.url).hostname).toBe("www.reddit.com");
   });

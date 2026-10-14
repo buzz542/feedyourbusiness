@@ -14,7 +14,9 @@ Nothing here needs a live key, and Claude should never ask for one.
 - **Cancel:** `POST /api/billing/cancel` with `{ "action": "cancel" | "resume" }` schedules cancellation at the
   end of the period. The Settings page (M6) calls it after one confirmation click: two clicks in total.
 - **Portal:** `POST /api/billing/portal` opens the Stripe billing portal, for updating the card.
-- **Reminder:** `GET /api/cron/trial-reminders`, hourly, sends the email 48 hours before the first charge.
+- **Reminder:** `GET /api/cron/trial-reminders` sends the email 48 hours before the first charge. It must run
+  hourly in production, which needs Vercel Pro; on the Hobby plan `vercel.json` runs it daily so deploys do not
+  fail (`docs/PLAN.md`, D6 and section 13).
 
 Access follows `profiles.plan`, which only the webhook can change. `trialing` and `active` unlock the product.
 
@@ -48,7 +50,10 @@ Access follows `profiles.plan`, which only the webhook can change. `trialing` an
    | `RESEND_API_KEY`, `EMAIL_FROM`         | from Resend, with the sending domain verified            |
    | `CRON_SECRET`                          | a long random string (Vercel sends it as a Bearer token) |
 
-7. **Test end to end** with Stripe's test cards: start checkout, complete it, and watch `profiles` change
+7. **Check the wiring** with one request (`docs/PLAN.md`, section 16):
+   `curl -H "Authorization: Bearer $CRON_SECRET" https://<your-domain>/api/health`. `stripe_config`,
+   `stripe_price` and `stripe_webhook` must all say `ok`; anything else names what is missing.
+8. **Test end to end** with Stripe's test cards: start checkout, complete it, and watch `profiles` change
    (`plan = pro`, `subscription_status = trialing`). Cancel from the portal or the cancel route and confirm
    `cancel_at_period_end`. Trigger events with `stripe trigger customer.subscription.created`.
 

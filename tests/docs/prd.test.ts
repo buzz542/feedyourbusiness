@@ -27,11 +27,25 @@ describe("docs/PRD.md", () => {
   });
 });
 
+describe("docs/PLAN.md", () => {
+  const plan = readFileSync("docs/PLAN.md", "utf8");
+
+  it("records every decision and the route C hard rules", () => {
+    for (let d = 1; d <= 12; d++) expect(plan, `D${d}`).toContain(`- **D${d}. `);
+    expect(plan).toContain("## 2. Hard rules (route C)");
+  });
+
+  it("is what CLAUDE.md and the compliance reviewer point to", () => {
+    expect(readFileSync("CLAUDE.md", "utf8")).toContain("docs/PLAN.md");
+    expect(readFileSync(".claude/agents/compliance-reviewer.md", "utf8")).toContain("docs/PLAN.md");
+  });
+});
+
 describe("docs/TASKS.md", () => {
   const tasks = readFileSync("docs/TASKS.md", "utf8");
 
-  it("has a goal line and at least one task for every milestone M0 to M7", () => {
-    for (let m = 0; m <= 7; m++) {
+  it("has a goal line and at least one task for every milestone M0 to M9", () => {
+    for (let m = 0; m <= 9; m++) {
       const block = tasks.split(new RegExp(`^## M${m} `, "m"))[1]?.split(/^## M\d /m)[0] ?? "";
       expect(block, `M${m} section`).toContain(`/goal Milestone M${m} in docs/TASKS.md`);
       expect(block.match(/^- \[[ x]\] /gm)?.length ?? 0, `M${m} tasks`).toBeGreaterThan(0);
