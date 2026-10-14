@@ -70,8 +70,16 @@ export interface CancelState {
   accessUntil: string | null;
 }
 
+/** A registered Stripe webhook endpoint. Used by the health check, never for billing decisions. */
+export interface WebhookEndpointInfo {
+  url: string;
+  status: string;
+  enabledEvents: readonly string[];
+}
+
 export interface BillingStripe {
   getPrice(priceId: string): Promise<PriceInfo>;
+  listWebhookEndpoints(): Promise<WebhookEndpointInfo[]>;
   /** Current state of a subscription, or null if Stripe no longer has it. */
   getSubscription(subscriptionId: string): Promise<SubscriptionLike | null>;
   createCheckoutSession(

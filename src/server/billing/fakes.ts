@@ -9,6 +9,7 @@ import type {
   PriceInfo,
   ProfileStore,
   TrialingProfile,
+  WebhookEndpointInfo,
 } from "./ports";
 import type { SubscriptionLike } from "./subscription";
 
@@ -135,6 +136,12 @@ export class FakeStripe implements BillingStripe {
 
   async getPrice(): Promise<PriceInfo> {
     return this.price;
+  }
+
+  webhookEndpoints: WebhookEndpointInfo[] = [];
+
+  async listWebhookEndpoints(): Promise<WebhookEndpointInfo[]> {
+    return this.webhookEndpoints;
   }
 
   /** Current Stripe state by subscription id. Missing means Stripe no longer has it. */

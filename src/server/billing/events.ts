@@ -16,12 +16,15 @@ export class UnresolvedUserError extends Error {
   }
 }
 
-const HANDLED = new Set<string>([
+/** The events the webhook endpoint must be registered for (docs/BILLING.md, step 5). */
+export const HANDLED_EVENT_TYPES = [
   "checkout.session.completed",
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
-]);
+] as const;
+
+const HANDLED = new Set<string>(HANDLED_EVENT_TYPES);
 
 type EventStore = Pick<
   ProfileStore,

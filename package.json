@@ -4,7 +4,7 @@
   "private": true,
   "description": "AskedFor (codename FYB): who to reply to today, what to build next.",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "next dev",

@@ -27,6 +27,15 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
       };
     },
 
+    async listWebhookEndpoints() {
+      const endpoints = await stripe.webhookEndpoints.list({ limit: 100 });
+      return endpoints.data.map((e) => ({
+        url: e.url,
+        status: e.status,
+        enabledEvents: e.enabled_events,
+      }));
+    },
+
     async getSubscription(subscriptionId) {
       try {
         return await stripe.subscriptions.retrieve(subscriptionId);
