@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import type { BillingConfig } from "./config";
-import { TRIAL_DAYS } from "./constants";
+import { BILLING_PATHS, TRIAL_DAYS } from "./constants";
 import type { BillingStripe } from "./ports";
 import { renewalTerms } from "./terms";
 
@@ -59,8 +59,8 @@ export async function createCheckoutSession(args: {
     metadata: { user_id: user.id },
     custom_text: { submit: { message: terms } },
     allow_promotion_codes: false,
-    success_url: `${config.siteUrl}/settings?checkout=success`,
-    cancel_url: `${config.siteUrl}/pricing?checkout=cancelled`,
+    success_url: `${config.siteUrl}${BILLING_PATHS.checkoutSuccess}`,
+    cancel_url: `${config.siteUrl}${BILLING_PATHS.checkoutCanceled}`,
     ...(customerId ? { customer: customerId } : user.email ? { customer_email: user.email } : {}),
     ...(config.managedPayments ? { managed_payments: { enabled: true } } : {}),
   };

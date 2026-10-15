@@ -80,6 +80,8 @@ export interface WebhookEndpointInfo {
 export interface BillingStripe {
   getPrice(priceId: string): Promise<PriceInfo>;
   listWebhookEndpoints(): Promise<WebhookEndpointInfo[]>;
+  /** Events of these types since `since` that some endpoint failed to receive (health check). */
+  countUndeliveredEvents(args: { since: Date; types: readonly string[] }): Promise<number>;
   /** Current state of a subscription, or null if Stripe no longer has it. */
   getSubscription(subscriptionId: string): Promise<SubscriptionLike | null>;
   createCheckoutSession(

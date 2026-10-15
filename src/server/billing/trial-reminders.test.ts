@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { FakeProfileStore, FakeStripe, TEST_CONFIG, subscriptionFixture } from "./fakes";
 import { handleStripeEvent } from "./events";
 import { subscriptionEvent } from "./fakes";
-import { runTrialReminders, selectDueReminders, type Mailer } from "./trial-reminders";
+import { REMINDER_CRON_PERIOD_HOURS } from "./constants";
+import {
+  reminderWindowHours,
+  runTrialReminders,
+  selectDueReminders,
+  type Mailer,
+} from "./trial-reminders";
 
 const HOUR = 3_600_000;
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -20,6 +26,17 @@ class FakeMailer implements Mailer {
   }
 }
 
+describe("reminderWindowHours", () => {
+  it("adds one cron period and an hour of scheduler slack to the 48 hours of notice", () => {
+    expect(reminderWindowHours(24)).toBe(73);
+    expect(reminderWindowHours(1)).toBe(50);
+  });
+
+  it("defaults to the cron period vercel.json deploys", () => {
+    expect(reminderWindowHours()).toBe(reminderWindowHours(REMINDER_CRON_PERIOD_HOURS));
+  });
+});
+
 describe("selectDueReminders", () => {
   const now = new Date("2026-10-18T10:00:00Z");
   const trialing = (hoursLeft: number, cancelAtPeriodEnd = false) => ({
@@ -28,10 +45,11 @@ describe("selectDueReminders", () => {
     cancelAtPeriodEnd,
   });
 
-  it("is due once 48 hours or less remain", () => {
+  it("is due once the charge is within the window", () => {
     const due = selectDueReminders(
       [trialing(72), trialing(48.5), trialing(48), trialing(47), trialing(1)],
       now,
+      48,
     );
     expect(due.map((p) => p.id)).toEqual(["u-48", "u-47", "u-1"]);
   });
@@ -45,8 +63,72 @@ describe("selectDueReminders", () => {
   });
 });
 
-describe("trial reminder, time travel", () => {
+describe("trial reminder on the daily Hobby schedule", () => {
+  const MINUTE = 60_000;
+  const firstDay = Date.parse("2026-10-13T00:00:00Z");
+  /** Minutes past 07:00 UTC for successive days. Hobby fires anywhere within the hour. */
+  const JITTERS = [[0], [59], [0, 59], [59, 0], [17, 42, 3, 58, 30]];
+  /** Trial starts spread across a whole day, every 20 minutes. */
+  const STARTS = Array.from({ length: 72 }, (_, i) => firstDay + i * 20 * MINUTE);
+
+  /** Times the reminder was sent for one trial, with the cron firing daily at 07:00 plus jitter. */
+  async function simulateDaily(start: number, jitter: number[], windowHours: number) {
+    const store = new FakeProfileStore();
+    store.addUser("user-1");
+    const stripe = new FakeStripe();
+    let clock = new Date(start);
+    const mailer = new FakeMailer(() => clock);
+    const trialEnd = Math.floor((start + 7 * 24 * HOUR) / 1000);
+    await handleStripeEvent(
+      subscriptionEvent("created", subscriptionFixture({ trial_end: trialEnd }), iso(start)),
+      { store, stripe },
+    );
+
+    for (let day = 0; day <= 9; day++) {
+      const minutes = jitter[day % jitter.length] ?? 0;
+      const at = firstDay + day * 24 * HOUR + 7 * HOUR + minutes * MINUTE;
+      if (at < start) continue;
+      clock = new Date(at);
+      await runTrialReminders({
+        store,
+        stripe,
+        config: TEST_CONFIG,
+        mailer,
+        getEmail: async () => "maker@example.test",
+        now: clock,
+        windowHours,
+      });
+    }
+    return { sent: mailer.sent.map((m) => m.at.getTime()), chargeAt: trialEnd * 1000 };
+  }
+
+  it.each(JITTERS.map((pattern) => ({ pattern })))(
+    "sends exactly one reminder, at least 48 hours before the charge (jitter $pattern)",
+    async ({ pattern }) => {
+      const window = reminderWindowHours(24);
+      for (const start of STARTS) {
+        const { sent, chargeAt } = await simulateDaily(start, pattern, window);
+        expect(sent, `trial starting ${iso(start)}`).toHaveLength(1);
+        const notice = (chargeAt - sent[0]!) / HOUR;
+        expect(notice, `trial starting ${iso(start)}`).toBeGreaterThanOrEqual(48);
+        expect(notice, `trial starting ${iso(start)}`).toBeLessThanOrEqual(window);
+      }
+    },
+  );
+
+  it("would give less than 48 hours of notice with a plain 48 hour window (why the window widens)", async () => {
+    let shortest = Infinity;
+    for (const start of STARTS) {
+      const { sent, chargeAt } = await simulateDaily(start, [0, 59], 48);
+      for (const at of sent) shortest = Math.min(shortest, (chargeAt - at) / HOUR);
+    }
+    expect(shortest).toBeLessThan(48);
+  });
+});
+
+describe("trial reminder, time travel on the hourly Pro schedule", () => {
   const start = Date.parse("2026-10-13T10:25:00Z");
+  const HOURLY_WINDOW = reminderWindowHours(1);
   let store: FakeProfileStore;
   let stripe: FakeStripe;
   let clock: Date;
@@ -61,6 +143,7 @@ describe("trial reminder, time travel", () => {
       mailer,
       getEmail: async (id) => (id === "user-1" ? "maker@example.test" : null),
       now,
+      windowHours: HOURLY_WINDOW,
     });
   };
 
@@ -83,18 +166,18 @@ describe("trial reminder, time travel", () => {
     );
   });
 
-  it("sends exactly one reminder, 47 to 48 hours before the first charge", async () => {
+  it("sends exactly one reminder, 49 to 50 hours before the first charge", async () => {
     await runHourly(9 * 24);
 
     expect(mailer.sent).toHaveLength(1);
     const chargeAt = start + 7 * 24 * HOUR;
     const hoursBeforeCharge = (chargeAt - mailer.sent[0]!.at.getTime()) / HOUR;
-    expect(hoursBeforeCharge).toBeGreaterThan(47);
-    expect(hoursBeforeCharge).toBeLessThanOrEqual(48);
+    expect(hoursBeforeCharge).toBeGreaterThan(49);
+    expect(hoursBeforeCharge).toBeLessThanOrEqual(50);
   });
 
-  it("sends nothing during the first five days", async () => {
-    await runHourly(5 * 24 - 1);
+  it("sends nothing while the charge is further away than the window", async () => {
+    await runHourly(7 * 24 - HOURLY_WINDOW - 1);
     expect(mailer.sent).toEqual([]);
   });
 
@@ -108,8 +191,8 @@ describe("trial reminder, time travel", () => {
     expect(text).toContain("October 20, 2026");
     expect(text).toContain("every month until you cancel");
     expect(text).toContain("two clicks in Settings");
-    expect(text).toContain("https://app.example.test/settings");
-    expect(html).toContain('href="https://app.example.test/settings"');
+    expect(text).toContain("https://app.example.test/app/settings");
+    expect(html).toContain('href="https://app.example.test/app/settings"');
   });
 
   it("does not remind someone who cancelled before the window", async () => {

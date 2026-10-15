@@ -4,7 +4,7 @@ import { renderTrialReminder } from "./trial-reminder";
 const input = {
   chargeDate: new Date("2026-10-20T15:30:00Z"),
   price: { unitAmount: 2900, currency: "usd", interval: "month" as const },
-  settingsUrl: "https://app.example.test/settings",
+  settingsUrl: "https://app.example.test/app/settings",
 };
 
 describe("renderTrialReminder", () => {

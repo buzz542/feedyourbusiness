@@ -3,8 +3,26 @@
 /** Default: 7-day trial, card required. */
 export const TRIAL_DAYS = 7;
 
-/** Reminder email goes out this long before the first charge (DMCC subscription rules). */
+/** Reminder email goes out at least this long before the first charge (DMCC subscription rules). */
 export const REMINDER_HOURS_BEFORE_CHARGE = 48;
+
+/**
+ * How often the trial-reminder cron runs, in hours. Must match `vercel.json`, which
+ * tests/deploy/vercel-config.test.ts checks: 24 on Vercel Hobby (daily), 1 once the founder
+ * confirms Vercel Pro (hourly). The reminder window widens with the period so the email still
+ * lands at least 48 hours before the charge.
+ */
+export const REMINDER_CRON_PERIOD_HOURS = 24;
+
+/** Allowance for scheduler jitter: Vercel Hobby fires a daily cron anywhere within its hour. */
+export const REMINDER_SCHEDULER_SLACK_HOURS = 1;
+
+/** App paths the billing flow links to (docs/PLAN.md, section 4.2). */
+export const BILLING_PATHS = {
+  settings: "/app/settings",
+  checkoutSuccess: "/app/reply?welcome=1",
+  checkoutCanceled: "/app/billing?checkout=canceled",
+} as const;
 
 /**
  * Subscription statuses that unlock the product. `past_due` is deliberately excluded: the

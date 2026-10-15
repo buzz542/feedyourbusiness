@@ -1,6 +1,11 @@
 import { renderTrialReminder } from "../../../emails/trial-reminder";
 import type { BillingConfig } from "./config";
-import { REMINDER_HOURS_BEFORE_CHARGE } from "./constants";
+import {
+  BILLING_PATHS,
+  REMINDER_CRON_PERIOD_HOURS,
+  REMINDER_HOURS_BEFORE_CHARGE,
+  REMINDER_SCHEDULER_SLACK_HOURS,
+} from "./constants";
 import type { BillingStripe, ProfileStore, TrialingProfile } from "./ports";
 
 export interface Mailer {
@@ -10,16 +15,26 @@ export interface Mailer {
 const HOUR_MS = 3_600_000;
 
 /**
- * Who is due a reminder right now. A reminder is due once the first charge is within the window,
- * and never after the trial has ended. Someone who has already cancelled will not be charged, so
- * they get no reminder. The cron runs hourly, so the email lands 47 to 48 hours before the charge.
+ * How far ahead a reminder becomes due, for a cron that runs every `periodHours`.
+ *
+ * The run before the one that sends saw more than this many hours left, and consecutive runs are at
+ * most `periodHours` plus the scheduler slack apart, so the email always lands at least 48 hours
+ * before the charge: 48 to 73 hours on the daily (Hobby) schedule, 48 to 50 on the hourly one.
+ */
+export function reminderWindowHours(periodHours: number = REMINDER_CRON_PERIOD_HOURS): number {
+  return REMINDER_HOURS_BEFORE_CHARGE + periodHours + REMINDER_SCHEDULER_SLACK_HOURS;
+}
+
+/**
+ * Who is due a reminder right now: the first charge is within the window, and the trial has not
+ * ended. Someone who has already cancelled will not be charged, so they get no reminder.
  */
 export function selectDueReminders(
   trialing: readonly TrialingProfile[],
   now: Date,
-  hoursBefore: number = REMINDER_HOURS_BEFORE_CHARGE,
+  windowHours: number = reminderWindowHours(),
 ): TrialingProfile[] {
-  const windowEnd = now.getTime() + hoursBefore * HOUR_MS;
+  const windowEnd = now.getTime() + windowHours * HOUR_MS;
   return trialing.filter(
     (p) =>
       !p.cancelAtPeriodEnd &&
@@ -42,10 +57,16 @@ export async function runTrialReminders(args: {
   mailer: Mailer;
   getEmail: (userId: string) => Promise<string | null>;
   now: Date;
+  /** Defaults to the window for the deployed cron period. Tests pass other cadences. */
+  windowHours?: number;
 }): Promise<ReminderRunResult> {
   const { store, stripe, config, mailer, getEmail, now } = args;
 
-  const due = selectDueReminders(await store.listTrialingProfilesWithoutReminder(), now);
+  const due = selectDueReminders(
+    await store.listTrialingProfilesWithoutReminder(),
+    now,
+    args.windowHours ?? reminderWindowHours(),
+  );
   const result: ReminderRunResult = { due: due.length, sent: 0, failed: 0, skipped: 0 };
   if (due.length === 0) return result;
 
@@ -72,7 +93,7 @@ export async function runTrialReminders(args: {
           interval: price.interval,
           intervalCount: price.intervalCount ?? 1,
         },
-        settingsUrl: `${config.siteUrl}/settings`,
+        settingsUrl: `${config.siteUrl}${BILLING_PATHS.settings}`,
       });
       await mailer.send({ to, ...email });
       result.sent++;

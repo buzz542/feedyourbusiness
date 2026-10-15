@@ -73,8 +73,8 @@ describe("createCheckoutSession", () => {
     await create();
     const params = stripe.checkoutCalls[0]!;
 
-    expect(params.success_url?.startsWith("https://app.example.test/")).toBe(true);
-    expect(params.cancel_url?.startsWith("https://app.example.test/")).toBe(true);
+    expect(params.success_url).toBe("https://app.example.test/app/reply?welcome=1");
+    expect(params.cancel_url).toBe("https://app.example.test/app/billing?checkout=canceled");
     expect(params.allow_promotion_codes).toBe(false);
   });
 

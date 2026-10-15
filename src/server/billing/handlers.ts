@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isSameOrigin, json, readBodyText } from "@/server/http/respond";
 import { BillingError, createCheckoutSession } from "./checkout";
 import type { BillingConfig } from "./config";
+import { BILLING_PATHS } from "./constants";
 import { handleStripeEvent } from "./events";
 import type { BillingStripe, ProfileStore } from "./ports";
 import { hasLiveSubscription } from "./subscription";
@@ -72,7 +73,7 @@ export function createPortalHandler(deps: BillingDeps): Handler {
       if (!profile?.stripeCustomerId) return json(404, { error: "no_customer" });
       const { url } = await deps.stripe.createPortalSession({
         customerId: profile.stripeCustomerId,
-        returnUrl: `${deps.config.siteUrl}/settings`,
+        returnUrl: `${deps.config.siteUrl}${BILLING_PATHS.settings}`,
       });
       return json(200, { url });
     } catch (error) {

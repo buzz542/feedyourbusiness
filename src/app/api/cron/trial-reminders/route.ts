@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Sends the DMCC reminder 48 hours before a trial turns into a charge. Must run hourly in
- * production (Vercel Pro) for the email to land 47 to 48 hours before the charge. On the Hobby
- * plan vercel.json runs it daily, because Hobby fails any deploy with a more frequent cron.
+ * Sends the DMCC reminder at least 48 hours before a trial turns into a charge. vercel.json runs it
+ * daily on Vercel Hobby (48 to 73 hours of notice) and hourly once the founder confirms Pro (48 to
+ * 50 hours); `REMINDER_CRON_PERIOD_HOURS` must match the schedule, which a deploy test checks.
  */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request, process.env.CRON_SECRET))

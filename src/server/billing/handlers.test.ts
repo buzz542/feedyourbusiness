@@ -130,7 +130,7 @@ describe("portal", () => {
 
     expect(response.status).toBe(200);
     expect(stripe.portalCalls).toEqual([
-      { customerId: "cus_1", returnUrl: "https://app.example.test/settings" },
+      { customerId: "cus_1", returnUrl: "https://app.example.test/app/settings" },
     ]);
   });
 

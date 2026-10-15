@@ -1,10 +1,11 @@
+import Stripe from "stripe";
 import { describe, expect, it, vi } from "vitest";
 import { HANDLED_EVENT_TYPES } from "@/server/billing/events";
 import { TEST_PRICE } from "@/server/billing/fakes";
 import type { PriceInfo, WebhookEndpointInfo } from "@/server/billing/ports";
 import { createHealthHandler, runHealthChecks, type HealthDeps } from "./checks";
 
-const CRON_SECRET = "a-long-random-cron-secret";
+const CRON_SECRET = "a-long-random-cron-secret-of-32-chars-plus";
 const SECRETS = {
   SUPABASE_SECRET_KEY: "sb_secret_supersecretvalue",
   STRIPE_SECRET_KEY: "sk_test_supersecretvalue",
@@ -21,6 +22,7 @@ const GOOD_ENV = {
   STRIPE_PRICE_ID: "price_abc123",
   EMAIL_FROM: "AskedFor <hello@askedfor.app>",
   VERCEL_ENV: "production",
+  VERCEL_PROJECT_PRODUCTION_URL: "askedfor.app",
 };
 
 const GOOD_ENDPOINT: WebhookEndpointInfo = {
@@ -34,11 +36,14 @@ function deps(
     env?: Record<string, string | undefined>;
     price?: PriceInfo | Error;
     endpoints?: WebhookEndpointInfo[] | Error;
+    undelivered?: number | Error;
     ping?: Error;
   } = {},
-): HealthDeps {
+): HealthDeps & { undeliveredCalls: { since: Date; types: readonly string[] }[] } {
+  const undeliveredCalls: { since: Date; types: readonly string[] }[] = [];
   return {
     env: overrides.env ?? GOOD_ENV,
+    now: () => new Date("2026-10-15T12:00:00Z"),
     pingDatabase: vi.fn(async () => {
       if (overrides.ping) throw overrides.ping;
     }),
@@ -51,21 +56,35 @@ function deps(
         if (overrides.endpoints instanceof Error) throw overrides.endpoints;
         return overrides.endpoints ?? [GOOD_ENDPOINT];
       },
+      async countUndeliveredEvents(args) {
+        undeliveredCalls.push(args);
+        if (overrides.undelivered instanceof Error) throw overrides.undelivered;
+        return overrides.undelivered ?? 0;
+      },
     }),
     timeoutMs: 50,
+    undeliveredCalls,
   };
 }
 
 const withEnv = (patch: Record<string, string | undefined>) => ({ ...GOOD_ENV, ...patch });
 
 describe("runHealthChecks", () => {
-  it("passes when Supabase, Stripe, the webhook endpoint and email are all set up", async () => {
+  it("passes when Supabase, Stripe, the webhook endpoint, email and the cron secret are all set up", async () => {
     const report = await runHealthChecks(deps());
     expect(report.ok).toBe(true);
     for (const [name, check] of Object.entries(report.checks))
       expect(check.status, name).toBe("ok");
     expect(Object.keys(report.checks).sort()).toEqual(
-      ["email", "site_url", "stripe_config", "stripe_price", "stripe_webhook", "supabase"].sort(),
+      [
+        "cron_secret",
+        "email",
+        "site_url",
+        "stripe_config",
+        "stripe_price",
+        "stripe_webhook",
+        "supabase",
+      ].sort(),
     );
     expect(report.checks.stripe_config?.detail).toContain("test mode");
   });
@@ -80,6 +99,28 @@ describe("runHealthChecks", () => {
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);
   });
 
+  it("rejects every placeholder value from .env.example", async () => {
+    const env = withEnv({
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_replace_me",
+      RESEND_API_KEY: "re_replace_me",
+      CRON_SECRET: "replace_me_with_a_long_random_string",
+      STRIPE_PRICE_ID: "price_replace_me",
+    });
+    const report = await runHealthChecks(deps({ env }));
+    expect(report.checks.supabase?.status).toBe("invalid");
+    expect(report.checks.email?.status).toBe("invalid");
+    expect(report.checks.cron_secret?.status).toBe("invalid");
+    expect(report.checks.stripe_config?.status).toBe("invalid");
+    expect(report.ok).toBe(false);
+  });
+
+  describe("cron_secret", () => {
+    it("asks for 32 or more characters", async () => {
+      const report = await runHealthChecks(deps({ env: withEnv({ CRON_SECRET: "x".repeat(20) }) }));
+      expect(report.checks.cron_secret?.status).toBe("invalid");
+    });
+  });
+
   describe("site_url", () => {
     it("is missing when NEXT_PUBLIC_SITE_URL is unset", async () => {
       const report = await runHealthChecks(
@@ -89,15 +130,38 @@ describe("runHealthChecks", () => {
       expect(report.checks.site_url?.status).toBe("missing");
     });
 
-    it("is invalid on a Vercel deployment that still points at localhost or plain http", async () => {
-      for (const url of ["http://localhost:3000", "http://askedfor.app"]) {
-        const report = await runHealthChecks(deps({ env: withEnv({ NEXT_PUBLIC_SITE_URL: url }) }));
+    it("is invalid on a Vercel deployment that points at localhost or plain http", async () => {
+      for (const url of ["http://localhost:3000", "https://localhost", "http://askedfor.app"]) {
+        const env = withEnv({ NEXT_PUBLIC_SITE_URL: url, VERCEL_ENV: "preview" });
+        const report = await runHealthChecks(deps({ env }));
         expect(report.checks.site_url?.status, url).toBe("invalid");
       }
     });
 
+    it("is invalid in production when the domain is not attached to this project yet", async () => {
+      const env = withEnv({ VERCEL_PROJECT_PRODUCTION_URL: "askedfor.vercel.app" });
+      const report = await runHealthChecks(deps({ env }));
+      expect(report.checks.site_url?.status).toBe("invalid");
+      expect(report.checks.site_url?.detail).toContain("askedfor.vercel.app");
+    });
+
+    it("accepts the www twin of the production domain", async () => {
+      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://www.askedfor.app" });
+      const report = await runHealthChecks(
+        deps({
+          env,
+          endpoints: [{ ...GOOD_ENDPOINT, url: "https://www.askedfor.app/api/billing/webhook" }],
+        }),
+      );
+      expect(report.checks.site_url?.status).toBe("ok");
+    });
+
     it("accepts localhost in local development", async () => {
-      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "http://localhost:3000", VERCEL_ENV: undefined });
+      const env = withEnv({
+        NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+        VERCEL_ENV: undefined,
+        VERCEL_PROJECT_PRODUCTION_URL: undefined,
+      });
       const report = await runHealthChecks(deps({ env }));
       expect(report.checks.site_url?.status).toBe("ok");
     });
@@ -166,15 +230,18 @@ describe("runHealthChecks", () => {
       expect(report.checks.stripe_price?.detail).toBe("2900 usd every 1 month");
     });
 
-    it("reports a Stripe API failure by error class only", async () => {
-      class StripeAuthenticationError extends Error {
-        override name = "StripeAuthenticationError";
-      }
-      const report = await runHealthChecks(deps({ price: new StripeAuthenticationError("x") }));
+    it("reports a real Stripe SDK error by class and code, never its message", async () => {
+      const error = new Stripe.errors.StripeAuthenticationError({
+        message: `Invalid API Key provided: ${SECRETS.STRIPE_SECRET_KEY}`,
+        code: "api_key_expired",
+      });
+      expect(error.name).toBe("Error"); // the class lives in `type`, which is why the check reads it
+      const report = await runHealthChecks(deps({ price: error }));
       expect(report.checks.stripe_price).toEqual({
         status: "error",
-        detail: "StripeAuthenticationError",
+        detail: "StripeAuthenticationError (api_key_expired)",
       });
+      expect(JSON.stringify(report)).not.toContain(SECRETS.STRIPE_SECRET_KEY);
     });
   });
 
@@ -185,11 +252,31 @@ describe("runHealthChecks", () => {
       expect(report.checks.stripe_webhook?.status).toBe("missing");
     });
 
+    it("matches a host that differs only in case or a default port", async () => {
+      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://AskedFor.app" });
+      const endpoint = { ...GOOD_ENDPOINT, url: "https://askedfor.app:443/api/billing/webhook" };
+      const report = await runHealthChecks(deps({ env, endpoints: [endpoint] }));
+      expect(report.checks.stripe_webhook?.status).toBe("ok");
+    });
+
+    it("names a near miss: a trailing slash makes Next redirect, which Stripe counts as a failure", async () => {
+      const endpoint = { ...GOOD_ENDPOINT, url: "https://askedfor.app/api/billing/webhook/" };
+      const report = await runHealthChecks(deps({ endpoints: [endpoint] }));
+      expect(report.checks.stripe_webhook?.status).toBe("invalid");
+      expect(report.checks.stripe_webhook?.detail).toContain("trailing slash");
+    });
+
     it("is invalid when the endpoint is disabled", async () => {
       const report = await runHealthChecks(
         deps({ endpoints: [{ ...GOOD_ENDPOINT, status: "disabled" }] }),
       );
       expect(report.checks.stripe_webhook?.status).toBe("invalid");
+    });
+
+    it("flags two enabled endpoints at the same URL, since only one signing secret can match", async () => {
+      const report = await runHealthChecks(deps({ endpoints: [GOOD_ENDPOINT, GOOD_ENDPOINT] }));
+      expect(report.checks.stripe_webhook?.status).toBe("invalid");
+      expect(report.checks.stripe_webhook?.detail).toContain("2 enabled endpoints");
     });
 
     it("names the events the endpoint does not send", async () => {
@@ -204,6 +291,23 @@ describe("runHealthChecks", () => {
         deps({ endpoints: [{ ...GOOD_ENDPOINT, enabledEvents: ["*"] }] }),
       );
       expect(report.checks.stripe_webhook?.status).toBe("ok");
+    });
+
+    it("catches a wrong signing secret through recent undelivered events", async () => {
+      const d = deps({ undelivered: 3 });
+      const report = await runHealthChecks(d);
+      expect(report.checks.stripe_webhook?.status).toBe("invalid");
+      expect(report.checks.stripe_webhook?.detail).toContain("STRIPE_WEBHOOK_SECRET");
+      expect(d.undeliveredCalls[0]?.types).toEqual([...HANDLED_EVENT_TYPES]);
+      expect(d.undeliveredCalls[0]?.since.toISOString()).toBe("2026-10-08T12:00:00.000Z");
+    });
+
+    it("explains a restricted key that cannot read webhook endpoints", async () => {
+      const error = new Stripe.errors.StripePermissionError({ message: "no access" });
+      const report = await runHealthChecks(deps({ endpoints: error }));
+      expect(report.checks.stripe_webhook?.status).toBe("error");
+      expect(report.checks.stripe_webhook?.detail).toContain("StripePermissionError");
+      expect(report.checks.stripe_webhook?.detail).toContain("Webhook Endpoints");
     });
   });
 
@@ -233,10 +337,19 @@ describe("createHealthHandler", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it("does not run checks for a wrong secret", async () => {
+  it("answers 401 to a wrong secret instead of looking healthy", async () => {
     const run = vi.fn();
     const handler = createHealthHandler({ cronSecret: CRON_SECRET, run });
-    await handler(request({ authorization: "Bearer not-the-right-secret" }));
+    const response = await handler(request({ authorization: "Bearer not-the-right-secret" }));
+    expect(response.status).toBe(401);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("answers 401 when the server's secret is too short for the cron to work at all", async () => {
+    const run = vi.fn();
+    const handler = createHealthHandler({ cronSecret: "short-secret", run });
+    const response = await handler(request({ authorization: "Bearer short-secret" }));
+    expect(response.status).toBe(401);
     expect(run).not.toHaveBeenCalled();
   });
 

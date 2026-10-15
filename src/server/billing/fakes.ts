@@ -144,6 +144,12 @@ export class FakeStripe implements BillingStripe {
     return this.webhookEndpoints;
   }
 
+  undeliveredEvents = 0;
+
+  async countUndeliveredEvents(): Promise<number> {
+    return this.undeliveredEvents;
+  }
+
   /** Current Stripe state by subscription id. Missing means Stripe no longer has it. */
   subscriptions = new Map<string, SubscriptionLike>();
   failNextRetrieve = false;

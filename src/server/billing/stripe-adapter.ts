@@ -36,6 +36,16 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
       }));
     },
 
+    async countUndeliveredEvents({ since, types }) {
+      const page = await stripe.events.list({
+        delivery_success: false,
+        created: { gte: Math.floor(since.getTime() / 1000) },
+        types: [...types],
+        limit: 100,
+      });
+      return page.data.length;
+    },
+
     async getSubscription(subscriptionId) {
       try {
         return await stripe.subscriptions.retrieve(subscriptionId);
