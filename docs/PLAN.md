@@ -25,7 +25,8 @@ Who to reply to today. What your rivals get wrong. What to build next.
    with fakes and fixtures, leave the box open, and list it in your end-of-milestone summary.
 5. Missing secrets never block building. Every external service sits behind a port with a fake. When a
    key is missing, finish the code and tests, and leave the live check for the founder (section 16).
-6. Decisions D1 to D12 below are approved. Do not reopen them. Anything this plan does not cover that
+6. Decisions D1 to D12 below are approved once the founder hands this plan to a build session (see the
+   status line). Do not reopen them. Anything this plan does not cover that
    touches data sources, stored fields, retention, billing, pricing, public claims, processors, cookies,
    analytics or a new outbound host: stop and ask.
 7. Database changes: write and pass the PGlite test, apply the migration to the development project
@@ -61,7 +62,8 @@ Then, per milestone, paste its `/goal` line from `docs/TASKS.md`.
 
 ## 1. Decisions
 
-Approved by the founder. Do not reopen them.
+Approved once the founder hands this plan to a build session (see the status line). Do not reopen them.
+Changing section 1 or 2 needs the founder's approval; `tests/docs/prd.test.ts` pins both.
 
 - **D1. Route C for data.** Reddit is collected through a contracted data vendor's REST API (default Bright Data, Web Scraper API, Reddit posts dataset). X is collected only through the official X API v2, off by default. Hacker News and Bluesky through their official APIs. LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube and Discord stay search-links only. Product Hunt is not accessed. _Supersedes: Brief: "no scraping services", "Reddit is never collected", "X phase 2"._
 - **D2. Three tabs: Reply, Rivals, Build.** Reply matches the lead-feed products on function. Rivals is new: what tracked competitors and other tools in the space get wrong, and who wants to switch. Build keeps the weekly themes and "what to build next". _Supersedes: Brief: two tabs._
@@ -103,16 +105,21 @@ These override everything else in this plan. If a feature cannot be built within
    automated interactions, a monitored public contact email).
 5. LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube and Discord are never collected, by us or by a
    vendor. They get search links the user opens. Product Hunt is never accessed.
-6. No scraping SDKs, vendor SDKs, headless browsers or stealth tools in the repo. `compliance/denylist.json`
-   is unchanged by route C. Playwright stays a dev dependency for localhost E2E only.
-7. Every vendor is a processor: signed DPA, recorded transfer mechanism, listed in the privacy notice and
-   on the sources page before its kill switch is turned on in production.
+6. No scraping SDKs, vendor SDKs, headless browsers or stealth tools in the repo. The package lists in
+   `compliance/denylist.json` are unchanged by route C (its copy phrases grew, to block claims that hide the
+   data provider). Playwright stays a dev dependency for localhost E2E only.
+7. Every vendor is a processor. Before its kill switch is turned on in production: a signed DPA, a recorded
+   transfer mechanism, a DPIA covering the vendor collection signed off by the founder, and the vendor named
+   in the privacy notice and on the sources page (M3 ships a minimal version of both).
 8. Every collect source has a kill switch (`SOURCE_<ID>_ENABLED`, default off), a per-product daily budget
    recorded in `usage_ledger` before every paid call, and paid sources also have a global monthly cap.
 9. A vendor is used only for the platform it is contracted for. Each source's `ctx.fetch` is bound to that
    source's own `allowedHosts`, and the Reddit module calls only the vendor paths and dataset ids pinned in
    its code (the Reddit posts datasets); any other dataset id is refused before a request is made, whatever
-   the env says. The vendor's host may appear only in `src/sources/reddit*.ts`. Planted tests prove each.
+   the env says. Any vendor path that is not pinned (for example a general unlocking or search API on the
+   same host) is refused too, and only the `reddit` source may declare `access: "vendor_api"`. The vendor's
+   host appears only in `src/sources/reddit*.ts`; other modules import its constant from there. Planted tests
+   prove each.
 10. The user's own site (`fetchOwnSite()`) and the instant preview refuse every platform host (Reddit, X,
     LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube, Discord, Bluesky, Hacker News, Product Hunt,
     Indie Hackers and their subdomains), from one shared list, so neither becomes a way to fetch a platform.
@@ -132,24 +139,27 @@ These override everything else in this plan. If a feature cannot be built within
    emails or titles beyond what fits in the excerpt.
 2. Vendor and API payloads are parsed with zod at the adapter boundary and reduced to those fields in
    memory. Raw payloads are never stored and never logged.
-3. Only posts the classifier rates relevant (relevance 40 or more) are stored. Everything else is
-   discarded in memory.
-4. Retention per D4, enforced by a database check constraint. A daily purge deletes expired posts and
-   clears example ids from aggregates. Aggregates hold no names and no quotes.
+3. Only posts the classifier rates relevant (relevance 40 or more) are stored or shown, the instant preview
+   included. Everything else is discarded in memory.
+4. Retention per D4, enforced by a database check constraint. Reads exclude rows past `delete_after`, and
+   the purge (every tick on Vercel Pro, daily before that) deletes them and clears example ids from
+   aggregates. Aggregates hold no names and no quotes.
 5. Every write path checks the suppression list in the same statement that inserts (`ingest_post`).
    Removal requests are handled within 30 days (target 72 hours); the admin action deletes and suppresses
    in one click and writes the audit log.
 6. Deletion sync: Hacker News and Bluesky posts deleted at the source are deleted here within a day. X
    posts follow X's compliance rules (section 7.6). Reddit posts are re-checked once through the vendor
    about 72 hours after collection and deleted here if they are gone or removed at the source; their 7-day
-   retention bounds the rest. The DPIA records the remaining gap (a post deleted after the re-check stays
-   until day 7).
+   retention bounds the rest. Re-checks run before new collection, outside the per-product daily budget,
+   with 10 percent of the monthly vendor cap held back for them. The DPIA records the remaining gap (a post
+   deleted after the re-check stays until day 7). Turning the re-check off needs the DPIA and the privacy
+   notice updated first.
 7. Never infer or tag sensitive traits (health, politics, religion, sexuality, ethnicity, and similar).
    No prompt asks for them and no output schema has a field for them. Because a community name next to an
    author hash can reveal such a trait, posts from Reddit communities about health, sexuality, religion,
    politics, ethnicity or similar special-category topics are dropped before classification and storage
-   (`src/sources/sensitive-communities.ts`: a reviewed list plus name patterns), and the onboarding draft
-   never suggests such subreddits. Reddit posts made on a user's profile (community `u_<name>`, or a URL
+   (`src/sources/sensitive-communities.ts`: a list plus name patterns, reviewed by the founder before Reddit
+   is switched on and in launch week), and the onboarding draft never suggests such subreddits. Reddit posts made on a user's profile (community `u_<name>`, or a URL
    under `/user/` or `/u/`) are dropped too, because they carry the username.
 8. Row-level security on every table, explicit grants, `anon` gets nothing, secrets server-side only,
    append-only audit log for admin actions.
@@ -164,8 +174,9 @@ These override everything else in this plan. If a feature cannot be built within
     snapshot retention in the DPA, `docs/legal/processors.md` and the privacy notice. Public retention claims
     say "deleted from AskedFor".
 13. Committed test fixtures are synthetic or scrubbed: invented authors and text, never a real person's
-    username, id or post. Fixture capture from a live API writes to the git-ignored `fixtures-local/` and is
-    run by the founder.
+    username, id or post. A live capture is run by the founder on their own machine: the script writes to the
+    git-ignored `fixtures-local/`, checks the response against the schema there, prints pass or fail and the
+    field names only, then deletes the capture. Real responses never enter the build session.
 14. Emails and exports carry links, sources, communities, ages and our own one-line reasons, never post
     excerpts, so retention promises hold outside the database too.
 
@@ -326,7 +337,7 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
 - **People looking to switch:** cards (same component as Reply, with "Say you built it.") for posts with
   switching intent. These are the warmest leads in the product.
 - **What you could fix:** up to 3 opportunities from the weekly synthesis (section 8.4), each with its
-  evidence posts while they are still stored. No quotes and no names, ever.
+  evidence posts while they are still stored, linked with "Say you built it.". No quotes and no names, ever.
 - **Discovered:** tool names mentioned in classified posts that are not tracked, with mention counts and a
   Track button that adds the tool as a competitor and offers "<tool> alternative" as a search term.
 - **Export:** the week's rival report as Markdown.
@@ -336,7 +347,7 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
 - **Themes this week:** up to 8, each with kind (ask, wish, pain), count, trend, a summary in our own
   words, and up to 3 linked excerpts while the posts exist.
 - **Wished it existed** and **What to build next** (up to 3 opportunities across asks, wishes and rival
-  gaps), each with evidence.
+  gaps), each with evidence. Wherever Build links to posts, "Say you built it." is shown.
 - **Week picker** for history. Aggregates are kept after the posts expire.
 - **Export** as Markdown, and the Monday digest (section 11).
 - No author names or handles anywhere in Build or Rivals (none are stored, D5, and summaries are checked).
@@ -738,7 +749,7 @@ one source can never call another source's host. Registry tests to add: vendor s
 | `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 60 minutes), filter, classify, ingest |
 | `first_run`     | once, right after checkout                      | like `collect` for every source, 7-day window, twice the daily budget               |
 | `deletion_sync` | daily, per source                               | Hacker News and Bluesky existence checks; X compliance (7.6)                        |
-| `purge`         | daily                                           | `purge_expired(now)`                                                                |
+| `purge`         | every tick on Pro (daily on Hobby)              | `purge_expired(now)`                                                                |
 | `synthesize`    | Sunday 21:00 UTC                                | Build and Rivals synthesis per product with 5 or more relevant posts that week      |
 | `digest_daily`  | daily, 08:00 Europe/London                      | daily posts email to opted-in users with new posts                                  |
 | `digest_weekly` | Monday, 08:00 Europe/London                     | Monday digest                                                                       |
@@ -766,7 +777,10 @@ mark a job `failed` with the error class; `/admin` shows it.
    `on conflict (product_id, post_id) do nothing`.
 9. `settle_budget` with the actual units and cost; update `term_stats` (fetched, relevant).
 
-The first run is started from the welcome screen after checkout by a server action that enqueues
+Checkout returns to `/app/reply?welcome=1&session_id={CHECKOUT_SESSION_ID}`. The welcome step retrieves that
+Checkout Session server-side, checks its `client_reference_id` is the signed-in user, and applies the billing
+patch before any entitlement check, so a new subscriber is never shown the billing page (or able to start a
+second checkout) while the webhook is still on its way. The first run is then started by a server action that enqueues
 `first_run` (dedupe key `first_run:<product>`) and processes it with `after()`, so results stream in while
 the user watches. The tick finishes anything still pending. On the Hobby plan only the daily cron ticks, so
 a pending vendor run may finish the next morning; that is acceptable before launch (D6).
@@ -794,7 +808,9 @@ a pending vendor run may finish the next morning; that is acceptable before laun
   account's PDS host from the session); list exactly the hosts used, never a wildcard. Unauthenticated public search has been
   returning 403, so do not rely on it.
 - Existence: `app.bsky.feed.getPosts` with up to 25 URIs; missing URIs are deleted here.
-- Link: `https://bsky.app/profile/<did>/post/<rkey>` (DID, never the handle). Author key: the DID.
+- Link: `https://bsky.app/profile/<did>/post/<rkey>` (DID, never the handle). Author key: the DID. A DID is a
+  stable public id that resolves to the handle, so the DPIA and the privacy notice say links carry it.
+- Posts with adult self-labels (`porn`, `sexual`, `nudity`, `graphic-media`) count as NSFW and are dropped.
 - Budget 300 posts per product per day. Read-only: no likes, follows, posts or messages, ever.
 
 ### 7.6 X (official API, off by default)
@@ -813,7 +829,8 @@ a pending vendor run may finish the next morning; that is acceptable before laun
 
 - Provider port `RedditProvider` with one implementation, `brightdata` (`REDDIT_PROVIDER=brightdata`). A
   licensed Reddit feed can replace it later without touching the pipeline.
-- Pinned: the module hard-codes the Reddit posts dataset id(s) and the three paths below.
+- Pinned: the module hard-codes the Reddit posts dataset id(s) and the paths below (plus a snapshot delete
+  path if the API has one). Every other path on the vendor host is refused.
   `BRIGHTDATA_REDDIT_DATASET_ID` must equal a pinned id or the source refuses to start, and a request with
   any other `dataset_id` (for example a LinkedIn or Instagram dataset) is refused before it is sent (2.1.9).
 - Trigger: `POST https://api.brightdata.com/datasets/v3/trigger?dataset_id=<BRIGHTDATA_REDDIT_DATASET_ID>&type=discover_new&discover_by=keyword&include_errors=true`
@@ -838,10 +855,13 @@ a pending vendor run may finish the next morning; that is acceptable before laun
 - Hosts: `api.brightdata.com`; link hosts `www.reddit.com`, `old.reddit.com`.
 - Budget `REDDIT_DAILY_RECORDS_PER_PRODUCT` (default 120), global `BRIGHTDATA_MONTHLY_RECORD_CAP` (default
   20000), cost `BRIGHTDATA_COST_PER_1K` (default 1.50). The founder also sets a spend limit in Bright Data.
+- If the API can limit output fields, the trigger asks only for the mapped fields; if it can delete a
+  snapshot, the snapshot is deleted right after download. Tests assert both requests when the docs confirm
+  the features.
 - Retention 7 days. Deletion re-check (2.3.6): about 72 hours after collection, stored Reddit posts are
-  re-collected by URL through the same pinned dataset, in batches within the budget, and deleted here if
-  gone, deleted or removed (`REDDIT_DELETION_RECHECK`, default `true`). About $1.35 per customer per month
-  at default volumes.
+  re-collected by URL through the same pinned dataset, before new collection and outside the per-product
+  budget (10 percent of the monthly cap is held for re-checks), and deleted here if gone, deleted or removed
+  (`REDDIT_DELETION_RECHECK`, default `true`). About $1.35 per customer per month at default volumes.
 
 ### 7.8 Link sources
 
@@ -1030,8 +1050,8 @@ item); reject handles (`@name`, `u/name`). Opportunities save as themes of kind 
 A lighter draft (name, one-liner, 8 terms), Hacker News and Bluesky only, last 7 days, classified with the
 schema above, top 5 kept, plus one starter theme (`{ title, summary }`, same quote and handle checks). No
 Reddit or X in the preview: they cost money per record. The URL must not be a platform host (2.1.10).
-Results pass the same filters as ingest before they are shown or stored: suppressed authors dropped by hash,
-NSFW dropped, excerpts at most 280 characters, and `preview_runs.result` validated with a zod schema that has
+Results pass the same filters as ingest before they are shown or stored: relevance 40 or more, suppressed
+authors dropped by hash, NSFW dropped, excerpts at most 280 characters, and `preview_runs.result` validated with a zod schema that has
 no author fields (url, source, community, excerpt, category, reason, highlight offsets).
 
 ### 8.6 Evaluation
@@ -1125,18 +1145,22 @@ The plumbing exists and is tested (section 3.1). What remains:
 3. **Settings, Plan and billing:** status in plain words, Cancel (two clicks: the first opens an inline
    confirm with the access-until date, the second calls `POST /api/billing/cancel`), Resume, Update card
    (`POST /api/billing/portal`), a banner for `past_due`.
-4. **Entitlement** checked on every app data page and before any collection.
-5. **Account deletion:** typed confirmation; cancel the Stripe subscription immediately (add `cancelNow`
+4. **Entitlement** checked on every app data page and before any collection, after the welcome step has
+   confirmed a just-completed Checkout Session (7.3).
+5. **Reminder amount:** the trial reminder states the full amount the customer will be charged, tax included
+   where it applies (from Stripe's invoice preview for the subscription when the price is not
+   tax-inclusive).
+6. **Account deletion:** typed confirmation; cancel the Stripe subscription immediately (add `cancelNow`
    to the Stripe port and adapter); delete the auth user with the admin API (cascades every owned row); record
    `account_deleted` in `events` with no user id and in `audit_log`; orphaned posts go at the next purge.
-6. **Export:** JSON of everything the user owns (feed items as links, sources, communities, ages, labels
+7. **Export:** JSON of everything the user owns (feed items as links, sources, communities, ages, labels
    and reasons, never excerpts, 2.3.14), plus Markdown for Build and Rivals.
-7. **Hourly reminders** once Vercel Pro is on (section 13).
-8. **E2E in test mode** without driving Stripe's hosted page (Playwright stays on localhost): assert the
+8. **Hourly reminders** once Vercel Pro is on (section 13). Live billing refuses to start until they are.
+9. **E2E in test mode** without driving Stripe's hosted page (Playwright stays on localhost): assert the
    checkout redirect and its parameters, then complete the subscription with the Stripe API in test mode and
    post a correctly signed event to the local webhook. The founder clicks through real test-mode Checkout
    once (F14).
-9. **Live switch** stays with the founder (`docs/BILLING.md`).
+10. **Live switch** stays with the founder (`docs/BILLING.md`).
 
 ---
 
@@ -1181,8 +1205,13 @@ link-local, and IPv4-mapped forms of them, on every connection including redirec
 https and port 443 only, at most 3 redirects within the same host or its `www` twin, 10 second timeout,
 2 MB body cap, `text/html` or `text/plain` only, no cookies or credentials. It refuses any host for which
 `isPlatformHost()` in `src/server/net/platform-hosts.ts` is true (2.1.10): every platform domain and all its
-subdomains, API hosts included (`api.x.com`, `*.bsky.app`, `bsky.social`, `hn.algolia.com`,
-`hacker-news.firebaseio.com`, the vendor's host), because a user's product site is never one of them. It
+subdomains, API hosts included, because a user's product site is never one of them. The list covers at
+least `reddit.com`, `redd.it`, `redditmedia.com`, `x.com`, `twitter.com`, `t.co`, `linkedin.com`, `lnkd.in`,
+`facebook.com`, `fb.com`, `fb.me`, `instagram.com`, `threads.net`, `threads.com`, `tiktok.com`,
+`youtube.com`, `youtu.be`, `discord.com`, `discord.gg`, `bsky.app`, `bsky.social`, `ycombinator.com`,
+`hn.algolia.com`, `hacker-news.firebaseio.com`, `producthunt.com`, `indiehackers.com`, the vendor's host,
+and the proxies and caches that would reach a platform page indirectly: `translate.goog`,
+`web.archive.org`, `archive.org`, `archive.ph`, `archive.today`, `webcache.googleusercontent.com`. It
 checks the first URL and every redirect, and the user is asked to paste a description instead. The hosts
 test reuses the module's list of platform web hosts. The hosts gate is extended to
 allow `node:https` and `node:dns` in this file only, with a planted-violation test that the same imports
@@ -1234,7 +1263,16 @@ The session drafts these; the founder takes them to a UK solicitor or compliance
 why, lawful basis, retention by source, rights, how to object, the removal form, the ICO), `/terms`
 (subscription, trial, renewal, cancellation, refunds and cooling-off, consent, 18+), `/acceptable-use`,
 `/cookies` (essential only, listed), `/sources`, and internal `docs/legal/` files: `lia.md`, `dpia.md`
-(including vendor collection and the Reddit deletion gap), `ropa.md`, `processors.md`, `breach-plan.md`.
+(including vendor collection, the Reddit deletion gap, DIDs in Bluesky links, the sensitive-community
+filter, and the Article 9(2)(e) condition for health and similar details people disclose in their own public
+posts), `ropa.md`, `processors.md`, `breach-plan.md`.
+
+### 12.10 Pre-launch access
+
+Until the founder says launch, sign-in is limited to the emails in `SIGNUP_ALLOWLIST` (comma-separated):
+anyone else sees "AskedFor is in private beta" and no account is created. Collection runs only for allowed
+accounts. This keeps test-mode Checkout and vendor spend away from strangers while milestones merge to
+production. The launch switch (M9) removes the allowlist check.
 
 ---
 
@@ -1264,40 +1302,42 @@ Claude Code cloud environment for the build session (F12), so tests that need a 
 into the session, and Stripe stays in test mode. Never commit values; `.env.local` is for local work and is
 git-ignored.
 
-| Variable                                     | Value                                             | Vercel   | Session                 | Used from |
-| -------------------------------------------- | ------------------------------------------------- | -------- | ----------------------- | --------- |
-| `NEXT_PUBLIC_SITE_URL`                       | production URL, `https://...` (no trailing slash) | yes      | `http://localhost:3000` | now       |
-| `NEXT_PUBLIC_SUPABASE_URL`                   | `https://hoqbflkszzoojdswbrgy.supabase.co`        | yes      | dev                     | now       |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`       | `sb_publishable_...`                              | yes      | dev                     | now       |
-| `SUPABASE_SECRET_KEY`                        | `sb_secret_...` (server only)                     | yes      | dev                     | now       |
-| `STRIPE_SECRET_KEY`                          | `sk_test_...` until the live switch               | yes      | yes                     | now       |
-| `STRIPE_WEBHOOK_SECRET`                      | `whsec_...` from the endpoint (F11)               | yes      | yes                     | now       |
-| `STRIPE_PRICE_ID`                            | `price_...`                                       | yes      | yes                     | now       |
-| `STRIPE_MANAGED_PAYMENTS`                    | `true`                                            | yes      | yes                     | now       |
-| `BILLING_LIVE_ENABLED`                       | `false` (founder only)                            | yes      | no                      | now       |
-| `RESEND_API_KEY`                             | `re_...`                                          | yes      | optional                | now       |
-| `EMAIL_FROM`                                 | `AskedFor <hello@your-domain>`                    | yes      | optional                | now       |
-| `CRON_SECRET`                                | 32 or more random characters                      | yes      | yes                     | now       |
-| `ANTHROPIC_API_KEY`                          | from the Anthropic Console                        | yes      | yes                     | M2        |
-| `AUTHOR_HASH_PEPPER`                         | 32 or more random characters; never rotate        | yes      | yes                     | M3        |
-| `APP_HMAC_SECRET`                            | 32 or more random characters                      | yes      | yes                     | M3        |
-| `SOURCE_HACKERNEWS_ENABLED`                  | `true` when M3 ships                              | yes      | no                      | M3        |
-| `SOURCE_BLUESKY_ENABLED`                     | `true` after F7                                   | yes      | no                      | M3        |
-| `BLUESKY_IDENTIFIER`, `BLUESKY_APP_PASSWORD` | the AskedFor account and its app password         | yes      | optional                | M3        |
-| `SOURCE_REDDIT_ENABLED`                      | `true` after F8 and the DPA                       | yes      | no                      | M3        |
-| `REDDIT_PROVIDER`                            | `brightdata`                                      | yes      | no                      | M3        |
-| `BRIGHTDATA_API_TOKEN`                       | from Bright Data                                  | yes      | no                      | M3        |
-| `BRIGHTDATA_REDDIT_DATASET_ID`               | `gd_...` (confirm in the dashboard)               | yes      | no                      | M3        |
-| `BRIGHTDATA_COST_PER_1K`                     | `1.50` (your actual rate)                         | yes      | no                      | M3        |
-| `BRIGHTDATA_MONTHLY_RECORD_CAP`              | `20000`                                           | yes      | no                      | M3        |
-| `REDDIT_DAILY_RECORDS_PER_PRODUCT`           | `120`                                             | yes      | no                      | M3        |
-| `REDDIT_DELETION_RECHECK`                    | `true`                                            | yes      | no                      | M3        |
-| `SOURCE_X_ENABLED`                           | `false`                                           | yes      | no                      | M3        |
-| `X_BEARER_TOKEN`                             | only if you turn X on (F18)                       | optional | no                      | M3        |
-| `X_DAILY_READS_PER_PRODUCT`                  | `0`                                               | yes      | no                      | M3        |
-| `LLM_MONTHLY_USD_CAP_PER_PRODUCT`            | `3`                                               | yes      | no                      | M4        |
-| `LLM_DAILY_USD_CAP`                          | `25`                                              | yes      | no                      | M4        |
-| `PREVIEW_DAILY_CAP`                          | `200`                                             | yes      | no                      | M9        |
+| Variable                                     | Value                                                                                                 | Vercel   | Session                 | Used from |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------- | ----------------------- | --------- |
+| `NEXT_PUBLIC_SITE_URL`                       | production URL, `https://...` (no trailing slash)                                                     | yes      | `http://localhost:3000` | now       |
+| `NEXT_PUBLIC_SUPABASE_URL`                   | `https://hoqbflkszzoojdswbrgy.supabase.co`                                                            | yes      | dev                     | now       |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`       | `sb_publishable_...`                                                                                  | yes      | dev                     | now       |
+| `SUPABASE_SECRET_KEY`                        | `sb_secret_...` (server only)                                                                         | yes      | dev                     | now       |
+| `STRIPE_SECRET_KEY`                          | `sk_test_...` until the live switch                                                                   | yes      | yes                     | now       |
+| `STRIPE_WEBHOOK_SECRET`                      | `whsec_...` from the endpoint (F11)                                                                   | yes      | yes                     | now       |
+| `STRIPE_PRICE_ID`                            | `price_...`                                                                                           | yes      | yes                     | now       |
+| `STRIPE_MANAGED_PAYMENTS`                    | `true`                                                                                                | yes      | yes                     | now       |
+| `BILLING_LIVE_ENABLED`                       | `false` (founder only)                                                                                | yes      | no                      | now       |
+| `RESEND_API_KEY`                             | `re_...`                                                                                              | yes      | optional                | now       |
+| `EMAIL_FROM`                                 | `AskedFor <hello@your-domain>`                                                                        | yes      | optional                | now       |
+| `CRON_SECRET`                                | 32 or more random characters                                                                          | yes      | yes                     | now       |
+| `ANTHROPIC_API_KEY`                          | from the Anthropic Console                                                                            | yes      | yes                     | M2        |
+| `AUTHOR_HASH_PEPPER`                         | 32 or more random characters; never rotate                                                            | yes      | dev                     | M3        |
+| `APP_HMAC_SECRET`                            | 32 or more random characters                                                                          | yes      | dev                     | M3        |
+| `SOURCE_HACKERNEWS_ENABLED`                  | `true` when M3 ships                                                                                  | yes      | no                      | M3        |
+| `SOURCE_BLUESKY_ENABLED`                     | `true` after F7                                                                                       | yes      | no                      | M3        |
+| `BLUESKY_IDENTIFIER`, `BLUESKY_APP_PASSWORD` | the AskedFor account and its app password                                                             | yes      | optional                | M3        |
+| `SOURCE_REDDIT_ENABLED`                      | `true` after F8 and the DPA                                                                           | yes      | no                      | M3        |
+| `REDDIT_PROVIDER`                            | `brightdata`                                                                                          | yes      | no                      | M3        |
+| `BRIGHTDATA_API_TOKEN`                       | from Bright Data                                                                                      | yes      | no                      | M3        |
+| `BRIGHTDATA_REDDIT_DATASET_ID`               | `gd_...` (confirm in the dashboard)                                                                   | yes      | no                      | M3        |
+| `BRIGHTDATA_COST_PER_1K`                     | `1.50` (your actual rate)                                                                             | yes      | no                      | M3        |
+| `BRIGHTDATA_MONTHLY_RECORD_CAP`              | `20000`                                                                                               | yes      | no                      | M3        |
+| `BRIGHTDATA_DPA_SIGNED_ON`                   | the date the DPA, transfer mechanism and DPIA were done (2.1.7); production refuses Reddit without it | yes      | no                      | M3        |
+| `REDDIT_DAILY_RECORDS_PER_PRODUCT`           | `120`                                                                                                 | yes      | no                      | M3        |
+| `REDDIT_DELETION_RECHECK`                    | `true`                                                                                                | yes      | no                      | M3        |
+| `SOURCE_X_ENABLED`                           | `false`                                                                                               | yes      | no                      | M3        |
+| `X_BEARER_TOKEN`                             | only if you turn X on (F18)                                                                           | optional | no                      | M3        |
+| `X_DAILY_READS_PER_PRODUCT`                  | `0`                                                                                                   | yes      | no                      | M3        |
+| `LLM_MONTHLY_USD_CAP_PER_PRODUCT`            | `3`                                                                                                   | yes      | no                      | M4        |
+| `LLM_DAILY_USD_CAP`                          | `25`                                                                                                  | yes      | no                      | M4        |
+| `PREVIEW_DAILY_CAP`                          | `200`                                                                                                 | yes      | no                      | M9        |
+| `SIGNUP_ALLOWLIST`                           | comma-separated emails allowed to sign in before launch (12.10)                                       | yes      | dev                     | M1        |
 
 Link-source kill switches (`SOURCE_REDDIT_LINKS_ENABLED`, `SOURCE_X_LINKS_ENABLED` and the rest) default on
 and need no value. `.env.example` lists every variable above with a placeholder.
@@ -1312,15 +1352,15 @@ checks that depend on them.
 - **F1. Reconnect the Vercel connector** (now, 5 min). In claude.ai, Settings, Connectors, Vercel: reconnect and grant access to your "buzz542's projects" scope. Today the connector can list projects but is refused for that scope, so Claude cannot see deployments or logs.
 - **F2. Upgrade Vercel to Pro** (before M3; required before launch). Your account shows a Pro trial is available. Hobby is for non-commercial use only and refuses crons that run more than once a day. Then tell Claude "Vercel Pro is on".
 - **F3. Import the repo into Vercel** (before M1, 15 min). Add New, Project, import `buzz542/feedyourbusiness`, name it `askedfor`, framework Next.js, deploy. Then Settings, Git: set the Production Branch to `claude/askedfor-foundations`. Then add the "Vercel" variables from section 14 that you have, and redeploy. Functions run in London (`lhr1`) because of `vercel.json`. Do not set `SOURCE_REDDIT_ENABLED` before F8: it now switches on paid Reddit collection (the Reddit search links are `SOURCE_REDDIT_LINKS_ENABLED`).
-- **F4. Create the Supabase secret key** (before M1, 5 min). Project `askedfor`, Project Settings, API Keys, Secret keys: create one named `vercel`. Put it in Vercel and in the session as `SUPABASE_SECRET_KEY`.
+- **F4. Create the Supabase secret key** (before M1, 5 min). Project `askedfor`, Project Settings, API Keys, Secret keys: create one named `vercel`. Put it in Vercel only, as `SUPABASE_SECRET_KEY`. The build session and `.env.local` use the development project's key (F12).
 - **F5. Set up Supabase Auth** (before M1, 20 min). URL Configuration: Site URL is your production URL; Redirect URLs are `<production>/auth/callback`, `http://localhost:3000/auth/callback` and `https://*-buzz542s-projects.vercel.app/auth/callback`. Google provider: create a Web OAuth client in Google Cloud with the redirect URI `https://hoqbflkszzoojdswbrgy.supabase.co/auth/v1/callback`, and paste its id and secret. After F6, SMTP: host `smtp.resend.com`, port 465, user `resend`, password a Resend API key, sender your `EMAIL_FROM`. Magic link subject: "Your AskedFor sign-in link".
 - **F6. Set up Resend** (before M5). Add and verify your sending domain (needs F10), create a sending API key, set `RESEND_API_KEY` and `EMAIL_FROM`.
 - **F7. Create the AskedFor Bluesky account** (before M3). Put a monitored contact email in its bio, create an app password, set `BLUESKY_IDENTIFIER` and `BLUESKY_APP_PASSWORD`, then `SOURCE_BLUESKY_ENABLED=true`.
-- **F8. Set up Bright Data** (before M3, for Reddit). Business account, their compliance review, accept their DPA and keep a copy, ask how long they keep snapshots and whether output fields can be limited, add funds, set a spend limit and alerts, create an API token, confirm the Reddit posts dataset id. Set the `BRIGHTDATA_*` variables in Vercel only. Run `scripts/capture-brightdata-fixture.ts` once on your machine (it writes to the git-ignored `fixtures-local/`). Then `SOURCE_REDDIT_ENABLED=true` once the privacy notice names Bright Data.
+- **F8. Set up Bright Data** (before M3, for Reddit). Business account, their compliance review, accept their DPA and keep a copy, ask how long they keep snapshots and whether output fields can be limited, add funds, set a spend limit and alerts, create an API token, confirm the Reddit posts dataset id. Set the `BRIGHTDATA_*` variables in Vercel only. In Bright Data, create no Web Unlocker, SERP or Scraping Browser products, restrict the token to the Web Scraper API if they allow it, and get written confirmation that the Reddit dataset collects only logged-out public pages. Run `scripts/capture-brightdata-fixture.ts` once on your machine: it checks a real response against the schema locally, prints pass or fail and the field names, and deletes the capture. Then set `BRIGHTDATA_DPA_SIGNED_ON` to that date and `SOURCE_REDDIT_ENABLED=true`, only when 2.1.7 holds: DPA signed, transfer mechanism recorded, DPIA covering the vendor signed, and Bright Data named in the privacy notice and on the sources page.
 - **F9. Ask Reddit for licensed access** (now, before 31 Oct 2026). Request commercial Data API access through Reddit's developer platform and describe this use honestly: read-only, excerpts with links back, 7-day retention, no model training. Reddit stops taking new public API access requests on 31 Oct 2026. Keep the reply.
-- **F10. Trademark search, then the domain** (before M5, because Resend needs the domain for F6). Search "AskedFor" at the UK IPO, EUIPO and USPTO (classes 9, 35, 42). Then buy `askedfor.app` (and `askedfor.dev` as a redirect), add it in Vercel, Domains, and set `NEXT_PUBLIC_SITE_URL`.
+- **F10. Trademark search, then the domain** (before M5, because Resend needs the domain for F6). Search "AskedFor" at the UK IPO, EUIPO and USPTO (classes 9, 35, 42). Then buy `askedfor.app` (and `askedfor.dev` as a redirect), add it in Vercel, Domains, and set `NEXT_PUBLIC_SITE_URL` to the primary domain, the one that does not redirect (Stripe's webhook and every email link use it).
 - **F11. Set up Stripe in test mode** (before M8). Follow `docs/BILLING.md` steps 1 to 6: authorize the Stripe connector or use the Dashboard, confirm Managed Payments eligibility, create the product and the $29 monthly price (tax-inclusive if Managed Payments allows it, so the price shown is the price paid), enable the customer portal for card updates, add the webhook endpoint `<production>/api/billing/webhook` with the four events, set the `STRIPE_*` variables. Check with section 16.
-- **F12. Configure the Claude Code environment** (before M1, 15 min). First create a free Supabase project for development (for example `askedfor-dev`; or reuse the old `buzz542's Project` in `eu-west-1` if it holds nothing you need). Then, in the cloud environment menu in the session's title bar, Edit: add the "Session" variables from section 14 as environment variables, never in the chat, using the development project's Supabase URL and keys (never the production secret key) and Stripe test keys. Network access: allow `api.anthropic.com`, `api.stripe.com`, your development project's `*.supabase.co` host, `hn.algolia.com`, `hacker-news.firebaseio.com` and `bsky.social`, and keep package managers allowed.
+- **F12. Configure the Claude Code environment** (before M1, 15 min). First create a free Supabase project for development (for example `askedfor-dev`; or reuse the old `buzz542's Project` in `eu-west-1` if it holds nothing you need). Then, in the cloud environment menu in the session's title bar, Edit: add the "Session" variables from section 14 as environment variables, never in the chat, using the development project's Supabase URL and keys (never the production secret key) and Stripe test keys. Network access: allow `api.stripe.com` and your development project's `*.supabase.co` host, and keep package managers allowed. Add `api.anthropic.com` only if you want the session to run model checks with your key while you watch. The session never needs the sources' hosts: its tests use synthetic fixtures.
 - **F13. Create the Anthropic API key** (before M2). In the Anthropic Console, create a key for AskedFor, set a monthly spend limit, and set `ANTHROPIC_API_KEY` in Vercel and the session.
 - **F14. Click through test mode yourself** (M8). In a browser: sign up, onboard, pay with a Stripe test card in Checkout, see the trial in Settings, cancel in two clicks, resume, delete a test account.
 - **F15. Legal** (before taking money). Solicitor review of the drafts in 12.9, ICO fee paid, LIA and DPIA signed off, DPAs signed with every processor in 12.4, trading name, address and email in the footer, HMRC registration if needed.
@@ -1343,15 +1383,18 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://YOUR-DEPLOYMENT/api/hea
 # 401 means the secret did not match, or CRON_SECRET on the server is unset or under 16 characters
 ```
 
-| Check            | Not ok means                                                                          | Fix                                     |
-| ---------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
-| `site_url`       | `NEXT_PUBLIC_SITE_URL` missing, or not this deployment's https URL                    | set it in Vercel, redeploy              |
-| `supabase`       | a key is missing, the URL is another project, or the query failed (error class shown) | F4; check the URL; check migrations ran |
-| `stripe_config`  | Stripe variables missing or malformed, or a live key while live billing is locked     | F11                                     |
-| `stripe_price`   | the price is missing, inactive or not recurring                                       | F11 step 3                              |
-| `stripe_webhook` | no endpoint at `<site>/api/billing/webhook`, disabled, or missing events (named)      | F11 step 5                              |
-| `email`          | Resend variables missing, or `EMAIL_FROM` still a placeholder                         | F6                                      |
-| `cron_secret`    | `CRON_SECRET` shorter than 32 characters, or still the `.env.example` placeholder     | set a long random value, redeploy       |
+| Check            | Not ok means                                                                                                                                                                                                        | Fix                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `site_url`       | `NEXT_PUBLIC_SITE_URL` missing, or not this deployment's https URL                                                                                                                                                  | set it in Vercel, redeploy                                                                           |
+| `supabase`       | a key is missing, the URL is another project, or the query failed (error class shown)                                                                                                                               | F4; check the URL; check migrations ran                                                              |
+| `stripe_config`  | Stripe variables missing or malformed, or a live key while live billing is locked                                                                                                                                   | F11                                                                                                  |
+| `stripe_price`   | the price is missing, inactive or not recurring                                                                                                                                                                     | F11 step 3                                                                                           |
+| `stripe_webhook` | no endpoint at `<site>/api/billing/webhook`, a near miss that redirects (trailing slash, `http://`, the other `www` form), disabled, duplicated, missing events, or billing events undelivered in the last 24 hours | F11 step 5; register exactly the URL shown; check `STRIPE_WEBHOOK_SECRET`, then resend failed events |
+| `email`          | Resend variables missing, or `EMAIL_FROM` still a placeholder                                                                                                                                                       | F6                                                                                                   |
+| `cron_secret`    | `CRON_SECRET` shorter than 32 characters, or still the `.env.example` placeholder                                                                                                                                   | set a long random value, redeploy                                                                    |
+
+`NEXT_PUBLIC_SITE_URL` must be the primary domain, the one that does not redirect: if the apex redirects to
+`www` (or the reverse), Stripe's deliveries to the redirecting one fail.
 
 Use the production URL: Vercel protects preview deployments with Vercel Authentication by default, so a
 `curl` to a preview URL gets Vercel's login page instead of the app (and Stripe cannot reach a preview's

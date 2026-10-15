@@ -39,6 +39,7 @@ processors beyond what the plan specifies needs founder approval.
   to `audit_log`, which is append-only.
 - Processors need a signed DPA and a recorded transfer mechanism before they are switched on in production
   (`docs/PLAN.md` 12.4, including Bright Data). A new outbound processor host goes in
-  `src/server/net/hosts.ts` and the privacy notice.
+  `src/server/net/hosts.ts` and the privacy notice. The data vendor is the one exception: its host lives in
+  the Reddit source module (the only file allowed to name it), and the privacy notice names the vendor.
 - Cookies: essential only. Analytics are first-party and cookieless (the `events` table).
 - Do not log request bodies, emails, post text, author ids or Stripe payloads. Log error class names only.

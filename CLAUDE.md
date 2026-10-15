@@ -2,7 +2,7 @@
 
 Who to reply to today. What your rivals get wrong. What to build next. Indie makers get a daily list of public posts worth replying to (Reply tab), what their competitors get wrong (Rivals tab) and the patterns in what people ask for (Build tab). FYB is the internal codename.
 
-The plan, source of truth: `docs/PLAN.md`. Read it in full at the start of a session and re-read the sections for your task after any context reset. Decisions D1 to D12 in it are approved; do not reopen them.
+The plan, source of truth: `docs/PLAN.md`. Read it in full at the start of a session and re-read the sections for your task after any context reset. Decisions D1 to D12 in it are approved once the founder hands the plan to a build session (see its status line); do not reopen them. Sections 1 and 2 of the plan change only with the founder's approval (`tests/docs/prd.test.ts` pins them).
 Tasks: `docs/TASKS.md` (tick boxes as you finish)
 Claims register: `docs/claims.md`
 Billing setup and the live checklist: `docs/BILLING.md`
@@ -84,6 +84,7 @@ When you add a rule or gate, also add a test that plants a violation and expects
 - Change data sources, stored fields, retention, billing, pricing or any public claim beyond what `docs/PLAN.md` specifies.
 - Add a processor, a cookie, analytics, a runtime dependency or an outbound host that `docs/PLAN.md` does not list (sections 5.3, 7, 12.4 and 14).
 - Run a production migration (show the SQL and its passing test; call out anything destructive).
+- Edit `docs/PLAN.md` sections 1 or 2 (decisions and hard rules).
 - Delete production data outside the retention and removal jobs, touch live keys, or switch billing to live.
 - Create a Supabase project, a Stripe object in live mode, or anything else that costs money.
 

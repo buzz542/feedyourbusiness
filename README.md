@@ -27,8 +27,9 @@ See the "Where things are" section in `CLAUDE.md`. Billing setup is in `docs/BIL
 
 ## Rules that never bend
 
-Where posts come from is stated plainly: Hacker News and Bluesky through their official APIs, Reddit through
-a contracted data provider's API, X through its official API when it is switched on. Never posting or
-replying for users, no AI-written replies, no fake testimonials, minimum data stored, no author handles, raw
-posts deleted after 7 days (Reddit, X) or 30 days (the rest). They are enforced by CI gates and Claude Code
-hooks, not by good intentions. See `docs/PLAN.md`, section 2.
+Where posts come from is stated plainly: Hacker News and Bluesky through their official APIs, Reddit through a
+web data company that collects public Reddit pages for us (not a data license from Reddit), X through its
+official API when it is switched on. Never posting or replying for users, no AI-written replies, no fake
+testimonials, minimum data stored, no author handles, raw posts deleted after 7 days (Reddit, X) or 30 days
+(the rest). They are enforced by CI gates and Claude Code hooks, not by good intentions. See `docs/PLAN.md`,
+section 2.
