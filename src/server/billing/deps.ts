@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
-import { createSupabaseServerClient } from "@/server/supabase/server";
+import { getSessionUser } from "@/server/auth/session";
 import { loadBillingConfig } from "./config";
 import type { BillingDeps } from "./handlers";
 import { createStripeAdapter } from "./stripe-adapter";
@@ -24,12 +24,8 @@ function core() {
 export function getBillingDeps(): BillingDeps {
   return {
     ...core(),
-    async getUser() {
-      const supabase = await createSupabaseServerClient();
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) return null;
-      return { id: data.user.id, email: data.user.email ?? null };
-    },
+    // Same check as every page: a session off the pre-launch allowlist is signed out (12.10).
+    getUser: getSessionUser,
   };
 }
 
