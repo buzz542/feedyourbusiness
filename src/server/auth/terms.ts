@@ -17,8 +17,11 @@ export async function acceptTerms(
   userId: string,
   input: unknown,
   now: Date,
-): Promise<{ ok: true } | { ok: false; error: "confirm_both" }> {
+  /** Runs once, the first time this person accepts (records signed_up). */
+  onFirstAcceptance?: () => Promise<unknown>,
+): Promise<{ ok: true; first: boolean } | { ok: false; error: "confirm_both" }> {
   if (!termsInput.safeParse(input).success) return { ok: false, error: "confirm_both" };
-  await store.acceptTermsOnce(userId, now);
-  return { ok: true };
+  const first = await store.acceptTermsOnce(userId, now);
+  if (first && onFirstAcceptance) await onFirstAcceptance();
+  return { ok: true, first };
 }
