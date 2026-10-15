@@ -341,6 +341,18 @@ describe("copy scanner", () => {
     );
   });
 
+  it.each([
+    "We never scrape anything",
+    "No scraping, ever",
+    "Built without scraping",
+    "We don't scrape Reddit",
+    "We don\u2019t scrape Reddit",
+    "We do not scrape",
+    "Official APIs only",
+  ])("flags a claim that hides the data provider (docs/PLAN.md, D12): %s", (phrase) => {
+    expect(rules(scan(`export const A = () => <p>${phrase}</p>;`))).toContain("banned-phrase");
+  });
+
   it("flags competitor names", () => {
     expect(rules(scan(`export const A = () => <p>Better than Ownfeed</p>;`))).toContain(
       "competitor-name",

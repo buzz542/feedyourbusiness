@@ -29,16 +29,20 @@ The full list is `docs/PLAN.md` section 2. The short version:
 
 - All outbound HTTP to sources goes through `safeFetch()` in `src/server/net/`. Only hosts in `src/sources/registry.ts` are allowed, plus `fetchOwnSite()` (`src/server/net/own-site.ts`, M2) for the user's own URL. Processor hosts are in `src/server/net/hosts.ts` and are reached only through their official SDKs.
 - Route C (D1): Reddit only through the contracted data vendor's REST API (Bright Data) called with `safeFetch()`. Never fetch reddit.com yourself, never log in to a platform, never run a browser against a third-party site. X only through the official API, off by default, with a daily budget. Hacker News and Bluesky through their official APIs. LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube and Discord are never collected; Product Hunt is never accessed.
+- The vendor is for Reddit only: each source's `ctx.fetch` is bound to its own hosts, and the Reddit module calls only pinned vendor paths and Reddit dataset ids. `fetchOwnSite()` and the instant preview refuse every platform host.
 - No scraping SDKs, vendor SDKs, headless browsers or stealth tools. A hook and CI block them. Playwright is a dev dependency for localhost E2E only.
 - Never build anything that posts, replies, votes, follows or messages on any platform.
 - No model ever writes reply text. Reply tips are fixed copy; the user writes every word.
 - Store the minimum: excerpt max 280 chars, a keyed hash of the author and no handle, no avatars, bios, follower counts or emails on post tables. Only posts rated relevant are stored. Retention is 7 days for Reddit and X and 30 days for the rest. Every write path respects `delete_after` and the suppression list.
-- Raw vendor and API payloads are never stored and never logged.
+- Raw vendor and API payloads are never stored and never logged. Committed test fixtures are synthetic: invented authors and text, never a real person's post. Live captures go to the git-ignored `fixtures-local/`.
+- Drop Reddit posts from sensitive communities (health, sexuality, religion, politics, ethnicity and similar) and from user profiles before classification and storage.
+- Emails and exports carry links and our own labels, never post excerpts.
 - Rivals and Build never show author names or handles, and their summaries never quote posts.
 - Never infer or store sensitive traits about anyone.
 - Never write fake testimonials, reviews, user counts, badges, logos or "as seen on". Every public claim and every number needs an entry in `docs/claims.md`. Never claim "we don't scrape" or "official APIs only"; say plainly where posts come from.
 - Platform names in text only; no third-party logos in `public/`.
 - No em dashes in UI copy, emails or docs. US English.
+- Show the full price up front, tax included where it applies (no drip pricing).
 - Billing stays in Stripe test mode until the founder unlocks live (`docs/BILLING.md`). Never use or request live keys.
 - Cron schedules stay daily-only until the founder confirms Vercel Pro (D6, `tests/deploy/vercel-config.test.ts`).
 
@@ -51,7 +55,7 @@ The full list is `docs/PLAN.md` section 2. The short version:
 - Kill switch per source (`SOURCE_<ID>_ENABLED`); collect sources default off, link sources default on.
 - Business logic depends on ports with fakes in tests (`src/server/billing/ports.ts` is the pattern). Inject the clock.
 - Route handlers are thin: build deps, call a factory such as `createCheckoutHandler(deps)`, return its response.
-- Database changes are migrations in `supabase/migrations/`, named with the version Supabase recorded. Write the test in `tests/db/` first, then apply (the migrations in `docs/PLAN.md` section 6 are pre-approved), then run the Supabase advisors and fix what they report, then regenerate `src/types/database.ts`.
+- Database changes are migrations in `supabase/migrations/`, named with the version Supabase recorded. Write the test in `tests/db/` first, apply it to the development project and run the Supabase advisors there, then ask the founder before applying it to production (`docs/PLAN.md` section 0, item 7), then regenerate `src/types/database.ts`. The session holds development keys only, never the production secret key.
 - Log error class names only. Never log bodies, emails, post text, author ids or Stripe payloads.
 - Missing secrets never block building: finish the code and tests with fakes, and leave the live check in a `(you)` box.
 
@@ -79,6 +83,7 @@ When you add a rule or gate, also add a test that plants a violation and expects
 
 - Change data sources, stored fields, retention, billing, pricing or any public claim beyond what `docs/PLAN.md` specifies.
 - Add a processor, a cookie, analytics, a runtime dependency or an outbound host that `docs/PLAN.md` does not list (sections 5.3, 7, 12.4 and 14).
+- Run a production migration (show the SQL and its passing test; call out anything destructive).
 - Delete production data outside the retention and removal jobs, touch live keys, or switch billing to live.
 - Create a Supabase project, a Stripe object in live mode, or anything else that costs money.
 

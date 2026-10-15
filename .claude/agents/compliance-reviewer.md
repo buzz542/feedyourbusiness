@@ -12,12 +12,16 @@ You are read-only. Use Bash only for `git diff`, `git log`, `git show`, `git sta
 
 ## Method
 
-1. Read `docs/PLAN.md` sections 1 (decisions D1 to D12) and 2 (hard rules), then `CLAUDE.md`. The plan
-   supersedes `docs/BRIEF.md` where they disagree: route C means Reddit IS collected, but only through the
-   contracted vendor's REST API. Do not flag that as a violation; flag anything outside it.
-2. Get the change: `git diff` against the base the caller names (default
-   `origin/claude/askedfor-foundations...HEAD`), plus `git status` for untracked files. Read every changed
-   file in full, not only the hunks.
+1. Read `docs/PLAN.md` sections 1 (decisions D1 to D12) and 2 (hard rules), then `CLAUDE.md`, then
+   `docs/BRIEF.md` "Hard compliance rules". Route C (D1) makes exactly one exception to the brief's
+   no-scraping rules: Reddit posts collected through the contracted vendor's REST API, on the pinned host,
+   paths and Reddit dataset ids. Everything else in the brief's rules still applies unless the plan states a
+   specific replacement. Flag anything outside that exception, and anything that weakens a rule without a
+   matching decision in the plan.
+2. Get the change: the base or commit range the caller names. If they name none, review uncommitted changes
+   (`git diff HEAD`, `git status`) plus the commits not yet on `origin/claude/askedfor-foundations`; if that
+   is empty too, say so and stop rather than reviewing nothing. Read every changed file in full, not only
+   the hunks.
 3. Walk the checklist below. For each item, either find evidence it holds or report a finding.
 4. Run `npm run compliance` and report anything it prints.
 
@@ -31,24 +35,34 @@ Data sources
   `src/server/net/hosts.ts`?
 - Any request to a platform's own site (reddit.com, redd.it, x.com, linkedin.com and the rest) instead of an
   API or vendor host? Any login, account, cookie or browser used against a third-party site?
-- Any scraping SDK, vendor SDK, headless browser or stealth tool? Any vendor other than the one the plan
-  names, or a vendor used for a platform other than Reddit?
+- Any scraping SDK, scraping service, vendor SDK, unofficial client library, headless browser or stealth
+  tool? Any vendor other than the one the plan names, or a vendor used for a platform other than Reddit?
+- Is each source's `ctx.fetch` bound to its own hosts? Does the Reddit module call only pinned vendor paths
+  and Reddit dataset ids, refusing any other dataset id even from the env? Does the vendor host appear
+  outside `src/sources/reddit*.ts`?
+- Do `fetchOwnSite()` and the instant preview refuse every platform host?
 - LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube or Discord collected rather than linked? Product
   Hunt accessed?
 - X used without the per-product daily budget, without deletion compliance, or on by default?
 - Does every collect source declare access, vendor (if any), termsUrl, allowedHosts, linkHosts,
   dailyBudget, retentionDays and a kill switch that defaults off? Are budgets reserved before paid calls?
-- NSFW and over-18 content dropped for Reddit and X?
+- NSFW and over-18 content dropped for Reddit and X? Reddit profile posts (`u_` communities, `/user/` or
+  `/u/` URLs) and sensitive communities dropped before classification and storage?
+- Committed fixtures synthetic (no real person's username, id or post)? Live captures only in the
+  git-ignored `fixtures-local/`?
 
 Privacy
 
 - New stored field on a post table beyond URL, source, community, time, excerpt (max 280), labels and the
   author hash? Any author handle written anywhere (D5)? Any avatar, bio, follower count or email?
-- Raw vendor or API payloads stored or logged? Author keys logged or returned?
+- Raw vendor or API payloads stored or logged? Author keys logged or returned? Can `authenticated` read
+  `author_hash` or `author_handle`?
+- Post excerpts copied into emails, exports or anything else that outlives the retention window?
 - Posts below the relevance floor stored?
 - Does every write path go through `ingest_post` (suppression) and respect retention (7 days for Reddit and
   X, 30 for the rest)? Is anything able to extend `delete_after`?
-- Are deletion sync and the retention purge intact? Are themes and rival insights free of names and quotes?
+- Are deletion sync (including the Reddit re-check) and the retention purge intact? Are themes and rival
+  insights free of names and quotes?
 - Any author name or handle in Rivals, Build, digests, logs, errors or analytics?
 - Any inference or tagging of sensitive traits, or a schema field or prompt that invites it?
 - New processor, cookie, analytics or tracking not in the plan? Essential cookies only; analytics
@@ -64,7 +78,8 @@ What users can do
 Payments and consumer law
 
 - Merchant of record in place (Managed Payments)? Live mode still locked behind the founder's flags?
-- Price, renewal and cancellation terms shown before checkout? Consent recorded? Tax handled at checkout?
+- Price, renewal and cancellation terms shown before checkout? The full price shown with tax included where
+  it applies (no drip pricing)? Consent recorded?
 - Reminder 48 hours before the first charge? Cancel as easy as sign-up (two clicks)? Hidden charges?
 
 Marketing and copy

@@ -1,7 +1,9 @@
 # AskedFor: build plan (route C)
 
-Status: approved by the founder for execution on 14 Oct 2026. This is the single plan. It supersedes
-`docs/BRIEF.md` and `docs/PRD.md` wherever they disagree; both stay in the repo as history. The task list
+Status: the founder chose route C in conversation with Claude on 14 Oct 2026 ("we will go with C") and
+asked for this plan to hand to a new Claude Code session; Claude wrote it at the founder's request. Handing
+it to the build session is the founder's approval of decisions D1 to D12. It supersedes `docs/BRIEF.md` and
+`docs/PRD.md` wherever they disagree; both stay in the repo as history. The task list
 with checkboxes and acceptance tests is `docs/TASKS.md`, which follows this plan milestone by milestone.
 
 Who to reply to today. What your rivals get wrong. What to build next.
@@ -26,9 +28,11 @@ Who to reply to today. What your rivals get wrong. What to build next.
 6. Decisions D1 to D12 below are approved. Do not reopen them. Anything this plan does not cover that
    touches data sources, stored fields, retention, billing, pricing, public claims, processors, cookies,
    analytics or a new outbound host: stop and ask.
-7. Production database changes: the migrations specified in section 6 are pre-approved (D11). Apply
-   each one to project `hoqbflkszzoojdswbrgy` only after its PGlite test passes, then run the Supabase
-   security and performance advisors and fix what they report, then regenerate `src/types/database.ts`.
+7. Database changes: write and pass the PGlite test, apply the migration to the development project
+   (F12) and run the Supabase security and performance advisors there. Production
+   (`hoqbflkszzoojdswbrgy`) needs the founder: show the SQL and the passing test, ask, and apply only after a
+   yes, then run the advisors again and regenerate `src/types/database.ts`. Destructive statements (a
+   dropped column or table) are called out separately in the question.
 8. Branches: push your work to the branch your session gives you. CI must be green before you call a
    milestone done. If you can push to the default branch (`claude/askedfor-foundations`, which Vercel
    deploys to production), merge each green milestone into it; if you cannot, open a pull request and
@@ -69,7 +73,7 @@ Approved by the founder. Do not reopen them.
 - **D8. No model ever writes reply text.** Reply tips are fixed copy per category. _Supersedes: Brief: "reply tips" (now defined)._
 - **D9. One product per account in v1.** The schema allows more; the UI and a unique index enforce one.
 - **D10. Jobs run on Vercel Cron plus a jobs table.** No Inngest or Trigger.dev in v1.
-- **D11. Pre-approved changes.** The migrations in section 6, the processors in section 12.4, the outbound hosts in section 7, the dependencies in section 5.3 and the env vars in section 14 are approved as specified. Anything else in those categories needs the founder. _Supersedes: CLAUDE.md "Ask before you" (narrowed for these items only)._
+- **D11. Pre-approved changes.** The processors in section 12.4, the outbound hosts in section 7, the dependencies in section 5.3 and the env vars in section 14 are approved as specified. Production migrations are specified in section 6 but each one is applied only after the founder says yes (section 0, item 7). Anything else in those categories needs the founder. _Supersedes: CLAUDE.md "Ask before you" (narrowed for these items only)._
 - **D12. Positioning.** The site never says "we don't scrape" or "official APIs only". It says plainly where posts come from, including that Reddit posts come from a third-party data provider (named in the privacy notice and on the sources page). _Supersedes: Brief: "without scraping" positioning, landing trust section, FAQ._
 
 What the founder accepted with D1, in plain words: Reddit's user agreement does not allow collecting its
@@ -105,6 +109,13 @@ These override everything else in this plan. If a feature cannot be built within
    on the sources page before its kill switch is turned on in production.
 8. Every collect source has a kill switch (`SOURCE_<ID>_ENABLED`, default off), a per-product daily budget
    recorded in `usage_ledger` before every paid call, and paid sources also have a global monthly cap.
+9. A vendor is used only for the platform it is contracted for. Each source's `ctx.fetch` is bound to that
+   source's own `allowedHosts`, and the Reddit module calls only the vendor paths and dataset ids pinned in
+   its code (the Reddit posts datasets); any other dataset id is refused before a request is made, whatever
+   the env says. The vendor's host may appear only in `src/sources/reddit*.ts`. Planted tests prove each.
+10. The user's own site (`fetchOwnSite()`) and the instant preview refuse every platform host (Reddit, X,
+    LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube, Discord, Bluesky, Hacker News, Product Hunt,
+    Indie Hackers and their subdomains), from one shared list, so neither becomes a way to fetch a platform.
 
 ### 2.2 What users can do
 
@@ -129,10 +140,17 @@ These override everything else in this plan. If a feature cannot be built within
    Removal requests are handled within 30 days (target 72 hours); the admin action deletes and suppresses
    in one click and writes the audit log.
 6. Deletion sync: Hacker News and Bluesky posts deleted at the source are deleted here within a day. X
-   posts follow X's compliance rules (section 7.6). Reddit posts cannot be checked without fetching
-   Reddit, so their 7-day retention is the compensating control, recorded in the DPIA.
+   posts follow X's compliance rules (section 7.6). Reddit posts are re-checked once through the vendor
+   about 72 hours after collection and deleted here if they are gone or removed at the source; their 7-day
+   retention bounds the rest. The DPIA records the remaining gap (a post deleted after the re-check stays
+   until day 7).
 7. Never infer or tag sensitive traits (health, politics, religion, sexuality, ethnicity, and similar).
-   No prompt asks for them and no output schema has a field for them.
+   No prompt asks for them and no output schema has a field for them. Because a community name next to an
+   author hash can reveal such a trait, posts from Reddit communities about health, sexuality, religion,
+   politics, ethnicity or similar special-category topics are dropped before classification and storage
+   (`src/sources/sensitive-communities.ts`: a reviewed list plus name patterns), and the onboarding draft
+   never suggests such subreddits. Reddit posts made on a user's profile (community `u_<name>`, or a URL
+   under `/user/` or `/u/`) are dropped too, because they carry the username.
 8. Row-level security on every table, explicit grants, `anon` gets nothing, secrets server-side only,
    append-only audit log for admin actions.
 9. Cookies: essential only (the Supabase auth session). Analytics are first-party and cookieless
@@ -141,18 +159,29 @@ These override everything else in this plan. If a feature cannot be built within
     payloads. Log error class names only.
 11. Before launch: ICO fee, Legitimate Interests Assessment, DPIA (covering vendor collection and
     invisible processing), Article 14 notice linked in every footer, DPAs with every processor.
+12. What the vendor collects and keeps counts too: request only the fields we use if the vendor's API
+    allows it, delete or expire snapshots after download where it allows it, and record the vendor's
+    snapshot retention in the DPA, `docs/legal/processors.md` and the privacy notice. Public retention claims
+    say "deleted from AskedFor".
+13. Committed test fixtures are synthetic or scrubbed: invented authors and text, never a real person's
+    username, id or post. Fixture capture from a live API writes to the git-ignored `fixtures-local/` and is
+    run by the founder.
+14. Emails and exports carry links, sources, communities, ages and our own one-line reasons, never post
+    excerpts, so retention promises hold outside the database too.
 
 ### 2.4 Payments and consumer law
 
-Unchanged from the brief: merchant of record (Stripe Managed Payments), price, renewal and cancellation
-terms before checkout, tax handled by the merchant of record, reminder 48 hours before the first charge,
-cancellation online in two clicks, express consent to start the service during the cancellation period
-(wording per the solicitor), live mode locked until the founder unlocks it (`docs/BILLING.md`).
+As in the brief: a merchant of record (Stripe Managed Payments) handles VAT and sales tax; the full price
+is shown up front, tax included where it applies (no drip pricing); price, renewal and cancellation terms
+appear before checkout; a reminder goes out at least 48 hours before the first charge; cancellation online
+is as easy as signing up (two clicks); express consent to start the service during the cancellation period
+is recorded (wording per the solicitor); live mode stays locked until the founder unlocks it
+(`docs/BILLING.md`).
 
 ### 2.5 Marketing and launch
 
-Unchanged from the brief, plus D12: no fake or AI-written testimonials, reviews, user counts, badges or
-screenshots; example data labeled "Example" with invented handles; no competitor named on the site or in
+As in the brief, plus D12: no fake or AI-written testimonials, reviews, user counts, badges or
+screenshots; example data labeled "Example", invented, and showing no handles; no competitor named on the site or in
 ads; every claim and every number in `docs/claims.md`; no upvote requests; marketing email needs consent
 and an unsubscribe link; never use scraped email addresses.
 
@@ -280,10 +309,11 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
   line "Say you built it." sit next to Open post on every card.
 - **Keyboard:** `j` and `k` move, `o` opens, `s` saves, `r` marks replied, `h` hides, `?` shows the keys.
 - **Search links panel:** for each term, one-tap searches on Reddit, X, LinkedIn, Facebook, Threads and
-  Indie Hackers, opened in the user's browser.
+  Indie Hackers, opened in the user's browser, with the line "Say you built it." above them.
 - **Pagination:** 50 cards per page with "Load more". 200 cards must render in under 1.5 seconds.
 - **Daily email:** "New posts worth replying to" each morning when there are any, on by default, one click
-  to turn off (section 11).
+  to turn off (section 11). It lists source, community, age, category and our one-line reason with a link to
+  the card in the app; it never copies post excerpts (2.3.14).
 
 ### 4.5 Rivals tab
 
@@ -330,6 +360,11 @@ Visible only when `profiles.is_admin` is true (set by the founder in SQL; no API
 
 - **Removal queue:** requests ordered by due date. One click "Delete and suppress" removes matching posts,
   adds the author hash to `suppression`, closes the request, emails the requester and writes `audit_log`.
+  A request with a post link is matched by source and external id, and that post's stored author hash is
+  suppressed. A request with a username is hashed as in 12.5 for Reddit and Hacker News; a Bluesky handle is
+  first resolved to its DID (`com.atproto.identity.resolveHandle`) and an X username to its user id
+  (`GET /2/users/by/username/:username`), through the hosts those sources already allow, because those
+  sources hash the stable id, not the handle.
 - **Source health:** last run per source, failures by error class, budget used today, vendor records this
   month against the cap, kill switch state (read-only).
 - **Costs:** vendor and model spend per day and per product, from `usage_ledger` and `llm_usage`.
@@ -410,8 +445,9 @@ Every function with time logic takes `now`.
 
 ## 6. Data model and migrations
 
-Each migration has a test in `tests/db/` written first, runs in PGlite exactly as in production, and is
-applied to `hoqbflkszzoojdswbrgy` only after its test passes (D11). Name each file with the version
+Each migration has a test in `tests/db/` written first, runs in PGlite exactly as in production, is applied
+to the development project, and reaches `hoqbflkszzoojdswbrgy` only after the founder approves it (section 0,
+item 7). Name each file with the version
 Supabase records. New tables ship with RLS, explicit grants and negative tests (another user's rows,
 columns a user must not write, anon gets nothing). Functions are `security invoker` unless stated, use
 `set search_path = ''`, take `p_now` instead of calling `now()` where time matters, and are executable by
@@ -503,7 +539,11 @@ alter table public.posts add constraint posts_retention_by_source check (
   delete_after <= collected_at + case when source in ('reddit', 'x')
     then interval '7 days' else interval '30 days' end);   -- D4
 alter table public.posts add column community text check (char_length(community) <= 100);
--- author_handle stays in the table but is never written (D5); the ingest function has no parameter for it.
+-- D5, enforced: no handle is ever stored.
+alter table public.posts add constraint posts_no_author_handle check (author_handle is null);
+-- Customers see a post's content, never its author hash (which would link one author's posts).
+revoke select on public.posts from authenticated;
+grant select (id, source, url, excerpt, posted_at, collected_at, community) on public.posts to authenticated;
 
 create table public.jobs (
   id uuid primary key default gen_random_uuid(),
@@ -536,8 +576,8 @@ create table public.term_stats (
 
 Functions (service role only):
 
-- `ingest_post(p_source, p_external_id, p_url, p_excerpt, p_posted_at, p_author_hash, p_community, p_now)
-returns uuid`: returns null without inserting when `(p_author_hash, p_source)` is in `suppression`;
+- `ingest_post(...)` with `p_source, p_external_id, p_url, p_excerpt, p_posted_at, p_author_hash,
+p_community, p_now`, returning a uuid: null without inserting when `(p_author_hash, p_source)` is in `suppression`;
   otherwise inserts with `delete_after = p_now + retention(p_source)` and returns the id; on conflict
   `(source, external_id)` it changes nothing and returns the existing id (retention is never extended).
 - `claim_jobs(p_now, p_limit, p_lease_seconds) returns setof jobs`: `for update skip locked`, picks
@@ -555,7 +595,8 @@ returns uuid`: returns null without inserting when `(p_author_hash, p_source)` i
   closed `removal_requests` 12 months after `handled_at`, `events` older than 13 months and finished
   `jobs` older than 30 days; returns counts.
 
-RLS: `jobs` deny-all; `term_stats` owner-read through the term's product. Tests: retention cap per
+RLS: `jobs` deny-all; `term_stats` owner-read through the term's product. Tests: an author handle cannot be
+written (planted); `authenticated` cannot select `author_hash` or `author_handle`; retention cap per
 source, suppressed author never stored, retention not extended on conflict, two concurrent claims never
 take the same job, budget refuses the call that would cross the limit, purge clears example ids.
 
@@ -684,7 +725,9 @@ interface CollectedPost {
 }
 ```
 
-Registry tests to add: vendor sources declare `vendor`; `retentionDays` is 7 for `reddit` and `x`; no
+Each source gets its own `ctx.fetch`, a `safeFetch` bound to that source's `allowedHosts` only (2.1.9), so
+one source can never call another source's host. Registry tests to add: vendor sources declare `vendor`;
+`retentionDays` is 7 for `reddit` and `x`; no
 `allowedHosts` entry matches a platform's own domain (the existing hosts gate already enforces this); every
 `linkHosts` entry is refused by `safeFetch`. The kill switch for each collect source defaults off.
 
@@ -738,6 +781,7 @@ a pending vendor run may finish the next morning; that is acceptable before laun
 - Hosts: `hn.algolia.com`, `hacker-news.firebaseio.com`; link host `news.ycombinator.com`.
 - Budget 300 items per product per day. Sequential requests, at most 2 per second, a descriptive
   User-Agent with the contact email, back off on 429.
+- Fixtures are synthetic: shaped like the documented responses, with invented authors and text (2.3.13).
 
 ### 7.5 Bluesky (official, free, dedicated account)
 
@@ -747,7 +791,7 @@ a pending vendor run may finish the next morning; that is acceptable before laun
   function invocation, reused across jobs (Bluesky limits session creation per account per day).
 - Search: `app.bsky.feed.searchPosts` with `q`, `sort=latest`, `since`, `limit`, authenticated. Confirm
   against docs.bsky.app which host serves it for an authenticated account (the entryway `bsky.social` or the
-  account's PDS host from the session); list exactly the hosts used. Unauthenticated public search has been
+  account's PDS host from the session); list exactly the hosts used, never a wildcard. Unauthenticated public search has been
   returning 403, so do not rely on it.
 - Existence: `app.bsky.feed.getPosts` with up to 25 URIs; missing URIs are deleted here.
 - Link: `https://bsky.app/profile/<did>/post/<rkey>` (DID, never the handle). Author key: the DID.
@@ -769,6 +813,9 @@ a pending vendor run may finish the next morning; that is acceptable before laun
 
 - Provider port `RedditProvider` with one implementation, `brightdata` (`REDDIT_PROVIDER=brightdata`). A
   licensed Reddit feed can replace it later without touching the pipeline.
+- Pinned: the module hard-codes the Reddit posts dataset id(s) and the three paths below.
+  `BRIGHTDATA_REDDIT_DATASET_ID` must equal a pinned id or the source refuses to start, and a request with
+  any other `dataset_id` (for example a LinkedIn or Instagram dataset) is refused before it is sent (2.1.9).
 - Trigger: `POST https://api.brightdata.com/datasets/v3/trigger?dataset_id=<BRIGHTDATA_REDDIT_DATASET_ID>&type=discover_new&discover_by=keyword&include_errors=true`
   with `Authorization: Bearer <BRIGHTDATA_API_TOKEN>` and a JSON array of inputs
   `{ "keyword", "date", "num_of_posts", "sort_by" }`. Returns `{ "snapshot_id" }`.
@@ -777,18 +824,24 @@ a pending vendor run may finish the next morning; that is acceptable before laun
   5 MB cap.
 - First task of this source (verify, then record the date in the module header): the dataset id for
   "Reddit posts, discover by keyword" (Bright Data's docs listed `gd_lvz8ah06191smkebj4` on 14 Oct 2026),
-  the allowed `date` and `sort_by` values, the record fields, the NSFW field, and the price per 1,000
-  records. If `BRIGHTDATA_API_TOKEN` is available in the session, capture one real response with
-  `scripts/capture-brightdata-fixture.ts` (never in CI) and build the zod schema from it; if not, build from
-  the documented shape and leave "capture a real fixture" as a `(you)` box.
+  the allowed `date` and `sort_by` values, the record fields (including whether comments or other users'
+  names come back, and whether output fields can be limited), the NSFW field, how long Bright Data keeps
+  snapshots and whether they can be deleted after download, and the price per 1,000 records. Build the zod
+  schema and synthetic fixtures from the documented shape. `scripts/capture-brightdata-fixture.ts` writes a
+  real response to the git-ignored `fixtures-local/`; the founder runs it (it costs money), and the session
+  checks the schema against it without committing it.
 - Mapping: `post_id` to external id; `url` must be on `www.reddit.com` or `old.reddit.com` (normalized to
   `https://www.reddit.com/...`, never fetched); title plus description to the excerpt (280); `date_posted`
   to posted time; `community_name` to "r/<name>"; `user_posted` to the author key. Drop error records,
-  NSFW, deleted authors and anything else. Posts only in v1, not comments.
+  NSFW, deleted authors, profile posts (community `u_<name>` or a URL under `/user/` or `/u/`), posts from
+  sensitive communities (2.3.7) and every other field. Posts only in v1, not comments.
 - Hosts: `api.brightdata.com`; link hosts `www.reddit.com`, `old.reddit.com`.
 - Budget `REDDIT_DAILY_RECORDS_PER_PRODUCT` (default 120), global `BRIGHTDATA_MONTHLY_RECORD_CAP` (default
   20000), cost `BRIGHTDATA_COST_PER_1K` (default 1.50). The founder also sets a spend limit in Bright Data.
-- Retention 7 days. No deletion sync (2.3.6).
+- Retention 7 days. Deletion re-check (2.3.6): about 72 hours after collection, stored Reddit posts are
+  re-collected by URL through the same pinned dataset, in batches within the budget, and deleted here if
+  gone, deleted or removed (`REDDIT_DELETION_RECHECK`, default `true`). About $1.35 per customer per month
+  at default volumes.
 
 ### 7.8 Link sources
 
@@ -906,7 +959,8 @@ const Draft = z.object({
 ```
 
 Terms are phrases people actually write ("looking for a tool to", "how do I", "alternative to <rival>"),
-not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist.
+not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist. Suggested subreddits are
+filtered through the sensitive-community list (2.3.7) after the model answers.
 
 ### 8.4 Weekly synthesis (Sonnet)
 
@@ -975,7 +1029,10 @@ item); reject handles (`@name`, `u/name`). Opportunities save as themes of kind 
 
 A lighter draft (name, one-liner, 8 terms), Hacker News and Bluesky only, last 7 days, classified with the
 schema above, top 5 kept, plus one starter theme (`{ title, summary }`, same quote and handle checks). No
-Reddit or X in the preview: they cost money per record.
+Reddit or X in the preview: they cost money per record. The URL must not be a platform host (2.1.10).
+Results pass the same filters as ingest before they are shown or stored: suppressed authors dropped by hash,
+NSFW dropped, excerpts at most 280 characters, and `preview_runs.result` validated with a zod schema that has
+no author fields (url, source, community, excerpt, category, reason, highlight offsets).
 
 ### 8.6 Evaluation
 
@@ -1031,12 +1088,14 @@ gets a row in `docs/claims.md` before it ships.
 3. **How it works**, one left-to-right strip: paste your URL; we collect public posts that match; you reply
    in your own words and see what your rivals miss.
 4. **Where your posts come from** (prominent): "Hacker News and Bluesky through their official APIs. Reddit
-   through a third-party data provider that collects public posts for us. X through its official API when it
-   is switched on. LinkedIn, Facebook and Threads as one-tap searches you open yourself. We never post, reply
-   or message for you, and we never write your replies. Raw posts are deleted after 30 days, or 7 days for
-   Reddit and X." Link to `/sources`.
-5. **Pricing**: one plan, monthly price, 7-day trial, card required, the reminder before the first charge,
-   cancel in two clicks in Settings, tax handled at checkout.
+   through a web data company that collects public Reddit pages for us (named on our sources page). X
+   through its official API when it is switched on. LinkedIn, Facebook and Threads as one-tap searches you
+   open yourself. We never post, reply or message for you, and we never write your replies. Raw posts are
+   deleted from AskedFor after 30 days, or 7 days for Reddit and X." Link to `/sources`. The sources page
+   and the privacy notice name Bright Data, say it collects public Reddit pages, say this is not a data
+   license from Reddit, and state how long Bright Data keeps snapshots. The solicitor reviews the wording.
+5. **Pricing**: one plan, the full monthly price with tax included where it applies (no drip pricing),
+   7-day trial, card required, the reminder before the first charge, cancel in two clicks in Settings.
 6. **FAQ**: Does it post for me? Does it write replies for me? Where does Reddit data come from? What do you
    store and for how long? You show a post I wrote; how do I remove it? Can I cancel any time?
 7. **Footer**: contact email, trading name and address, privacy notice, Remove my post, terms, acceptable
@@ -1055,7 +1114,9 @@ Marketing pages static; app pages server-rendered; 200 cards in under 1.5 second
 
 The plumbing exists and is tested (section 3.1). What remains:
 
-1. **`/app/billing`** shows, before checkout: the price (read from Stripe), the renewal terms
+1. **`/app/billing`** shows, before checkout: the full price (read from Stripe), tax included where it
+   applies (configure the Stripe price as tax-inclusive if Managed Payments supports it; otherwise show the
+   tax-inclusive total for the visitor's country before checkout), the renewal terms
    (`renewalTerms()`), when the first charge happens, the reminder 48 hours before it, how to cancel, and the
    consent checkbox for starting the service during the cancellation period. Checkout requires the box.
 2. **Consent record:** the checkout handler requires `{ consent: true }`, puts the time in the
@@ -1068,7 +1129,8 @@ The plumbing exists and is tested (section 3.1). What remains:
 5. **Account deletion:** typed confirmation; cancel the Stripe subscription immediately (add `cancelNow`
    to the Stripe port and adapter); delete the auth user with the admin API (cascades every owned row); record
    `account_deleted` in `events` with no user id and in `audit_log`; orphaned posts go at the next purge.
-6. **Export:** JSON of everything the user owns, plus Markdown for Build and Rivals.
+6. **Export:** JSON of everything the user owns (feed items as links, sources, communities, ages, labels
+   and reasons, never excerpts, 2.3.14), plus Markdown for Build and Rivals.
 7. **Hourly reminders** once Vercel Pro is on (section 13).
 8. **E2E in test mode** without driving Stripe's hosted page (Playwright stays on localhost): assert the
    checkout redirect and its parameters, then complete the subscription with the Stripe API in test mode and
@@ -1084,14 +1146,14 @@ All email goes through Resend from `EMAIL_FROM`: plain HTML and text, US English
 no tracking pixels. Daily and weekly emails carry `List-Unsubscribe` and
 `List-Unsubscribe-Post: List-Unsubscribe=One-Click`.
 
-| Email                     | Trigger                       | Notes                                                           |
-| ------------------------- | ----------------------------- | --------------------------------------------------------------- |
-| Magic link                | Supabase Auth via Resend SMTP | Template wording set in the Supabase dashboard (F5)             |
-| Trial reminder            | exists                        | 48 hours before the first charge                                |
-| First feed ready          | end of `first_run`            | counts by category, link to the app                             |
-| New posts (daily)         | `digest_daily`                | top 5 by match score with links to the app, "Say you built it." |
-| Monday digest             | `digest_weekly`               | top themes, rival changes, what to build next                   |
-| Removal received and done | removal form, admin action    | to the requester's contact email                                |
+| Email                     | Trigger                       | Notes                                                                                                                |
+| ------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Magic link                | Supabase Auth via Resend SMTP | Template wording set in the Supabase dashboard (F5)                                                                  |
+| Trial reminder            | exists                        | at least 48 hours before the first charge                                                                            |
+| First feed ready          | end of `first_run`            | counts by category, link to the app                                                                                  |
+| New posts (daily)         | `digest_daily`                | top 5 by match score: source, community, age, reason and a link to the app card, never excerpts; "Say you built it." |
+| Monday digest             | `digest_weekly`               | top themes, rival changes, what to build next; "Say you built it." where it links to posts                           |
+| Removal received and done | removal form, admin action    | to the requester's contact email                                                                                     |
 
 Unsubscribe tokens are `HMAC(APP_HMAC_SECRET, user id, list)`. `GET /api/unsubscribe` shows a confirm page;
 `POST` applies it. No marketing email in v1.
@@ -1117,7 +1179,12 @@ The only other file allowed to open connections. It uses `node:https` with a cus
 the host and refuses loopback, private, link-local, CGNAT, multicast, reserved, IPv6 unique-local and
 link-local, and IPv4-mapped forms of them, on every connection including redirects (no DNS-rebinding gap).
 https and port 443 only, at most 3 redirects within the same host or its `www` twin, 10 second timeout,
-2 MB body cap, `text/html` or `text/plain` only, no cookies or credentials. The hosts gate is extended to
+2 MB body cap, `text/html` or `text/plain` only, no cookies or credentials. It refuses any host for which
+`isPlatformHost()` in `src/server/net/platform-hosts.ts` is true (2.1.10): every platform domain and all its
+subdomains, API hosts included (`api.x.com`, `*.bsky.app`, `bsky.social`, `hn.algolia.com`,
+`hacker-news.firebaseio.com`, the vendor's host), because a user's product site is never one of them. It
+checks the first URL and every redirect, and the user is asked to paste a description instead. The hosts
+test reuses the module's list of platform web hosts. The hosts gate is extended to
 allow `node:https` and `node:dns` in this file only, with a planted-violation test that the same imports
 anywhere else still fail.
 
@@ -1139,7 +1206,8 @@ DPA link and the transfer mechanism before turning it on in production.
 
 Author hash: `HMAC-SHA256(AUTHOR_HASH_PEPPER, "<source>:<normalized author key>")`, hex. Normalize by
 trimming, lowercasing and removing a leading `@` or `u/`. The pepper never rotates (rotating it would orphan
-the suppression list). The removal form hashes the username the requester gives the same way. IP hashes for
+the suppression list). The removal form hashes a Reddit or Hacker News username the same way, and resolves a
+Bluesky handle or an X username to its stable id first (4.8). IP hashes for
 rate limits: `HMAC(APP_HMAC_SECRET, "<UTC day>:<ip>")`, so they change daily.
 
 ### 12.6 Analytics
@@ -1179,9 +1247,11 @@ why, lawful basis, retention by source, rights, how to object, the removal form,
 | `/api/cron/tick`            | not declared | `*/10 * * * *`        | advance jobs                                                                                    |
 | `/api/cron/weekly`          | `0 21 * * 0` | `0 21 * * 0`          | enqueue synthesis                                                                               |
 
-Every cron route is a `GET` that checks `CRON_SECRET` with `isCronAuthorized`, sets `maxDuration = 300`, is
+Every cron route is a `GET` that checks `CRON_SECRET` with `isCronAuthorized`, sets `maxDuration` (300 for the
+job routes; `trial-reminders` needs 60), is
 idempotent, and returns non-2xx on failure. `tests/deploy/vercel-config.test.ts` enforces Hobby-safe
-schedules today. The M3 task that switches to the Pro schedule changes that test in the same commit, and only
+schedules today and ties the reminder schedule to `REMINDER_CRON_PERIOD_HOURS`. The M3 task that switches to
+the Pro schedule changes the schedule, that constant and the test in the same commit, and only
 after the founder confirms Pro (or `get_auth_user` on the Vercel connector shows `billing.plan` is `pro`).
 
 ---
@@ -1190,14 +1260,16 @@ after the founder confirms Pro (or `get_auth_user` on the Vercel connector shows
 
 "Vercel" means Project Settings, Environment Variables, for Production and Preview. "Session" means the
 Claude Code cloud environment for the build session (F12), so tests that need a real service can run there.
-Never commit values; `.env.local` is for local work and is git-ignored.
+"dev" means the value for the development Supabase project: the production Supabase secret key never goes
+into the session, and Stripe stays in test mode. Never commit values; `.env.local` is for local work and is
+git-ignored.
 
 | Variable                                     | Value                                             | Vercel   | Session                 | Used from |
 | -------------------------------------------- | ------------------------------------------------- | -------- | ----------------------- | --------- |
 | `NEXT_PUBLIC_SITE_URL`                       | production URL, `https://...` (no trailing slash) | yes      | `http://localhost:3000` | now       |
-| `NEXT_PUBLIC_SUPABASE_URL`                   | `https://hoqbflkszzoojdswbrgy.supabase.co`        | yes      | yes                     | now       |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`       | `sb_publishable_...`                              | yes      | yes                     | now       |
-| `SUPABASE_SECRET_KEY`                        | `sb_secret_...` (server only)                     | yes      | yes                     | now       |
+| `NEXT_PUBLIC_SUPABASE_URL`                   | `https://hoqbflkszzoojdswbrgy.supabase.co`        | yes      | dev                     | now       |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`       | `sb_publishable_...`                              | yes      | dev                     | now       |
+| `SUPABASE_SECRET_KEY`                        | `sb_secret_...` (server only)                     | yes      | dev                     | now       |
 | `STRIPE_SECRET_KEY`                          | `sk_test_...` until the live switch               | yes      | yes                     | now       |
 | `STRIPE_WEBHOOK_SECRET`                      | `whsec_...` from the endpoint (F11)               | yes      | yes                     | now       |
 | `STRIPE_PRICE_ID`                            | `price_...`                                       | yes      | yes                     | now       |
@@ -1214,11 +1286,12 @@ Never commit values; `.env.local` is for local work and is git-ignored.
 | `BLUESKY_IDENTIFIER`, `BLUESKY_APP_PASSWORD` | the AskedFor account and its app password         | yes      | optional                | M3        |
 | `SOURCE_REDDIT_ENABLED`                      | `true` after F8 and the DPA                       | yes      | no                      | M3        |
 | `REDDIT_PROVIDER`                            | `brightdata`                                      | yes      | no                      | M3        |
-| `BRIGHTDATA_API_TOKEN`                       | from Bright Data                                  | yes      | optional                | M3        |
-| `BRIGHTDATA_REDDIT_DATASET_ID`               | `gd_...` (confirm in the dashboard)               | yes      | optional                | M3        |
+| `BRIGHTDATA_API_TOKEN`                       | from Bright Data                                  | yes      | no                      | M3        |
+| `BRIGHTDATA_REDDIT_DATASET_ID`               | `gd_...` (confirm in the dashboard)               | yes      | no                      | M3        |
 | `BRIGHTDATA_COST_PER_1K`                     | `1.50` (your actual rate)                         | yes      | no                      | M3        |
 | `BRIGHTDATA_MONTHLY_RECORD_CAP`              | `20000`                                           | yes      | no                      | M3        |
 | `REDDIT_DAILY_RECORDS_PER_PRODUCT`           | `120`                                             | yes      | no                      | M3        |
+| `REDDIT_DELETION_RECHECK`                    | `true`                                            | yes      | no                      | M3        |
 | `SOURCE_X_ENABLED`                           | `false`                                           | yes      | no                      | M3        |
 | `X_BEARER_TOKEN`                             | only if you turn X on (F18)                       | optional | no                      | M3        |
 | `X_DAILY_READS_PER_PRODUCT`                  | `0`                                               | yes      | no                      | M3        |
@@ -1238,21 +1311,21 @@ checks that depend on them.
 
 - **F1. Reconnect the Vercel connector** (now, 5 min). In claude.ai, Settings, Connectors, Vercel: reconnect and grant access to your "buzz542's projects" scope. Today the connector can list projects but is refused for that scope, so Claude cannot see deployments or logs.
 - **F2. Upgrade Vercel to Pro** (before M3; required before launch). Your account shows a Pro trial is available. Hobby is for non-commercial use only and refuses crons that run more than once a day. Then tell Claude "Vercel Pro is on".
-- **F3. Import the repo into Vercel** (before M1, 15 min). Add New, Project, import `buzz542/feedyourbusiness`, name it `askedfor`, framework Next.js, deploy. Then Settings, Git: set the Production Branch to `claude/askedfor-foundations`. Then add the "Vercel" variables from section 14 that you have, and redeploy. Functions run in London (`lhr1`) because of `vercel.json`.
+- **F3. Import the repo into Vercel** (before M1, 15 min). Add New, Project, import `buzz542/feedyourbusiness`, name it `askedfor`, framework Next.js, deploy. Then Settings, Git: set the Production Branch to `claude/askedfor-foundations`. Then add the "Vercel" variables from section 14 that you have, and redeploy. Functions run in London (`lhr1`) because of `vercel.json`. Do not set `SOURCE_REDDIT_ENABLED` before F8: it now switches on paid Reddit collection (the Reddit search links are `SOURCE_REDDIT_LINKS_ENABLED`).
 - **F4. Create the Supabase secret key** (before M1, 5 min). Project `askedfor`, Project Settings, API Keys, Secret keys: create one named `vercel`. Put it in Vercel and in the session as `SUPABASE_SECRET_KEY`.
 - **F5. Set up Supabase Auth** (before M1, 20 min). URL Configuration: Site URL is your production URL; Redirect URLs are `<production>/auth/callback`, `http://localhost:3000/auth/callback` and `https://*-buzz542s-projects.vercel.app/auth/callback`. Google provider: create a Web OAuth client in Google Cloud with the redirect URI `https://hoqbflkszzoojdswbrgy.supabase.co/auth/v1/callback`, and paste its id and secret. After F6, SMTP: host `smtp.resend.com`, port 465, user `resend`, password a Resend API key, sender your `EMAIL_FROM`. Magic link subject: "Your AskedFor sign-in link".
 - **F6. Set up Resend** (before M5). Add and verify your sending domain (needs F10), create a sending API key, set `RESEND_API_KEY` and `EMAIL_FROM`.
 - **F7. Create the AskedFor Bluesky account** (before M3). Put a monitored contact email in its bio, create an app password, set `BLUESKY_IDENTIFIER` and `BLUESKY_APP_PASSWORD`, then `SOURCE_BLUESKY_ENABLED=true`.
-- **F8. Set up Bright Data** (before M3, for Reddit). Business account, their compliance review, accept their DPA and keep a copy, add funds, set a spend limit and alerts, create an API token, confirm the Reddit posts dataset id. Set the `BRIGHTDATA_*` variables, then `SOURCE_REDDIT_ENABLED=true` once the privacy notice names them.
+- **F8. Set up Bright Data** (before M3, for Reddit). Business account, their compliance review, accept their DPA and keep a copy, ask how long they keep snapshots and whether output fields can be limited, add funds, set a spend limit and alerts, create an API token, confirm the Reddit posts dataset id. Set the `BRIGHTDATA_*` variables in Vercel only. Run `scripts/capture-brightdata-fixture.ts` once on your machine (it writes to the git-ignored `fixtures-local/`). Then `SOURCE_REDDIT_ENABLED=true` once the privacy notice names Bright Data.
 - **F9. Ask Reddit for licensed access** (now, before 31 Oct 2026). Request commercial Data API access through Reddit's developer platform and describe this use honestly: read-only, excerpts with links back, 7-day retention, no model training. Reddit stops taking new public API access requests on 31 Oct 2026. Keep the reply.
 - **F10. Trademark search, then the domain** (before M5, because Resend needs the domain for F6). Search "AskedFor" at the UK IPO, EUIPO and USPTO (classes 9, 35, 42). Then buy `askedfor.app` (and `askedfor.dev` as a redirect), add it in Vercel, Domains, and set `NEXT_PUBLIC_SITE_URL`.
-- **F11. Set up Stripe in test mode** (before M8). Follow `docs/BILLING.md` steps 1 to 6: authorize the Stripe connector or use the Dashboard, confirm Managed Payments eligibility, create the product and the $29 monthly price, enable the customer portal for card updates, add the webhook endpoint `<production>/api/billing/webhook` with the four events, set the `STRIPE_*` variables. Check with section 16.
-- **F12. Configure the Claude Code environment** (before M1, 10 min). In the cloud environment menu in the session's title bar, Edit: add the "Session" variables from section 14 as environment variables, never in the chat. Network access: allow `api.anthropic.com`, `api.stripe.com`, `hoqbflkszzoojdswbrgy.supabase.co`, `api.brightdata.com`, `hn.algolia.com`, `hacker-news.firebaseio.com` and `bsky.social`, and keep package managers allowed.
+- **F11. Set up Stripe in test mode** (before M8). Follow `docs/BILLING.md` steps 1 to 6: authorize the Stripe connector or use the Dashboard, confirm Managed Payments eligibility, create the product and the $29 monthly price (tax-inclusive if Managed Payments allows it, so the price shown is the price paid), enable the customer portal for card updates, add the webhook endpoint `<production>/api/billing/webhook` with the four events, set the `STRIPE_*` variables. Check with section 16.
+- **F12. Configure the Claude Code environment** (before M1, 15 min). First create a free Supabase project for development (for example `askedfor-dev`; or reuse the old `buzz542's Project` in `eu-west-1` if it holds nothing you need). Then, in the cloud environment menu in the session's title bar, Edit: add the "Session" variables from section 14 as environment variables, never in the chat, using the development project's Supabase URL and keys (never the production secret key) and Stripe test keys. Network access: allow `api.anthropic.com`, `api.stripe.com`, your development project's `*.supabase.co` host, `hn.algolia.com`, `hacker-news.firebaseio.com` and `bsky.social`, and keep package managers allowed.
 - **F13. Create the Anthropic API key** (before M2). In the Anthropic Console, create a key for AskedFor, set a monthly spend limit, and set `ANTHROPIC_API_KEY` in Vercel and the session.
 - **F14. Click through test mode yourself** (M8). In a browser: sign up, onboard, pay with a Stripe test card in Checkout, see the trial in Settings, cancel in two clicks, resume, delete a test account.
 - **F15. Legal** (before taking money). Solicitor review of the drafts in 12.9, ICO fee paid, LIA and DPIA signed off, DPAs signed with every processor in 12.4, trading name, address and email in the footer, HMRC registration if needed.
 - **F16. Label 100 posts** (M4). Label the posts in `eval/labeled.jsonl` for the classifier eval; the session prepares the file from your own feed.
-- **F17. Supabase Pro** (before real users). Backups and no pausing. Also pause or delete the old `buzz542's Project` in `eu-west-1` if it is unused.
+- **F17. Supabase Pro** (before real users). Backups and no pausing, for the production project. Pause or delete the old `buzz542's Project` in `eu-west-1` if you did not reuse it for development in F12.
 - **F18. X, optional.** A developer account with pay-per-use credits, an app bearer token and the use case declared honestly. Then set `X_BEARER_TOKEN`, a budget in `X_DAILY_READS_PER_PRODUCT`, and `SOURCE_X_ENABLED=true`.
 
 ---
@@ -1267,6 +1340,7 @@ curl https://YOUR-DEPLOYMENT/api/health
 
 curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://YOUR-DEPLOYMENT/api/health
 # 200 with every check "ok", or 503 naming what is missing
+# 401 means the secret did not match, or CRON_SECRET on the server is unset or under 16 characters
 ```
 
 | Check            | Not ok means                                                                          | Fix                                     |
@@ -1277,6 +1351,7 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://YOUR-DEPLOYMENT/api/hea
 | `stripe_price`   | the price is missing, inactive or not recurring                                       | F11 step 3                              |
 | `stripe_webhook` | no endpoint at `<site>/api/billing/webhook`, disabled, or missing events (named)      | F11 step 5                              |
 | `email`          | Resend variables missing, or `EMAIL_FROM` still a placeholder                         | F6                                      |
+| `cron_secret`    | `CRON_SECRET` shorter than 32 characters, or still the `.env.example` placeholder     | set a long random value, redeploy       |
 
 Use the production URL: Vercel protects preview deployments with Vercel Authentication by default, so a
 `curl` to a preview URL gets Vercel's login page instead of the app (and Stripe cannot reach a preview's
@@ -1310,20 +1385,21 @@ The tasks, acceptance tests and `/goal` lines are in `docs/TASKS.md`.
 
 Per customer per month at default budgets:
 
-| Item                          | Assumption                                                                    | Cost            |
-| ----------------------------- | ----------------------------------------------------------------------------- | --------------- |
-| Reddit via Bright Data        | 120 records a day, $1.50 per 1,000 records (pay as you go; confirm your rate) | about $5.40     |
-| Classification (Haiku 5.5)    | about 320 candidates a day in batches of 20, cached system prompt             | about $0.55     |
-| Weekly synthesis (Sonnet 5.5) | 2 calls a week, about 20,000 input and 2,000 output tokens each               | about $0.55     |
-| Onboarding draft (Sonnet 5.5) | once                                                                          | about $0.03     |
-| Hacker News, Bluesky          | free official APIs                                                            | $0              |
-| X                             | off by default; $0.005 per post read when on                                  | $0              |
-| **Total variable**            |                                                                               | **about $6.50** |
+| Item                          | Assumption                                                                          | Cost            |
+| ----------------------------- | ----------------------------------------------------------------------------------- | --------------- |
+| Reddit via Bright Data        | 120 records a day, $1.50 per 1,000 records (pay as you go; confirm your rate)       | about $5.40     |
+| Reddit deletion re-check      | the roughly 30 stored Reddit posts a day re-collected once by URL at about 72 hours | about $1.35     |
+| Classification (Haiku 5.5)    | about 320 candidates a day in batches of 20, cached system prompt                   | about $0.55     |
+| Weekly synthesis (Sonnet 5.5) | 2 calls a week, about 20,000 input and 2,000 output tokens each                     | about $0.55     |
+| Onboarding draft (Sonnet 5.5) | once                                                                                | about $0.03     |
+| Hacker News, Bluesky          | free official APIs                                                                  | $0              |
+| X                             | off by default; $0.005 per post read when on                                        | $0              |
+| **Total variable**            |                                                                                     | **about $7.85** |
 
 Fixed per month: Vercel Pro $20 per seat, Supabase Pro $25, Resend free tier then $20, the domain. Merchant
-of record fees: check Managed Payments' current rate. At $29 a month the variable margin is about $22 before
-those fees, so fixed costs are covered at roughly 3 paying customers. The Reddit budget is the lever: halving
-it saves about $2.70 per customer.
+of record fees: check Managed Payments' current rate. At $29 a month the variable margin is about $21 before
+those fees ($29 minus about $7.85), so fixed costs are covered at roughly 3 paying customers. The Reddit
+budget is the lever: halving it saves about $3.40 per customer, re-checks included.
 
 ---
 

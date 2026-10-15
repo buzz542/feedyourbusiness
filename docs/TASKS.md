@@ -4,8 +4,9 @@ The checklist for `docs/PLAN.md`. Each box has an acceptance test, written first
 CLAUDE.md, "The loop"). Tick a box only when its test passes, `npm run check` exits 0, and the reviewers have
 no blocking findings. One focused commit per box. Section numbers like (7.4) point into `docs/PLAN.md`.
 
-Run one goal per milestone, in auto mode. Switch to manual mode for anything touching production secrets,
-live billing or deleting production data.
+Run one goal per milestone, in auto mode. Switch to manual mode for anything touching billing, production
+secrets or the live database. Every migration box: apply to the development project with the advisors clean,
+then ask the founder before applying it to production (`docs/PLAN.md`, section 0, item 7).
 
 Legend: `[x]` done and verified. `[ ]` not done. `(you)` needs the founder; the F-numbers are the steps in
 `docs/PLAN.md` section 15. When a box needs a key or service the session does not have, build and test it
@@ -45,7 +46,7 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M1 in docs/TASKS.md is complete: every M1 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M1's scope changed. Or stop after 40 turns and list what is left.
 ```
 
-- [ ] Migration `profiles_app` (6.1). Test: `tests/db/profiles-app.test.ts`: a user cannot set `is_admin` or any billing column on their own row; can set `email_daily`, `email_weekly`, `terms_accepted_at`; `events` is invisible to anon and authenticated. Then applied to production, advisors clean, types regenerated.
+- [ ] Migration `profiles_app` (6.1). Test: `tests/db/profiles-app.test.ts`: a user cannot set `is_admin` or any billing column on their own row; can set `email_daily`, `email_weekly`, `terms_accepted_at`; `events` is invisible to anon and authenticated. Then applied to the development project with advisors clean, to production after the founder approves, and types regenerated.
 - [ ] Copy rules also cover app UI (`src/app/(app)`, `src/app/(admin)`, `src/components`): em dashes, banned phrases, UK spellings, competitor names, but not the claims-number rule. Test: planted violations in a fixture app file are caught; a number in app copy is not flagged; `npm run compliance:copy` passes on the repo.
 - [ ] Design system (9.2 to 9.4): `geist` and `@fontsource-variable/fraunces`, new tokens, components in `src/components/ui/`. Test: contrast test computes at least 4.5:1 for every text pair in both themes; render tests for `Highlight` (exactly the given range wrapped in `<mark>`, safe on out-of-range offsets), `Button`, `Chip`, `Card`, `Tabs`, `EmptyState`, `Sparkline`.
 - [ ] Sign-in (12.1): `/login` with magic link and Google, the 18+ and terms confirmations, `/auth/callback` (PKCE exchange), sign out. Test: `safeNextPath` unit tests (`//evil.example`, `https://evil.example`, `/\evil.example`, encoded forms all fall back to `/app`; `/app/rivals?x=1` is kept); terms acceptance is stored once.
@@ -62,10 +63,10 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 ```
 
 - [ ] Migration `onboarding` (6.2). Test: `tests/db/onboarding.test.ts`: competitors RLS for owner and another user; a second product for the same owner is refused; existing `products.competitors` values move to `competitors` before the column is dropped; `search_terms.intent` defaults to `problem`; `llm_usage` is invisible to API roles.
-- [ ] `fetchOwnSite()` (12.3) and the hosts-gate exception for `src/server/net/own-site.ts` only. Test: refuses `http://`, `127.0.0.1`, `::1`, `169.254.169.254`, `10.0.0.1`, `192.168.1.1`, `100.64.0.1`, `fc00::1`, `::ffff:127.0.0.1`, a hostname whose resolver returns a private address, a redirect to another domain, a 3 MB body and a non-HTML type; follows a same-host redirect; the gate still fails `node:https` or `node:dns` imported anywhere else (planted).
+- [ ] `fetchOwnSite()` (12.3) and the hosts-gate exception for `src/server/net/own-site.ts` only. Test: refuses `http://`, `127.0.0.1`, `::1`, `169.254.169.254`, `10.0.0.1`, `192.168.1.1`, `100.64.0.1`, `fc00::1`, `::ffff:127.0.0.1`, a hostname whose resolver returns a private address, a redirect to another domain, a 3 MB body and a non-HTML type, and every platform host in `src/server/net/platform-hosts.ts` (planted: `https://www.reddit.com/r/x`, `https://old.reddit.com`, `https://x.com/a`, `https://www.linkedin.com/in/a`, `https://bsky.app/profile/a`, `https://news.ycombinator.com/item?id=1`), as the first URL and as a redirect target; follows a same-host redirect; the gate still fails `node:https` or `node:dns` imported anywhere else (planted).
 - [ ] Page text extraction for the draft. Test: fixture pages give the expected text without scripts, styles or navigation; output is capped at 30,000 characters.
 - [ ] `src/server/llm/` (8.1) with `@anthropic-ai/sdk`. Test (fake client): schema-invalid output is retried once and then rejected; `stop_reason: "refusal"` raises `LlmRefusalError`; every call writes one `llm_usage` row with the computed cost; cached system blocks carry `cache_control`; spend caps stop calls.
-- [ ] Draft from a URL (8.3). Test: with a fixture site and a fake model the draft is saved as a `draft` product with 20 to 30 terms and its competitors (`origin = 'draft'`) inside the 120 second budget; no job is created while the product is a draft.
+- [ ] Draft from a URL (8.3). Test: with a fixture site and a fake model the draft is saved as a `draft` product with 20 to 30 terms and its competitors (`origin = 'draft'`) inside the 120 second budget; no job is created while the product is a draft; suggested subreddits on the sensitive-community list are dropped (planted).
 - [ ] Draft from a pasted description when the site cannot be fetched. Test: same output contract.
 - [ ] Onboarding UI (4.3): URL step with progress, review where every field is editable, confirm. Test: E2E on localhost with fake services (`E2E_FAKE_SERVICES=1`, honored only when `VERCEL_ENV` is unset and the site URL is localhost; a unit test proves it is refused otherwise): edits persist; confirm sets `active` and `confirmed_at`.
 - [ ] (you) F13: Anthropic key. Then one real draft on your own product URL, checked by you.
@@ -76,21 +77,21 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M3 in docs/TASKS.md is complete: every M3 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M3's scope changed. Or stop after 60 turns and list what is left.
 ```
 
-- [ ] Migration `collection` (6.3). Test: `tests/db/collection.test.ts`: retention capped at 7 days for `reddit` and `x` and 30 for the rest; `ingest_post` refuses suppressed authors, never extends retention and returns the existing id on conflict; two concurrent `claim_jobs` calls never take the same job; `consume_budget` refuses the call that would cross the limit and `settle_budget` returns unused units; `purge_expired` deletes expired and orphaned posts and clears example ids; every function is refused to anon and authenticated.
+- [ ] Migration `collection` (6.3). Test: `tests/db/collection.test.ts`: retention capped at 7 days for `reddit` and `x` and 30 for the rest; `ingest_post` refuses suppressed authors, never extends retention and returns the existing id on conflict; two concurrent `claim_jobs` calls never take the same job; `consume_budget` refuses the call that would cross the limit and `settle_budget` returns unused units; `purge_expired` deletes expired and orphaned posts and clears example ids; writing an author handle fails (planted); `authenticated` cannot select `author_hash` or `author_handle`; every function is refused to anon and authenticated.
 - [ ] Source contract v2 (7.1). Test: registry tests for `access`, `vendor`, `retentionDays`, `linkHosts` (every link host refused by `safeFetch`), kill switches off by default.
 - [ ] Author hashing (12.5). Test: `@Name`, `name` and `u/name` hash the same within a source and differently across sources; a missing pepper throws; no raw author key reaches a store, log or error (spy test).
 - [ ] Jobs runner and cron routes `/api/cron/daily`, `/api/cron/tick`, `/api/cron/weekly` (7.2, 13). Test (fake clock, fake sources): a pending vendor run resumes on a later tick; a crash mid-step re-runs without double-charging a budget or double-inserting a post; the time budget stops new claims; three failures mark a job `failed`; daily enqueue is idempotent; `tests/deploy/vercel-config.test.ts` covers the new routes.
-- [ ] Hacker News source (7.4). Test: recorded fixtures in `tests/fixtures/hackernews/`; stops at the budget; link back on `news.ycombinator.com`; HTML stripped; 280 characters; deleted and dead items found by `checkDeleted`.
+- [ ] Hacker News source (7.4). Test: synthetic fixtures in `tests/fixtures/hackernews/` (invented authors and text); stops at the budget; link back on `news.ycombinator.com`; HTML stripped; 280 characters; deleted and dead items found by `checkDeleted`.
 - [ ] Bluesky source (7.5). First confirm hosts and auth against docs.bsky.app and record the date and hosts in the module header. Test: fixtures; one session per invocation; links use the DID; `checkDeleted` via `getPosts`; the module references no write method (no `com.atproto.repo` calls).
-- [ ] Reddit source through Bright Data (7.7). First confirm the dataset, parameters, fields and price against Bright Data's docs and record the date in the module header. Test: fixtures for trigger, progress (running, then ready) and snapshot; error records, NSFW, deleted authors and non-Reddit URLs dropped; budget and monthly cap stop calls; cost recorded; 5 MB cap; `safeFetch` refuses every Reddit host.
-- [ ] (you) Capture a real Bright Data fixture with `scripts/capture-brightdata-fixture.ts` (needs F8), and confirm the schema matches it.
+- [ ] Reddit source through Bright Data (7.7). First confirm the dataset, parameters, fields and price against Bright Data's docs and record the date in the module header. Test: fixtures for trigger, progress (running, then ready) and snapshot; error records, NSFW, deleted authors, profile posts (`u_` communities, `/user/` and `/u/` URLs), sensitive communities and non-Reddit URLs dropped; budget and monthly cap stop calls; cost recorded; 5 MB cap; `safeFetch` refuses every Reddit host; a request with an unpinned dataset id (planted: a LinkedIn dataset id) is refused before it is sent, including when it comes from the env; the source's `ctx.fetch` refuses every other source's host; the vendor host appears in no file outside `src/sources/reddit*.ts` (static check with a planted violation); every committed fixture's author fields match the invented pattern.
+- [ ] (you) F8, then run `scripts/capture-brightdata-fixture.ts` once (it writes to the git-ignored `fixtures-local/`); the session checks the schema against it without committing it.
 - [ ] X source (7.6), shipped off. Test: a budget of 0 makes no call; the source refuses to start until deletion compliance is implemented; `possibly_sensitive` posts dropped; links on `x.com`.
 - [ ] Collect step end to end (7.3) with fake sources and a fake classifier. Test: suppressed authors never stored from any source; posts already linked are skipped; posts stored for another product are classified for this one; `term_stats` updated; only entitled, confirmed, unpaused products are collected.
-- [ ] Purge and deletion sync jobs, daily. Test: expired posts gone the next day; Hacker News and Bluesky posts deleted at source removed here.
+- [ ] Purge and deletion sync jobs, daily, and the Reddit deletion re-check (7.7). Test: expired posts gone the next day; Hacker News and Bluesky posts deleted at source removed here; a stored Reddit post the vendor reports gone or removed at about 72 hours is deleted, within the budget, and `REDDIT_DELETION_RECHECK=false` turns it off.
 - [ ] Kill switches and caps. Test: `SOURCE_<ID>_ENABLED=false` stops that source within one run; the monthly vendor cap stops Reddit and shows in the job result.
 - [ ] Reddit term rotation (7.3 step 2). Test: over three days every active term is collected at least once with 12 terms a day.
 - [ ] `/api/health` gains a `sources` check: enabled collect sources and any missing credentials, no secrets. Test: unit tests.
-- [ ] Switch to the Pro schedule (13) only after F2: trial reminders hourly, `/api/cron/tick` every 10 minutes, `tests/deploy/vercel-config.test.ts` updated in the same commit. Confirm Pro with the founder or `get_auth_user` (`billing.plan` is `pro`). Until then leave this box open.
+- [ ] Switch to the Pro schedule (13) only after F2: trial reminders hourly with `REMINDER_CRON_PERIOD_HOURS = 1`, `/api/cron/tick` every 10 minutes, `tests/deploy/vercel-config.test.ts` updated in the same commit. Confirm Pro with the founder or `get_auth_user` (`billing.plan` is `pro`). Until then leave this box open.
 - [ ] (you) F2 Vercel Pro, F7 Bluesky account, F8 Bright Data account and DPA, then turn the sources on in Vercel.
 
 ## M4 Classifier
@@ -118,11 +119,11 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 - [ ] `PostCard` and `FilterBar`. Test: render shows source and community, age, category, match, excerpt with highlight, the reason, an Open post link with `rel="noopener noreferrer"`, the reply tip and "Say you built it.".
 - [ ] Save, Mark replied, Hide and Undo as server actions. Test: Mark replied removes the post from Today; only `state` changes.
 - [ ] Reply tips are fixed copy (D8). Test: the list of modules that call the model is exactly draft, classify, synthesize and preview, and none of their prompts asks for reply text.
-- [ ] Search links panel, including subreddit links (7.8). Test: every link is https on a declared link host, with the term encoded.
+- [ ] Search links panel, including subreddit links (7.8). Test: every link is https on a declared link host, with the term encoded; the panel shows "Say you built it.".
 - [ ] Keyboard shortcuts (`j`, `k`, `o`, `s`, `r`, `h`, `?`). Test: E2E.
 - [ ] Performance. Test: E2E on localhost with 200 seeded cards renders in under 1.5 seconds.
 - [ ] First run after checkout (7.3) with progress by source and the "feed ready" email. Test (fakes): `first_run` is enqueued once, results appear as sources finish, the email is sent once.
-- [ ] Daily posts email (11) with one-click unsubscribe. Test: tokens verify and expire with the secret; `POST /api/unsubscribe` turns it off and `GET` does not; no email when there are no new posts; sends at 08:00 UK time across the daylight saving change.
+- [ ] Daily posts email (11) with one-click unsubscribe. Test: tokens verify and expire with the secret; `POST /api/unsubscribe` turns it off and `GET` does not; no email when there are no new posts; the email contains no post excerpts; sends at 08:00 UK time across the daylight saving change.
 - [ ] Loading, empty and error states (4.9). Test: render tests.
 - [ ] (you) F10 and F6: trademark search and the domain, then the Resend domain and `EMAIL_FROM`; then one real daily email checked by you.
 
@@ -149,7 +150,7 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 - [ ] Weekly Build synthesis (8.4). Test (fake model): themes regenerate weekly; trend uses last week's counts by `theme_key`; at most 3 example ids; the quote check and handle check apply.
 - [ ] Build UI (4.6): themes, wished it existed, what to build next, week picker. Test: render tests; no author names or handles in the rendered output with fixture data.
 - [ ] Markdown export. Test: matches the screen and contains no quotes or handles.
-- [ ] Monday digest (11) with Build and Rivals highlights and a working unsubscribe. Test: unsubscribe works; sends Monday 08:00 UK time across the daylight saving change.
+- [ ] Monday digest (11) with Build and Rivals highlights and a working unsubscribe. Test: unsubscribe works; "Say you built it." wherever it links to posts; no post excerpts; sends Monday 08:00 UK time across the daylight saving change.
 
 ## M8 Billing
 
@@ -161,15 +162,15 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 - [x] Webhook: signature verified on the raw body, bounded body size, idempotent, ordering-safe (subscription state is re-fetched, stale patches dropped). Test: `events.test.ts`, `handlers.test.ts`, `tests/db/billing-functions.test.ts`; verified against a running production server with a correctly signed, a forged and a tampered request.
 - [x] No second subscription while one is live (including past_due). Test: `handlers.test.ts`.
 - [x] Cancel and resume handler for the two-click flow, plus billing portal link. Test: `handlers.test.ts`.
-- [x] Trial reminder 48 hours before the first charge. Test: `trial-reminders.test.ts` simulates a whole trial hour by hour: exactly one reminder, 47 to 48 hours before, none after a cancel, retried after an email failure, re-armed if the trial is extended.
+- [x] Trial reminder at least 48 hours before the first charge, on the daily (Hobby) and the hourly (Pro) schedule. Test: `trial-reminders.test.ts` simulates whole trials on both cadences, the daily one with Hobby's in-hour jitter across 72 start times: exactly one reminder, never less than 48 hours before the charge, none after a cancel, retried after an email failure, re-armed if the trial is extended; a plain 48-hour window is shown to fail on the daily schedule.
 - [x] Live mode locked: a live key needs `BILLING_LIVE_ENABLED=true` and Managed Payments on. Test: `config.test.ts`.
 - [ ] Migration `billing_consent` (6.7). Test: only the service role can write `service_consent_at`.
-- [ ] `/app/billing` (10.1): price, renewal terms, first charge date, the reminder, how to cancel, the consent checkbox, before checkout. Test: render shows each item; the checkout handler answers 400 without `{ consent: true }`.
+- [ ] `/app/billing` (10.1): the full price with tax included where it applies, renewal terms, first charge date, the reminder, how to cancel, the consent checkbox, before checkout. Test: render shows each item; the checkout handler answers 400 without `{ consent: true }`.
 - [ ] Consent record (10.2). Test: the consent time travels in subscription metadata and the webhook writes `service_consent_at`.
 - [ ] Settings, Plan and billing (10.3): status in plain words, two-click cancel, resume, update card, `past_due` banner. Test: E2E in test mode on localhost.
 - [ ] Entitlement checked on every app data page and before any collection (10.4). Test: a non-entitled user sees the billing page and no collection job runs for them.
-- [ ] Account deletion and export (10.5, 10.6). Test: E2E in test mode: the subscription is cancelled at once, the auth user and every owned row are gone, `events` and `audit_log` record it; the export contains the user's data and nothing of anyone else's.
-- [ ] Public pricing page with rows in `docs/claims.md`. Test: `compliance:copy` passes; every number on the page is a claim row.
+- [ ] Account deletion and export (10.5, 10.6). Test: E2E in test mode: the subscription is canceled at once, the auth user and every owned row are gone, `events` and `audit_log` record it; the export contains the user's data and nothing of anyone else's, and no post excerpts.
+- [ ] Public pricing page with rows in `docs/claims.md`. Test: `compliance:copy` passes; every number on the page is a claim row; the price shown is the full price with tax included where it applies.
 - [ ] Checkout E2E in test mode without driving Stripe's page (10.8). Test: the redirect goes to Stripe Checkout with the right parameters; completing the subscription with the test API and posting a signed event to the local webhook makes the account entitled.
 - [ ] (you) F11: Stripe set up in test mode; `/api/health` shows `stripe_config`, `stripe_price` and `stripe_webhook` ok.
 - [ ] (you) The consent wording reviewed by a solicitor.
@@ -183,11 +184,11 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 
 - [ ] Migration `launch` (6.8). Test: `preview_runs` expiry check; both tables deny-all for API roles.
 - [ ] Landing page (9.6) with labeled example data and rows in `docs/claims.md`. Test: `compliance:copy` passes; every claim on the page has a row; example cards contain no handles.
-- [ ] Instant preview (8.5, 12.7). Test: 3 per IP hash per day and the global cap enforced; no Reddit or X call is possible from the preview; results expire within 24 hours and the purge removes them.
+- [ ] Instant preview (8.5, 12.7). Test: 3 per IP hash per day and the global cap enforced; no Reddit or X call is possible from the preview; a platform URL is refused; suppressed authors are dropped; the stored result validates against a schema with no author fields; results expire within 24 hours and the purge removes them.
 - [ ] Sources page. Test: lists exactly the registry, with access method, retention and the vendor for vendor sources.
-- [ ] Remove-my-post form and admin queue (4.8). Test: rate limit; one admin click deletes matching posts, suppresses the author hash, closes the request, emails the requester and writes `audit_log`; the author is never stored again.
+- [ ] Remove-my-post form and admin queue (4.8). Test: rate limit; one admin click deletes matching posts, suppresses the author hash, closes the request, emails the requester and writes `audit_log`; the author is never stored again; a request by post link suppresses that post's author; a request by Bluesky handle resolves to the DID and suppresses the DID-keyed author; an X username resolves to the user id.
 - [ ] Admin pages: source health, costs, metrics (4.8). Test: a non-admin gets 404; metrics contain no post text or emails.
-- [ ] Legal drafts and `docs/legal/` (12.9). Test: every page footer links them; the privacy notice names every processor in `src/server/net/hosts.ts` and every collect source in the registry (test compares the lists).
+- [ ] Legal drafts and `docs/legal/` (12.9). Test: every page footer links them; the privacy notice names every processor in `src/server/net/hosts.ts`, every collect source in the registry and every vendor `name` (test compares the lists), and states the vendor's snapshot retention.
 - [ ] Security headers (12.8). Test: present on `/` and `/app`.
 - [ ] Launch switch: remove the `noindex` metadata and the robots disallow, only when the founder says launch. Test: `robots.txt` and metadata change together.
 - [ ] (you) F15 legal, and the pre-launch checklist in `docs/BRIEF.md` with route C applied.

@@ -27,8 +27,12 @@ allows it. Link sources declare `linkHosts` and implement `searchLinks()`. Regis
   host, never `reddit.com` or `redd.it`. Hosts that appear in stored links go in `linkHosts` and are never
   fetched (safeFetch refuses them).
 - Reddit: only through the contracted vendor's REST API (Bright Data by default, behind the
-  `RedditProvider` port). Logged-out public posts only; drop NSFW, over-18, private and quarantined content.
-  No Reddit login, account, cookie or browser, ever.
+  `RedditProvider` port). Logged-out public posts only; drop NSFW, over-18, private and quarantined content,
+  profile posts (`u_` communities, `/user/` and `/u/` URLs) and posts from sensitive communities
+  (`src/sources/sensitive-communities.ts`). No Reddit login, account, cookie or browser, ever.
+- The vendor is for Reddit only. Each source's `ctx.fetch` is bound to that source's own `allowedHosts`.
+  The Reddit module pins the vendor paths and the Reddit dataset ids in code and refuses any other dataset
+  id, even one from the env. The vendor host may appear only in `src/sources/reddit*.ts`.
 - X: only the official API v2, with a per-product daily read budget (`X_DAILY_READS_PER_PRODUCT`, default 0),
   deletion compliance implemented before it can start, and no model training. Off by default.
 - Hacker News: Algolia HN Search and the Firebase item API. Bluesky: authenticated XRPC from the dedicated
@@ -43,7 +47,10 @@ allows it. Link sources declare `linkHosts` and implement `searchLinks()`. Regis
 - Parse every response with zod and keep only the fields the plan stores. Hash the author key at once
   (`src/server/privacy/`); never store, log or return it. Excerpts are at most 280 characters, and every
   stored post links back to the original.
-- Deletion sync where the source allows it (Hacker News, Bluesky, X); Reddit relies on its 7-day retention.
-- Fixtures only in tests. CI never calls a live third-party API. Fixture capture scripts run by hand.
+- Deletion sync where the source allows it (Hacker News, Bluesky, X), and a one-time Reddit re-check
+  through the vendor at about 72 hours; the 7-day retention bounds the rest.
+- Fixtures only in tests, and only synthetic or scrubbed ones: invented authors and text, never a real
+  person's username, id or post (a test checks author fields). CI never calls a live third-party API.
+  Capture scripts write to the git-ignored `fixtures-local/` and are run by the founder.
 - Before a collect source ships, confirm its hosts, auth, parameters, fields, price and terms against the
   current official docs and record the date in the module header. Re-read the terms in launch week.

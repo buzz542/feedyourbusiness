@@ -18,7 +18,10 @@ mechanical parts.
   24 hours".
 - Say plainly where posts come from: Hacker News and Bluesky through official APIs, Reddit through a
   third-party data provider, X through its official API when it is on, the rest as searches the user opens.
-  Never claim "we don't scrape", "official APIs only" or anything that hides the data provider.
+  Never claim "we don't scrape", "official APIs only" or anything that hides the data provider
+  (`compliance:copy` blocks those phrases). The sources page and privacy notice name Bright Data and say it
+  is not a data license from Reddit.
+- Show the full price up front, tax included where it applies (no drip pricing).
 - Every claim, and every number on a public page or in an email, is a row in `docs/claims.md` with its
   evidence, before it ships. Claim IDs use letters, never numbers. Numbers shown from live data inside the
   app are not claims.

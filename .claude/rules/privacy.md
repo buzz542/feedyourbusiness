@@ -25,6 +25,12 @@ processors beyond what the plan specifies needs founder approval.
 - Author hash: `HMAC-SHA256(AUTHOR_HASH_PEPPER, "<source>:<normalized author key>")`. The pepper never
   rotates. IP hashes for rate limits include the UTC day.
 - Rivals, Build, digests, logs, error reports and analytics never contain author names or handles.
+  `authenticated` can select a post's content columns but never `author_hash` or `author_handle`.
+- Emails and exports carry links, sources, communities, ages and our own reasons, never post excerpts, so
+  the retention promise holds outside the database.
+- A community name next to an author hash can reveal a sensitive trait, so Reddit posts from sensitive
+  communities are dropped before classification and storage, and the onboarding draft never suggests them.
+- Committed fixtures hold no real person's data. Live captures stay in the git-ignored `fixtures-local/`.
 - Never infer or tag sensitive traits (health, politics, religion, sexuality, ethnicity and similar). No
   prompt asks for them and no output schema has a field for them.
 - Row-level security on every table. New tables ship with RLS, explicit grants and a test in `tests/db/`.

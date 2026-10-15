@@ -23,3 +23,6 @@ supabase/.branches
 # os / editor
 .DS_Store
 *.log
+
+# Live API captures for checking fixture schemas. Real people's data: never commit.
+fixtures-local/

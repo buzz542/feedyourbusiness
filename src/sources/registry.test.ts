@@ -14,6 +14,7 @@ import {
  * vendor's API. compliance:hosts still guarantees we never fetch reddit.com ourselves.
  */
 const NEVER_COLLECTED = [
+  "indiehackers",
   "linkedin",
   "facebook",
   "instagram",

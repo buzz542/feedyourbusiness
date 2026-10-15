@@ -93,7 +93,19 @@ describe("compliance:hosts (runtime)", () => {
     );
     const NEVER =
       /reddit|redd\.it|linkedin|facebook|instagram|tiktok|threads|youtube|discord|producthunt/i;
+    // Web hosts of platforms we collect through an API: links point there, requests never do.
+    const PLATFORM_WEB_HOSTS = new Set([
+      "x.com",
+      "www.x.com",
+      "twitter.com",
+      "www.twitter.com",
+      "mobile.twitter.com",
+      "bsky.app",
+      "news.ycombinator.com",
+      "indiehackers.com",
+      "www.indiehackers.com",
+    ]);
     const hosts = [...allowedHosts(everythingOn), ...sources.flatMap((s) => s.allowedHosts)];
-    expect(hosts.filter((h) => NEVER.test(h))).toEqual([]);
+    expect(hosts.filter((h) => NEVER.test(h) || PLATFORM_WEB_HOSTS.has(h))).toEqual([]);
   });
 });

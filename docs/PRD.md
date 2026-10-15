@@ -5,8 +5,7 @@
 > Build. This file is kept as history. Where it and the plan disagree, the plan wins. The hard rules below
 > are the brief's original text; the rules in force are `docs/PLAN.md` section 2.
 
-Status: draft for founder approval. Derived from `docs/BRIEF.md`, which stays the source of truth. If this
-file and the brief disagree, the brief wins and this file is wrong.
+Status: superseded (see the note above). Originally derived from `docs/BRIEF.md`.
 
 ## Problem
 

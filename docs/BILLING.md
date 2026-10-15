@@ -14,9 +14,9 @@ Nothing here needs a live key, and Claude should never ask for one.
 - **Cancel:** `POST /api/billing/cancel` with `{ "action": "cancel" | "resume" }` schedules cancellation at the
   end of the period. The Settings page (M6) calls it after one confirmation click: two clicks in total.
 - **Portal:** `POST /api/billing/portal` opens the Stripe billing portal, for updating the card.
-- **Reminder:** `GET /api/cron/trial-reminders` sends the email 48 hours before the first charge. It must run
-  hourly in production, which needs Vercel Pro; on the Hobby plan `vercel.json` runs it daily so deploys do not
-  fail (`docs/PLAN.md`, D6 and section 13).
+- **Reminder:** `GET /api/cron/trial-reminders` sends the email at least 48 hours before the first charge. On
+  the Hobby plan `vercel.json` runs it daily (48 to 73 hours of notice); once Vercel Pro is on it runs hourly
+  (48 to 50 hours). `REMINDER_CRON_PERIOD_HOURS` must match the schedule (`docs/PLAN.md`, D6 and section 13).
 
 Access follows `profiles.plan`, which only the webhook can change. `trialing` and `active` unlock the product.
 
@@ -60,6 +60,7 @@ Access follows `profiles.plan`, which only the webhook can change. `trialing` an
 ## Before going live (you do this yourself, in manual mode)
 
 - [ ] Managed Payments (or Paddle) is confirmed and live on the account.
+- [ ] Vercel Pro is on, `vercel.json` runs `trial-reminders` hourly and `REMINDER_CRON_PERIOD_HOURS` is 1.
 - [ ] Business details, support email, Terms and Privacy URLs, and statement descriptor are set in Stripe.
 - [ ] The pricing page shows price, renewal and cancellation terms before checkout, tax handled as decided.
 - [ ] Test-mode run passed: checkout, trial reminder email, two-click cancel, account deletion.
