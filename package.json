@@ -4,7 +4,7 @@
   "private": true,
   "description": "AskedFor (codename FYB): who to reply to today, what to build next.",
   "engines": {
-    "node": ">=22.12.0 <23"
+    "node": ">=22.18.0 <23"
   },
   "scripts": {
     "dev": "next dev",
@@ -22,7 +22,8 @@
     "compliance": "npm run compliance:hosts && npm run compliance:deps && npm run compliance:schema && npm run compliance:copy",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
     "db:migrate": "supabase db push --linked",
-    "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts"
+    "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
+    "db:types:local": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/db-types.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
