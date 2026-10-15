@@ -3,9 +3,10 @@ import type { Denylist } from "./denylist.mjs";
 import type { Finding } from "./finding";
 
 /**
- * `compliance:copy`: scans marketing pages and emails for what the brief forbids.
+ * `compliance:copy`: scans marketing pages, emails and app UI for what the brief forbids.
  *   * em dashes, hype words, competitor names, UK spellings (US English is the standard)
- *   * any number that is not in docs/claims.md (every public number must be provable)
+ *   * any number that is not in docs/claims.md (every public number must be provable). Not
+ *     applied to app UI, where numbers are live data rather than claims.
  *   * third-party logo files in public/
  *
  * Copy is extracted from the TypeScript AST: JSX text plus user-facing string literals. Class
@@ -190,12 +191,19 @@ const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$
 const wordRegex = (phrase: string): RegExp =>
   new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(phrase)}`, "iu");
 
+export interface CheckCopyOptions {
+  /** Every number must be a claim. True for public pages and emails, false for app UI. */
+  numbers?: boolean;
+}
+
 export function checkCopy(
   items: readonly CopyItem[],
   file: string,
   deny: Denylist,
   allowedNumbers: ReadonlySet<string>,
+  options: CheckCopyOptions = {},
 ): Finding[] {
+  const checkNumbers = options.numbers ?? true;
   const findings: Finding[] = [];
   const add = (item: CopyItem, rule: string, detail: string) =>
     findings.push({
@@ -221,6 +229,7 @@ export function checkCopy(
     for (const [word, re] of spellings)
       if (re.test(text))
         add(item, "uk-spelling", `uses the UK spelling "${word}". Use US English.`);
+    if (!checkNumbers) continue;
     for (const m of text.matchAll(NUMBER)) {
       const n = m[0].replace(/,$/, "");
       if (!allowedNumbers.has(n))

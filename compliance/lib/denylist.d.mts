@@ -4,6 +4,8 @@ export interface Denylist {
   schema: { postTables: string[]; bannedColumnPattern: string; anonGrantsForbidden: boolean };
   copy: {
     scanRoots: string[];
+    /** App UI: same rules as scanRoots except the numbers rule (live data, not claims). */
+    appScanRoots: string[];
     bannedPhrases: string[];
     competitorNames: string[];
     ukSpellings: string[];
