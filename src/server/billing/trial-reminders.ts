@@ -4,6 +4,7 @@ import {
   BILLING_PATHS,
   REMINDER_CRON_PERIOD_HOURS,
   REMINDER_HOURS_BEFORE_CHARGE,
+  REMINDER_MISSED_RUNS_TOLERATED,
   REMINDER_SCHEDULER_SLACK_HOURS,
 } from "./constants";
 import type { BillingStripe, ProfileStore, TrialingProfile } from "./ports";
@@ -17,12 +18,31 @@ const HOUR_MS = 3_600_000;
 /**
  * How far ahead a reminder becomes due, for a cron that runs every `periodHours`.
  *
- * The run before the one that sends saw more than this many hours left, and consecutive runs are at
- * most `periodHours` plus the scheduler slack apart, so the email always lands at least 48 hours
- * before the charge: 48 to 73 hours on the daily (Hobby) schedule, 48 to 50 on the hourly one.
+ * The run before the first due run saw more than this many hours left, and consecutive runs are at
+ * most `periodHours` plus the scheduler slack apart. The window covers that gap once for the run
+ * itself and once more for each tolerated missed run, so even after a failed run the email lands at
+ * least 48 hours before the charge: 73 to 98 hours ahead on the daily (Hobby) schedule, 50 to 52 on
+ * the hourly one.
  */
 export function reminderWindowHours(periodHours: number = REMINDER_CRON_PERIOD_HOURS): number {
-  return REMINDER_HOURS_BEFORE_CHARGE + periodHours + REMINDER_SCHEDULER_SLACK_HOURS;
+  const gap = periodHours + REMINDER_SCHEDULER_SLACK_HOURS;
+  return REMINDER_HOURS_BEFORE_CHARGE + (1 + REMINDER_MISSED_RUNS_TOLERATED) * gap;
+}
+
+class SendTimeoutError extends Error {
+  override name = "SendTimeoutError";
+}
+
+async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SendTimeoutError()), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -48,6 +68,8 @@ export interface ReminderRunResult {
   sent: number;
   failed: number;
   skipped: number;
+  /** Not attempted because the run's time budget ran out; the next run picks them up. */
+  deferred: number;
 }
 
 export async function runTrialReminders(args: {
@@ -59,15 +81,31 @@ export async function runTrialReminders(args: {
   now: Date;
   /** Defaults to the window for the deployed cron period. Tests pass other cadences. */
   windowHours?: number;
+  /** Stop claiming new reminders after this long, well inside the route's maxDuration. */
+  budgetMs?: number;
+  /** Give up on one send after this long and release its claim, so a hung send loses nothing. */
+  sendTimeoutMs?: number;
+  /** Milliseconds since the run started. Injected in tests. */
+  elapsedMs?: () => number;
 }): Promise<ReminderRunResult> {
   const { store, stripe, config, mailer, getEmail, now } = args;
+  const budgetMs = args.budgetMs ?? 40_000;
+  const sendTimeoutMs = args.sendTimeoutMs ?? 10_000;
+  const startedAt = Date.now();
+  const elapsedMs = args.elapsedMs ?? (() => Date.now() - startedAt);
 
   const due = selectDueReminders(
     await store.listTrialingProfilesWithoutReminder(),
     now,
     args.windowHours ?? reminderWindowHours(),
   );
-  const result: ReminderRunResult = { due: due.length, sent: 0, failed: 0, skipped: 0 };
+  const result: ReminderRunResult = {
+    due: due.length,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    deferred: 0,
+  };
   if (due.length === 0) return result;
 
   const price = await stripe.getPrice(config.priceId);
@@ -76,7 +114,11 @@ export async function runTrialReminders(args: {
     return { ...result, failed: due.length };
   }
 
-  for (const profile of due) {
+  for (const [index, profile] of due.entries()) {
+    if (elapsedMs() > budgetMs) {
+      result.deferred = due.length - index;
+      break;
+    }
     // Claim first so two overlapping runs cannot both send. Release if sending fails.
     if (!(await store.claimTrialReminder(profile.id, now))) {
       result.skipped++;
@@ -95,7 +137,7 @@ export async function runTrialReminders(args: {
         },
         settingsUrl: `${config.siteUrl}${BILLING_PATHS.settings}`,
       });
-      await mailer.send({ to, ...email });
+      await withTimeout(mailer.send({ to, ...email }), sendTimeoutMs);
       result.sent++;
     } catch {
       await store.releaseTrialReminder(profile.id);

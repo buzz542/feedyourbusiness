@@ -132,9 +132,38 @@ export function extractCopy(code: string, file: string): CopyItem[] {
   return items;
 }
 
-/** Remove HTML tags and entities, so markup in email templates is not read as numbers. */
-const stripMarkup = (text: string): string =>
-  text.replace(/<[^>]*>/g, " ").replace(/&#?[a-z0-9]+;/gi, " ");
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  ndash: "\u2013",
+  mdash: "\u2014",
+  hellip: "\u2026",
+};
+
+/**
+ * Decode HTML entities. JSX must escape apostrophes (react/no-unescaped-entities), so real copy says
+ * `don&apos;t`; decoding means rules match what a reader sees, and `&mdash;` counts as an em dash.
+ */
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (_match, body: string) => {
+    if (body.startsWith("#")) {
+      const code = /^#x/i.test(body) ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : " ";
+    }
+    return NAMED_ENTITIES[body.toLowerCase()] ?? " ";
+  });
+}
+
+/** Remove HTML tags and decode entities, so markup in email templates is not read as numbers. */
+const stripMarkup = (text: string): string => decodeEntities(text.replace(/<[^>]*>/g, " "));
 
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 

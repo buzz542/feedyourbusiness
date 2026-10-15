@@ -50,11 +50,26 @@ describe("loadBillingConfig", () => {
       ).toThrow(/merchant of record/);
     });
 
-    it("allows live mode only when both are set", () => {
-      expect(loadBillingConfig({ ...live, BILLING_LIVE_ENABLED: "true" })).toMatchObject({
+    it("allows live mode only when both are set and trial reminders run hourly", () => {
+      const hourly = { reminderCronPeriodHours: 1 };
+      expect(loadBillingConfig({ ...live, BILLING_LIVE_ENABLED: "true" }, hourly)).toMatchObject({
         mode: "live",
         managedPayments: true,
       });
+    });
+
+    it("refuses live billing while trial reminders run only daily (Vercel Hobby)", () => {
+      const run = () =>
+        loadBillingConfig(
+          { ...live, BILLING_LIVE_ENABLED: "true" },
+          { reminderCronPeriodHours: 24 },
+        );
+      expect(run).toThrow(BillingConfigError);
+      expect(run).toThrow(/hourly/);
+    });
+
+    it("keeps test mode working on the daily schedule", () => {
+      expect(loadBillingConfig(base, { reminderCronPeriodHours: 24 }).mode).toBe("test");
     });
 
     it("treats restricted live keys as live too", () => {

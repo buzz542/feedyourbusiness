@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REMINDER_CRON_PERIOD_HOURS } from "./constants";
 
 export class BillingConfigError extends Error {
   constructor(message: string) {
@@ -33,11 +34,15 @@ const schema = z.object({
 type Env = Readonly<Record<string, string | undefined>>;
 
 /**
- * Parse billing config from the environment, and refuse to run in live mode unless two things
- * are explicitly true: the founder has switched live billing on, and a merchant of record is in
- * place (hard compliance rule: VAT and sales tax handled for us).
+ * Parse billing config from the environment, and refuse to run in live mode unless three things
+ * are true: the founder has switched live billing on, a merchant of record is in place (hard
+ * compliance rule: VAT and sales tax handled for us), and the trial reminder runs hourly (Vercel
+ * Pro), so real customers get the reminder with the tighter, hourly timing.
  */
-export function loadBillingConfig(env: Env = process.env): BillingConfig {
+export function loadBillingConfig(
+  env: Env = process.env,
+  options: { reminderCronPeriodHours?: number } = {},
+): BillingConfig {
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const fields = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
@@ -54,6 +59,11 @@ export function loadBillingConfig(env: Env = process.env): BillingConfig {
     if (!managedPayments) {
       throw new BillingConfigError(
         "Live billing requires a merchant of record. Enable Stripe Managed Payments or replace this module with Paddle.",
+      );
+    }
+    if ((options.reminderCronPeriodHours ?? REMINDER_CRON_PERIOD_HOURS) !== 1) {
+      throw new BillingConfigError(
+        "Live billing requires the hourly trial-reminder schedule: on Vercel Pro, switch vercel.json and REMINDER_CRON_PERIOD_HOURS to hourly first.",
       );
     }
   }

@@ -17,10 +17,17 @@ export const REMINDER_CRON_PERIOD_HOURS = 24;
 /** Allowance for scheduler jitter: Vercel Hobby fires a daily cron anywhere within its hour. */
 export const REMINDER_SCHEDULER_SLACK_HOURS = 1;
 
+/**
+ * Runs the reminder may miss (a failed send, an outage, a skipped invocation) and still land at
+ * least 48 hours before the charge. Each tolerated miss widens the window by one cron period.
+ */
+export const REMINDER_MISSED_RUNS_TOLERATED = 1;
+
 /** App paths the billing flow links to (docs/PLAN.md, section 4.2). */
 export const BILLING_PATHS = {
   settings: "/app/settings",
-  checkoutSuccess: "/app/reply?welcome=1",
+  // Stripe fills in {CHECKOUT_SESSION_ID}; the welcome step confirms the session server-side.
+  checkoutSuccess: "/app/reply?welcome=1&session_id={CHECKOUT_SESSION_ID}",
   checkoutCanceled: "/app/billing?checkout=canceled",
 } as const;
 

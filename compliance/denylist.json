@@ -129,7 +129,17 @@
       "don't scrape",
       "don\u2019t scrape",
       "do not scrape",
-      "official apis only"
+      "official apis only",
+      "only use official apis",
+      "only official apis",
+      "official api only",
+      "not a scraper",
+      "dont scrape",
+      "doesn't scrape",
+      "doesn\u2019t scrape",
+      "does not scrape",
+      "scraping-free",
+      "scrape-free"
     ],
     "competitorNames": [
       "ownfeed",

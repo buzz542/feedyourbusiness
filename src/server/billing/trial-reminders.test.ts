@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { FakeProfileStore, FakeStripe, TEST_CONFIG, subscriptionFixture } from "./fakes";
 import { handleStripeEvent } from "./events";
 import { subscriptionEvent } from "./fakes";
-import { REMINDER_CRON_PERIOD_HOURS } from "./constants";
+import {
+  REMINDER_CRON_PERIOD_HOURS,
+  REMINDER_HOURS_BEFORE_CHARGE,
+  REMINDER_SCHEDULER_SLACK_HOURS,
+  TRIAL_DAYS,
+} from "./constants";
 import {
   reminderWindowHours,
   runTrialReminders,
@@ -11,13 +16,16 @@ import {
 } from "./trial-reminders";
 
 const HOUR = 3_600_000;
+const MINUTE = 60_000;
 const iso = (ms: number) => new Date(ms).toISOString();
 
 class FakeMailer implements Mailer {
   sent: Array<{ to: string; subject: string; text: string; html: string; at: Date }> = [];
   failNext = 0;
+  hang = false;
   constructor(private clock: () => Date) {}
   async send(message: { to: string; subject: string; text: string; html: string }) {
+    if (this.hang) return new Promise<void>(() => {});
     if (this.failNext > 0) {
       this.failNext--;
       throw new Error("smtp down");
@@ -27,13 +35,19 @@ class FakeMailer implements Mailer {
 }
 
 describe("reminderWindowHours", () => {
-  it("adds one cron period and an hour of scheduler slack to the 48 hours of notice", () => {
-    expect(reminderWindowHours(24)).toBe(73);
-    expect(reminderWindowHours(1)).toBe(50);
+  it("covers two cron periods plus slack beyond the 48 hours, so one missed run still leaves 48", () => {
+    expect(reminderWindowHours(24)).toBe(98);
+    expect(reminderWindowHours(1)).toBe(52);
   });
 
   it("defaults to the cron period vercel.json deploys", () => {
     expect(reminderWindowHours()).toBe(reminderWindowHours(REMINDER_CRON_PERIOD_HOURS));
+  });
+
+  it("fits inside the trial, so the first run after sign-up is never already inside the window", () => {
+    const period = REMINDER_CRON_PERIOD_HOURS + REMINDER_SCHEDULER_SLACK_HOURS;
+    expect(TRIAL_DAYS * 24).toBeGreaterThanOrEqual(reminderWindowHours() + period);
+    expect(TRIAL_DAYS * 24).toBeGreaterThanOrEqual(reminderWindowHours(24) + 25);
   });
 });
 
@@ -58,83 +72,168 @@ describe("selectDueReminders", () => {
     expect(selectDueReminders([trialing(0), trialing(-1)], now)).toEqual([]);
   });
 
-  it("skips someone who has already cancelled, because they will not be charged", () => {
+  it("skips someone who has already canceled, because they will not be charged", () => {
     expect(selectDueReminders([trialing(24, true)], now)).toEqual([]);
   });
 });
 
-describe("trial reminder on the daily Hobby schedule", () => {
-  const MINUTE = 60_000;
-  const firstDay = Date.parse("2026-10-13T00:00:00Z");
-  /** Minutes past 07:00 UTC for successive days. Hobby fires anywhere within the hour. */
-  const JITTERS = [[0], [59], [0, 59], [59, 0], [17, 42, 3, 58, 30]];
-  /** Trial starts spread across a whole day, every 20 minutes. */
-  const STARTS = Array.from({ length: 72 }, (_, i) => firstDay + i * 20 * MINUTE);
-
-  /** Times the reminder was sent for one trial, with the cron firing daily at 07:00 plus jitter. */
-  async function simulateDaily(start: number, jitter: number[], windowHours: number) {
-    const store = new FakeProfileStore();
-    store.addUser("user-1");
-    const stripe = new FakeStripe();
-    let clock = new Date(start);
-    const mailer = new FakeMailer(() => clock);
-    const trialEnd = Math.floor((start + 7 * 24 * HOUR) / 1000);
-    await handleStripeEvent(
-      subscriptionEvent("created", subscriptionFixture({ trial_end: trialEnd }), iso(start)),
-      { store, stripe },
-    );
-
-    for (let day = 0; day <= 9; day++) {
-      const minutes = jitter[day % jitter.length] ?? 0;
-      const at = firstDay + day * 24 * HOUR + 7 * HOUR + minutes * MINUTE;
-      if (at < start) continue;
-      clock = new Date(at);
-      await runTrialReminders({
-        store,
-        stripe,
-        config: TEST_CONFIG,
-        mailer,
-        getEmail: async () => "maker@example.test",
-        now: clock,
-        windowHours,
-      });
-    }
-    return { sent: mailer.sent.map((m) => m.at.getTime()), chargeAt: trialEnd * 1000 };
+/** One trial, start to finish, under a given cron cadence. Returns when the reminder went out. */
+async function simulate(args: {
+  start: number;
+  ticks: (from: number, to: number) => number[];
+  windowHours?: number;
+  failFirstSends?: number;
+}) {
+  const store = new FakeProfileStore();
+  store.addUser("user-1");
+  const stripe = new FakeStripe();
+  let clock = new Date(args.start);
+  const mailer = new FakeMailer(() => clock);
+  mailer.failNext = args.failFirstSends ?? 0;
+  const chargeAt = Math.floor((args.start + TRIAL_DAYS * 24 * HOUR) / 1000) * 1000;
+  await handleStripeEvent(
+    subscriptionEvent(
+      "created",
+      subscriptionFixture({ trial_end: chargeAt / 1000 }),
+      iso(args.start),
+    ),
+    { store, stripe },
+  );
+  for (const at of args.ticks(args.start, chargeAt + 2 * 24 * HOUR)) {
+    clock = new Date(at);
+    await runTrialReminders({
+      store,
+      stripe,
+      config: TEST_CONFIG,
+      mailer,
+      getEmail: async () => "maker@example.test",
+      now: clock,
+      ...(args.windowHours === undefined ? {} : { windowHours: args.windowHours }),
+    });
   }
+  return { notices: mailer.sent.map((m) => (chargeAt - m.at.getTime()) / HOUR) };
+}
+
+const firstDay = Date.parse("2026-10-13T00:00:00Z");
+/** Minutes past 07:00 UTC for successive days. Hobby fires anywhere within the hour. */
+const JITTERS = [[0], [59], [0, 59], [59, 0], [17, 42, 3, 58, 30]];
+/** Trial starts spread across a whole day, every 20 minutes. */
+const STARTS = Array.from({ length: 72 }, (_, i) => firstDay + i * 20 * MINUTE);
+
+const dailyTicks =
+  (jitter: number[]) =>
+  (from: number, to: number): number[] => {
+    const out: number[] = [];
+    for (let day = 0; firstDay + day * 24 * HOUR <= to; day++) {
+      const at =
+        firstDay + day * 24 * HOUR + 7 * HOUR + (jitter[day % jitter.length] ?? 0) * MINUTE;
+      if (at >= from && at <= to) out.push(at);
+    }
+    return out;
+  };
+
+/** Vercel Pro runs on the hour, which does not line up with the minute a trial started. */
+const hourlyTicks = (from: number, to: number): number[] => {
+  const out: number[] = [];
+  for (let at = Math.ceil(from / HOUR) * HOUR; at <= to; at += HOUR) out.push(at);
+  return out;
+};
+
+describe("trial reminder on the daily Hobby schedule", () => {
+  const window = reminderWindowHours(24);
 
   it.each(JITTERS.map((pattern) => ({ pattern })))(
-    "sends exactly one reminder, at least 48 hours before the charge (jitter $pattern)",
+    "sends exactly one reminder, at least 48 hours ahead (jitter $pattern)",
     async ({ pattern }) => {
-      const window = reminderWindowHours(24);
       for (const start of STARTS) {
-        const { sent, chargeAt } = await simulateDaily(start, pattern, window);
-        expect(sent, `trial starting ${iso(start)}`).toHaveLength(1);
-        const notice = (chargeAt - sent[0]!) / HOUR;
-        expect(notice, `trial starting ${iso(start)}`).toBeGreaterThanOrEqual(48);
-        expect(notice, `trial starting ${iso(start)}`).toBeLessThanOrEqual(window);
+        const { notices } = await simulate({
+          start,
+          ticks: dailyTicks(pattern),
+          windowHours: window,
+        });
+        expect(notices, `trial starting ${iso(start)}`).toHaveLength(1);
+        expect(notices[0], `trial starting ${iso(start)}`).toBeGreaterThanOrEqual(48);
+        expect(notices[0], `trial starting ${iso(start)}`).toBeLessThanOrEqual(window);
       }
     },
   );
 
-  it("would give less than 48 hours of notice with a plain 48 hour window (why the window widens)", async () => {
+  it.each(JITTERS.map((pattern) => ({ pattern })))(
+    "still gives 48 hours when the first due run fails (jitter $pattern)",
+    async ({ pattern }) => {
+      for (const start of STARTS) {
+        const { notices } = await simulate({
+          start,
+          ticks: dailyTicks(pattern),
+          windowHours: window,
+          failFirstSends: 1,
+        });
+        expect(notices, `trial starting ${iso(start)}`).toHaveLength(1);
+        expect(notices[0], `trial starting ${iso(start)}`).toBeGreaterThanOrEqual(48);
+      }
+    },
+  );
+
+  it("would give less than 48 hours with a plain 48 hour window (why the window is wider)", async () => {
     let shortest = Infinity;
     for (const start of STARTS) {
-      const { sent, chargeAt } = await simulateDaily(start, [0, 59], 48);
-      for (const at of sent) shortest = Math.min(shortest, (chargeAt - at) / HOUR);
+      const { notices } = await simulate({ start, ticks: dailyTicks([0, 59]), windowHours: 48 });
+      for (const n of notices) shortest = Math.min(shortest, n);
     }
     expect(shortest).toBeLessThan(48);
   });
 });
 
+describe("trial reminder on the hourly Pro schedule", () => {
+  const window = reminderWindowHours(1);
+
+  it("sends exactly one reminder, at least 48 hours ahead, for trials starting at any minute", async () => {
+    for (const start of STARTS) {
+      const { notices } = await simulate({ start, ticks: hourlyTicks, windowHours: window });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toBeGreaterThanOrEqual(48);
+      expect(notices[0]).toBeLessThanOrEqual(window);
+    }
+  });
+
+  it("still gives 48 hours when the first due run fails", async () => {
+    for (const start of STARTS) {
+      const { notices } = await simulate({
+        start,
+        ticks: hourlyTicks,
+        windowHours: window,
+        failFirstSends: 1,
+      });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toBeGreaterThanOrEqual(48);
+    }
+  });
+});
+
+describe("trial reminder on the schedule vercel.json deploys (default window)", () => {
+  const ticks = REMINDER_CRON_PERIOD_HOURS === 24 ? dailyTicks([0, 59, 30]) : hourlyTicks;
+
+  it("gives at least 48 hours, including when the first due run fails", async () => {
+    for (const start of STARTS) {
+      for (const failFirstSends of [0, 1]) {
+        const { notices } = await simulate({ start, ticks, failFirstSends });
+        expect(notices).toHaveLength(1);
+        expect(notices[0]).toBeGreaterThanOrEqual(REMINDER_HOURS_BEFORE_CHARGE);
+      }
+    }
+  });
+});
+
 describe("trial reminder, time travel on the hourly Pro schedule", () => {
   const start = Date.parse("2026-10-13T10:25:00Z");
+  const chargeAt = start + 7 * 24 * HOUR;
   const HOURLY_WINDOW = reminderWindowHours(1);
   let store: FakeProfileStore;
   let stripe: FakeStripe;
   let clock: Date;
   let mailer: FakeMailer;
 
-  const tick = (now: Date) => {
+  const tick = (now: Date, extra: Partial<Parameters<typeof runTrialReminders>[0]> = {}) => {
     clock = now;
     return runTrialReminders({
       store,
@@ -144,12 +243,15 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
       getEmail: async (id) => (id === "user-1" ? "maker@example.test" : null),
       now,
       windowHours: HOURLY_WINDOW,
+      ...extra,
     });
   };
 
-  /** Run the hourly cron from the start of the trial until `hours` have passed. */
-  const runHourly = async (hours: number, from = 0) => {
-    for (let h = from; h <= hours; h++) await tick(new Date(start + h * HOUR));
+  /** Run the hourly cron, on the hour, from `fromHours` to `hours` after the trial started. */
+  const runHourly = async (hours: number, fromHours = 0) => {
+    for (const at of hourlyTicks(start + fromHours * HOUR, start + hours * HOUR)) {
+      await tick(new Date(at));
+    }
   };
 
   beforeEach(async () => {
@@ -159,21 +261,23 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
     mailer = new FakeMailer(() => clock);
 
     // Checkout completes and Stripe starts a 7 day trial.
-    const trialEnd = Math.floor((start + 7 * 24 * HOUR) / 1000);
     await handleStripeEvent(
-      subscriptionEvent("created", subscriptionFixture({ trial_end: trialEnd }), iso(start)),
+      subscriptionEvent(
+        "created",
+        subscriptionFixture({ trial_end: Math.floor(chargeAt / 1000) }),
+        iso(start),
+      ),
       { store, stripe },
     );
   });
 
-  it("sends exactly one reminder, 49 to 50 hours before the first charge", async () => {
+  it("sends exactly one reminder, 51 to 52 hours before the first charge", async () => {
     await runHourly(9 * 24);
 
     expect(mailer.sent).toHaveLength(1);
-    const chargeAt = start + 7 * 24 * HOUR;
     const hoursBeforeCharge = (chargeAt - mailer.sent[0]!.at.getTime()) / HOUR;
-    expect(hoursBeforeCharge).toBeGreaterThan(49);
-    expect(hoursBeforeCharge).toBeLessThanOrEqual(50);
+    expect(hoursBeforeCharge).toBeGreaterThan(51);
+    expect(hoursBeforeCharge).toBeLessThanOrEqual(52);
   });
 
   it("sends nothing while the charge is further away than the window", async () => {
@@ -195,14 +299,14 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
     expect(html).toContain('href="https://app.example.test/app/settings"');
   });
 
-  it("does not remind someone who cancelled before the window", async () => {
+  it("does not remind someone who canceled before the window", async () => {
     await runHourly(3 * 24);
     await handleStripeEvent(
       subscriptionEvent(
         "updated",
         subscriptionFixture({
           cancel_at_period_end: true,
-          trial_end: Math.floor((start + 7 * 24 * HOUR) / 1000),
+          trial_end: Math.floor(chargeAt / 1000),
         }),
         iso(start + 3 * 24 * HOUR),
       ),
@@ -213,22 +317,40 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
     expect(mailer.sent).toEqual([]);
   });
 
-  it("retries on the next hour when the email provider is down, and still sends only one", async () => {
+  it("retries on the next run when the email provider is down, and still sends only one, 48 hours ahead", async () => {
     mailer.failNext = 2;
     await runHourly(9 * 24);
 
     expect(mailer.sent).toHaveLength(1);
-    const chargeAt = start + 7 * 24 * HOUR;
-    expect((chargeAt - mailer.sent[0]!.at.getTime()) / HOUR).toBeGreaterThan(45);
+    expect((chargeAt - mailer.sent[0]!.at.getTime()) / HOUR).toBeGreaterThanOrEqual(48);
   });
 
   it("reports failures so the cron route can answer non-2xx", async () => {
     mailer.failNext = 1;
     const first = await tick(new Date(start + 5 * 24 * HOUR));
-    expect(first).toEqual({ due: 1, sent: 0, failed: 1, skipped: 0 });
+    expect(first).toEqual({ due: 1, sent: 0, failed: 1, skipped: 0, deferred: 0 });
 
     const second = await tick(new Date(start + 5 * 24 * HOUR + HOUR));
-    expect(second).toEqual({ due: 1, sent: 1, failed: 0, skipped: 0 });
+    expect(second).toEqual({ due: 1, sent: 1, failed: 0, skipped: 0, deferred: 0 });
+  });
+
+  it("gives up on a send that hangs and releases the claim for the next run", async () => {
+    mailer.hang = true;
+    const result = await tick(new Date(start + 5 * 24 * HOUR), { sendTimeoutMs: 20 });
+
+    expect(result.failed).toBe(1);
+    expect(store.row("user-1").trialReminderSentAt).toBeNull();
+  });
+
+  it("stops claiming once the time budget is spent, leaving the rest for the next run", async () => {
+    const result = await tick(new Date(start + 5 * 24 * HOUR), {
+      budgetMs: 1000,
+      elapsedMs: () => 5000,
+    });
+
+    expect(result).toEqual({ due: 1, sent: 0, failed: 0, skipped: 0, deferred: 1 });
+    expect(store.row("user-1").trialReminderSentAt).toBeNull();
+    expect(mailer.sent).toEqual([]);
   });
 
   it("sends a fresh reminder if support extends the trial", async () => {
@@ -279,6 +401,6 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
 
   it("does nothing, and calls nobody, when nobody is due", async () => {
     const result = await tick(new Date(start + 24 * HOUR));
-    expect(result).toEqual({ due: 0, sent: 0, failed: 0, skipped: 0 });
+    expect(result).toEqual({ due: 0, sent: 0, failed: 0, skipped: 0, deferred: 0 });
   });
 });

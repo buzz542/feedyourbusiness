@@ -145,6 +145,18 @@ describe("runHealthChecks", () => {
       expect(report.checks.site_url?.detail).toContain("askedfor.vercel.app");
     });
 
+    it("trusts the setting when both are custom domains (Vercel reports only one of several)", async () => {
+      const env = withEnv({ VERCEL_PROJECT_PRODUCTION_URL: "askedfor.dev" });
+      const report = await runHealthChecks(deps({ env }));
+      expect(report.checks.site_url?.status).toBe("ok");
+    });
+
+    it("is invalid on a vercel.app URL once a custom production domain exists", async () => {
+      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://askedfor.vercel.app" });
+      const report = await runHealthChecks(deps({ env }));
+      expect(report.checks.site_url?.status).toBe("invalid");
+    });
+
     it("accepts the www twin of the production domain", async () => {
       const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://www.askedfor.app" });
       const report = await runHealthChecks(
@@ -259,11 +271,27 @@ describe("runHealthChecks", () => {
       expect(report.checks.stripe_webhook?.status).toBe("ok");
     });
 
-    it("names a near miss: a trailing slash makes Next redirect, which Stripe counts as a failure", async () => {
-      const endpoint = { ...GOOD_ENDPOINT, url: "https://askedfor.app/api/billing/webhook/" };
+    it.each([
+      ["a trailing slash", "https://askedfor.app/api/billing/webhook/"],
+      ["plain http", "http://askedfor.app/api/billing/webhook"],
+      ["the www twin", "https://www.askedfor.app/api/billing/webhook"],
+    ])(
+      "names a near miss that would redirect, which Stripe counts as a failure: %s",
+      async (_label, url) => {
+        const report = await runHealthChecks(deps({ endpoints: [{ ...GOOD_ENDPOINT, url }] }));
+        expect(report.checks.stripe_webhook?.status).toBe("invalid");
+        expect(report.checks.stripe_webhook?.detail).toContain(url);
+        expect(report.checks.stripe_webhook?.detail).toContain("redirect");
+      },
+    );
+
+    it("accepts an endpoint with a query string, which does not redirect", async () => {
+      const endpoint = {
+        ...GOOD_ENDPOINT,
+        url: "https://askedfor.app/api/billing/webhook?env=prod",
+      };
       const report = await runHealthChecks(deps({ endpoints: [endpoint] }));
-      expect(report.checks.stripe_webhook?.status).toBe("invalid");
-      expect(report.checks.stripe_webhook?.detail).toContain("trailing slash");
+      expect(report.checks.stripe_webhook?.status).toBe("ok");
     });
 
     it("is invalid when the endpoint is disabled", async () => {
@@ -293,13 +321,29 @@ describe("runHealthChecks", () => {
       expect(report.checks.stripe_webhook?.status).toBe("ok");
     });
 
-    it("catches a wrong signing secret through recent undelivered events", async () => {
+    it("catches a wrong signing secret through events undelivered in the last 24 hours", async () => {
       const d = deps({ undelivered: 3 });
       const report = await runHealthChecks(d);
       expect(report.checks.stripe_webhook?.status).toBe("invalid");
       expect(report.checks.stripe_webhook?.detail).toContain("STRIPE_WEBHOOK_SECRET");
+      expect(report.checks.stripe_webhook?.detail).toContain("resend");
       expect(d.undeliveredCalls[0]?.types).toEqual([...HANDLED_EVENT_TYPES]);
-      expect(d.undeliveredCalls[0]?.since.toISOString()).toBe("2026-10-08T12:00:00.000Z");
+      // A short lookback, so the check clears soon after a fix instead of staying red for a week.
+      expect(d.undeliveredCalls[0]?.since.toISOString()).toBe("2026-10-14T12:00:00.000Z");
+    });
+
+    it("explains a key that cannot read events, and reports other failures by class", async () => {
+      const denied = new Stripe.errors.StripePermissionError({ message: "no access" });
+      const deniedReport = await runHealthChecks(deps({ undelivered: denied }));
+      expect(deniedReport.checks.stripe_webhook?.status).toBe("error");
+      expect(deniedReport.checks.stripe_webhook?.detail).toContain("Events");
+
+      const down = new Stripe.errors.StripeAPIError({ message: "boom" });
+      const downReport = await runHealthChecks(deps({ undelivered: down }));
+      expect(downReport.checks.stripe_webhook).toEqual({
+        status: "error",
+        detail: "StripeAPIError",
+      });
     });
 
     it("explains a restricted key that cannot read webhook endpoints", async () => {

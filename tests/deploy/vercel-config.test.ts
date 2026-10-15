@@ -119,7 +119,9 @@ describe("vercel.json", () => {
   it("runs the trial reminder at the period the reminder window is built for", () => {
     const reminder = (config.crons ?? []).find((c) => c.path === "/api/cron/trial-reminders");
     expect(reminder).toBeDefined();
-    if (REMINDER_CRON_PERIOD_HOURS === 24) expect(runsAtMostDaily(reminder!.schedule)).toBe(true);
+    // Every day, not weekdays or weekly: a gap longer than the period would cut the notice.
+    if (REMINDER_CRON_PERIOD_HOURS === 24)
+      expect(reminder!.schedule).toMatch(/^\d{1,2} \d{1,2} \* \* \*$/);
     else if (REMINDER_CRON_PERIOD_HOURS === 1)
       expect(reminder!.schedule).toMatch(/^\d{1,2} \* \* \* \*$/);
     else throw new Error(`unsupported REMINDER_CRON_PERIOD_HOURS ${REMINDER_CRON_PERIOD_HOURS}`);

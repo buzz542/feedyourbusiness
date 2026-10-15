@@ -45,6 +45,8 @@ class HealthCheckTimeout extends Error {
 }
 
 const DAY_MS = 86_400_000;
+/** Scheme, host and path. A query string does not make Next redirect, so it is ignored. */
+const endpointKey = (u: URL) => `${u.protocol}//${u.host}${u.pathname}`;
 const SUPABASE_HOSTS: readonly string[] = PROCESSOR_HOSTS.filter((h) => h.endsWith(".supabase.co"));
 /** Values copied from .env.example unchanged. */
 const PLACEHOLDER = /replace_me/i;
@@ -205,16 +207,20 @@ async function checkStripeWebhook(
       const url = parseUrl(e.url);
       return url ? [{ endpoint: e, url }] : [];
     });
-    const exact = parsed.filter((p) => p.url.href === target.href).map((p) => p.endpoint);
+    const exact = parsed
+      .filter((p) => endpointKey(p.url) === endpointKey(target))
+      .map((p) => p.endpoint);
     if (exact.length === 0) {
+      // Same site and path, but a trailing slash, http:// or the other www form: each redirects.
       const near = parsed.find(
         (p) =>
-          p.url.origin === target.origin && p.url.pathname.replace(/\/+$/, "") === target.pathname,
+          sameSite(p.url.hostname, target.hostname) &&
+          p.url.pathname.replace(/\/+$/, "") === target.pathname,
       );
       if (near) {
         return {
           status: "invalid",
-          detail: `an endpoint is registered at ${near.endpoint.url}; register exactly ${target.href} (a trailing slash or a query makes Next redirect, and Stripe counts a redirect as a failed delivery)`,
+          detail: `an endpoint is registered at ${near.endpoint.url}; register exactly ${target.href}. A trailing slash, http:// or the other www form makes Vercel or Next redirect, and Stripe counts a redirect as a failed delivery`,
         };
       }
       return { status: "missing", detail: `no endpoint for ${target.href}` };
@@ -244,7 +250,7 @@ async function checkStripeWebhook(
     let undelivered: number;
     try {
       undelivered = await stripe.countUndeliveredEvents({
-        since: new Date(now.getTime() - 7 * DAY_MS),
+        since: new Date(now.getTime() - DAY_MS),
         types: HANDLED_EVENT_TYPES,
       });
     } catch (error) {
@@ -254,7 +260,7 @@ async function checkStripeWebhook(
     if (undelivered > 0) {
       return {
         status: "invalid",
-        detail: `${undelivered} billing events from the last 7 days were not delivered: check that STRIPE_WEBHOOK_SECRET is this endpoint's signing secret and that the endpoint answers 2xx`,
+        detail: `${undelivered} billing events from the last 24 hours were not delivered: check that STRIPE_WEBHOOK_SECRET is this endpoint's signing secret and that the endpoint answers 2xx, then resend them from the Stripe Dashboard or wait for Stripe's retries`,
       };
     }
     return { status: "ok", detail: target.href };

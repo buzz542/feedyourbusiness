@@ -349,8 +349,28 @@ describe("copy scanner", () => {
     "We don\u2019t scrape Reddit",
     "We do not scrape",
     "Official APIs only",
+    "We only use official APIs",
+    "Official API only",
+    "AskedFor is not a scraper",
+    "We dont scrape",
+    // JSX must escape apostrophes (react/no-unescaped-entities), so real pages write entities.
+    "We don&apos;t scrape Reddit",
+    "We don&rsquo;t scrape Reddit",
+    "We don&#39;t scrape Reddit",
+    "We don&#x27;t scrape Reddit",
+    "AskedFor doesn&apos;t scrape",
+    "AskedFor does not scrape",
+    "A scraping-free lead feed",
+    "Scrape-free by design",
   ])("flags a claim that hides the data provider (docs/PLAN.md, D12): %s", (phrase) => {
     expect(rules(scan(`export const A = () => <p>${phrase}</p>;`))).toContain("banned-phrase");
+  });
+
+  it("flags an em dash written as an HTML entity", () => {
+    for (const dash of ["&mdash;", "&#8212;", "&#x2014;"])
+      expect(rules(scan(`export const A = () => <p>Fast${dash}simple</p>;`)), dash).toContain(
+        "em-dash",
+      );
   });
 
   it("flags competitor names", () => {

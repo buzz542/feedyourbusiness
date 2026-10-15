@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { UnresolvedUserError, handleStripeEvent } from "./events";
+import { handleStripeEvent } from "./events";
 import {
   FakeProfileStore,
   FakeStripe,
@@ -85,11 +85,15 @@ describe("customer.subscription.*", () => {
     expect(store.row("user-1").plan).toBe("pro");
   });
 
-  it("throws, so Stripe redelivers, when the user cannot be resolved yet", async () => {
+  it("ignores a subscription that did not come from our checkout, instead of failing for days", async () => {
+    // Our checkout always sets metadata.user_id, so no user metadata and an unknown customer means
+    // a foreign subscription, such as the one `stripe trigger customer.subscription.created` makes.
     const sub = subscriptionFixture({ metadata: {}, customer: "cus_unknown" });
-    await expect(handle(subscriptionEvent("created", sub))).rejects.toBeInstanceOf(
-      UnresolvedUserError,
-    );
+    const event = subscriptionEvent("created", sub);
+
+    expect(await handle(event)).toBe("ignored");
+    expect(store.events.get(event.id)?.processed).toBe(true);
+    expect(store.row("user-1").plan).toBe("none");
   });
 });
 

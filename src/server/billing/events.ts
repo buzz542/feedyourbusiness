@@ -4,18 +4,6 @@ import { customerIdOf, profilePatchFromSubscription } from "./subscription";
 
 export type EventOutcome = "processed" | "duplicate" | "ignored" | "stale";
 
-/**
- * Thrown when a subscription event cannot be tied to one of our users yet, for example when it
- * arrives before checkout.session.completed has linked the customer. The webhook answers 500 so
- * Stripe redelivers, and the retry succeeds once the link exists.
- */
-export class UnresolvedUserError extends Error {
-  constructor(readonly customerId: string) {
-    super(`No user for Stripe customer ${customerId}`);
-    this.name = "UnresolvedUserError";
-  }
-}
-
 /** The events the webhook endpoint must be registered for (docs/BILLING.md, step 5). */
 export const HANDLED_EVENT_TYPES = [
   "checkout.session.completed",
@@ -89,7 +77,12 @@ export async function handleStripeEvent(
       const sub = (await deps.stripe.getSubscription(event.data.object.id)) ?? event.data.object;
       const customerId = customerIdOf(sub.customer);
       const userId = sub.metadata.user_id || (await store.findUserIdByCustomerId(customerId));
-      if (!userId) throw new UnresolvedUserError(customerId);
+      if (!userId) {
+        // Our checkout always sets metadata.user_id, so this subscription is not ours (a Stripe CLI
+        // trigger, or one made by hand in the Dashboard). Retrying could never resolve it.
+        outcome = "ignored";
+        break;
+      }
       const applied = await store.applyBillingPatch(
         userId,
         profilePatchFromSubscription(sub),
