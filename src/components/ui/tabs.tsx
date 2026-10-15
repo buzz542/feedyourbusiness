@@ -17,24 +17,29 @@ export function Tabs({
   current,
   label,
   className,
+  fill = false,
 }: {
   items: readonly TabItem[];
   current: string;
   label: string;
   className?: string;
+  /** Share the width equally, as in the mobile bottom bar. */
+  fill?: boolean;
 }) {
   return (
     <nav aria-label={label} className={className}>
-      <ul className="flex gap-1">
+      <ul className={cx("flex", fill ? "" : "gap-1")}>
         {items.map((item) => {
           const active = isCurrentTab(item.href, current);
           return (
-            <li key={item.href}>
+            <li key={item.href} className={fill ? "flex-1" : undefined}>
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cx(
-                  "inline-flex min-h-10 items-center border-b-2 px-3 text-sm",
+                  "inline-flex items-center px-3 text-sm",
+                  // Chosen, not overridden: Tailwind orders utilities by its own rules, not class order.
+                  fill ? "min-h-12 w-full justify-center border-t-2" : "min-h-10 border-b-2",
                   active
                     ? "border-accent font-medium text-ink"
                     : "border-transparent text-muted hover:text-ink",

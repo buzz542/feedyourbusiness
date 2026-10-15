@@ -1,13 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireUser } from "@/server/auth/session";
+import { requirePage } from "@/server/auth/app-state";
 import { createTermsStore } from "@/server/auth/supabase-auth";
 import { acceptTerms } from "@/server/auth/terms";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 
 export async function acceptTermsAction(formData: FormData): Promise<void> {
-  const user = await requireUser("/app/welcome");
+  const { user } = await requirePage("welcome", "/app/welcome");
   const store = createTermsStore(await createSupabaseServerClient());
   const result = await acceptTerms(
     store,

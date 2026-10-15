@@ -65,6 +65,13 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* The mobile bottom bar must never cover the focused element (WCAG 2.2, 2.4.11). */
+@media (max-width: 639px) {
+  html:has([data-bottom-bar]) {
+    scroll-padding-bottom: 5rem;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;

@@ -180,6 +180,13 @@ describe("Tabs", () => {
     );
   });
 
+  it("uses a top border and no bottom border when filling a bottom bar", () => {
+    const out = html(<Tabs label="Sections" items={items} current="/app/reply" fill />);
+    expect(out).toContain("border-t-2");
+    expect(out).not.toContain("border-b-2");
+    expect(out).not.toContain("border-b-0");
+  });
+
   it("treats a nested path as inside its tab", () => {
     const out = html(<Tabs label="Sections" items={items} current="/app/reply/123" />);
     expect(out).toMatch(

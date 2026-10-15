@@ -78,6 +78,12 @@ describe("compliance:copy", () => {
     expect(scanFiles([file], { numbers: true }).map((f) => f.rule)).toContain("unsourced-number");
   });
 
+  it("actually scans the app UI too", () => {
+    const appFiles = sourceFiles(deny.copy.appScanRoots);
+    expect(appFiles).toContain("src/app/(app)/app/layout.tsx");
+    expect(appFiles.some((f) => f.startsWith("src/components/app/"))).toBe(true);
+  });
+
   it("actually scans something", () => {
     const files = deny.copy.scanRoots.flatMap((root) => walk(root)).filter((f) => !isTestFile(f));
     expect(files.some((f) => f.endsWith("page.tsx"))).toBe(true);

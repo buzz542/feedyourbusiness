@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { requireUser } from "@/server/auth/session";
+import { requirePage } from "@/server/auth/app-state";
 import { acceptTermsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Welcome" };
@@ -12,7 +12,7 @@ export default async function WelcomePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireUser("/app/welcome");
+  await requirePage("welcome", "/app/welcome");
   const { error } = await searchParams;
 
   return (
