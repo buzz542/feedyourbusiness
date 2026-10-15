@@ -316,11 +316,129 @@ describe("copy scanner", () => {
          return <a className="mt-4 text-3xl" href="/pricing" aria-label="Pricing page">Plans and pricing</a>;
        }`,
       "page.tsx",
-    ).map((i) => i.text);
+    )
+      .filter((i) => !i.plumbing)
+      .map((i) => i.text);
     expect(text).toEqual(
       expect.arrayContaining(["Who to reply to", "Pricing page", "Plans and pricing"]),
     );
     expect(text.join("|")).not.toMatch(/mt-4|\/pricing|\.\/x/);
+  });
+
+  it("skips class lists in class attributes, class variables and SVG geometry", () => {
+    const text = extractCopy(
+      `const baseClass = "min-h-10 gap-2 rounded-[2px]";
+       const variantClasses = { primary: "bg-accent opacity-90" };
+       export const A = ({ on }: { on: boolean }) => (
+         <a className={cx("px-4 text-3xl", on ? "border-2" : "border-0")}>Open post</a>
+       );
+       export const B = ({ on }: { on: boolean }) => <p className={on ? "mt-4" : "mt-8"}>Saved</p>;
+       export const C = ({ w }: { w: number }) => (
+         <svg viewBox={\`0 0 \${w} 20\`}><polyline strokeWidth="1.5" points="0,1 2,3" /></svg>
+       );`,
+      "page.tsx",
+    )
+      .filter((i) => !i.plumbing)
+      .map((i) => i.text);
+    expect(text).toEqual(["Open post", "Saved"]);
+  });
+
+  it("still reads copy in variables, conditional children, labels and component props", () => {
+    const text = extractCopy(
+      `const message = "Save 10x time";
+       const worldClassish = "fine";
+       export const A = ({ on }: { on: boolean }) => (
+         <button aria-label={on ? "Hide post" : "Show post"}>{on ? "Saved" : "Save"}</button>
+       );
+       export const label = cx("Trusted by many makers");
+       export const D = () => <p>{cx("Rendered copy")}</p>;
+       const variantClasses = { primary: { label: "Start trial" } };
+       export const E = () => (
+         <>
+           <Features points={["Find leads faster"]} />
+           <Plan points="Unlimited replies" x="Copy on x" />
+           <PlanCard name={"Pro plan"} />
+           <Quote role={on ? "Role copy one" : "Role copy two"} />
+         </>
+       );`,
+      "page.tsx",
+    )
+      .filter((i) => !i.plumbing)
+      .map((i) => i.text);
+    expect(text).toEqual(
+      expect.arrayContaining([
+        "Save 10x time",
+        "fine",
+        "Hide post",
+        "Show post",
+        "Saved",
+        "Save",
+        "Trusted by many makers",
+        "Rendered copy",
+        "Start trial",
+        "Find leads faster",
+        "Unlimited replies",
+        "Copy on x",
+        "Pro plan",
+        "Role copy one",
+        "Role copy two",
+      ]),
+    );
+    expect(rules(scan(`const message = "Save 10x time";`))).toContain("banned-phrase");
+    expect(
+      rules(scan(`export const P = () => <Plan points="Unlimited, 10x faster" />;`)),
+    ).toContain("banned-phrase");
+  });
+
+  it("plumbing is exempt from the numbers rule only: every other rule still reads it", () => {
+    const flagged = (code: string) => rules(scan(code));
+    // Props that are plumbing on HTML (action, name) are copy on components.
+    expect(
+      flagged(`export const A = () => <EmptyState action="Unlock more sources" />;`),
+    ).toContain("banned-phrase");
+    expect(
+      flagged(`const messageByErrorClass = { RateLimited: "Unlock more searches" };`),
+    ).toContain("banned-phrase");
+    expect(flagged(`export const A = () => <p>{cx("Unlock your pipeline")}</p>;`)).toContain(
+      "banned-phrase",
+    );
+    expect(flagged(`export const A = () => <a className="mt-4 colour-x">Go</a>;`)).toContain(
+      "uk-spelling",
+    );
+    expect(flagged(`export const A = () => <a href="/vs-ownfeed">Go</a>;`)).toContain(
+      "competitor-name",
+    );
+    expect(flagged(`export const A = () => <a className="mt-4 gap-2">Go</a>;`)).toEqual([]);
+  });
+
+  it("applies the numbers rule to plain string props on components", () => {
+    expect(
+      rules(scan(`export const A = () => <EmptyState action="See all 3 sources" />;`)),
+    ).toContain("unsourced-number");
+    expect(rules(scan(`export const A = () => <Plan name="Step 1" />;`))).toContain(
+      "unsourced-number",
+    );
+    expect(
+      rules(scan(`export const A = () => <Link href="/step-1" className="mt-4">Go</Link>;`)),
+    ).toEqual([]);
+  });
+
+  it("reads JSX passed into a plumbing attribute as copy, numbers included", () => {
+    expect(
+      rules(
+        scan(`export const A = () => <EmptyState action={<Button>{"Try 3 more"}</Button>} />;`),
+      ),
+    ).toContain("unsourced-number");
+  });
+
+  it("treats dotted tags as components and nested class-variable values as copy", () => {
+    expect(rules(scan(`export const A = () => <icons.check x="12 posts" />;`))).toContain(
+      "unsourced-number",
+    );
+    expect(rules(scan(`const tierClasses = [{ label: "Start 7 trials" }];`))).toContain(
+      "unsourced-number",
+    );
+    expect(rules(scan(`const tierClasses = ["mt-4 gap-2"];`))).toEqual([]);
   });
 
   it("flags an em dash", () => {

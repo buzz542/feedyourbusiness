@@ -10,11 +10,18 @@ import type { Finding } from "./finding";
  *   * third-party logo files in public/
  *
  * Copy is extracted from the TypeScript AST: JSX text plus user-facing string literals. Class
- * names, URLs, imports and similar plumbing are skipped, so Tailwind classes do not trip it.
+ * names, URLs and similar plumbing are exempt from the numbers rule only, so Tailwind classes do not
+ * trip it; every other rule reads them too. Imports and directives are code and are not read.
  */
 
 export interface CopyItem {
   text: string;
+  /**
+   * Plumbing by position (class lists, hrefs, ids, SVG geometry, non-copy keys). Plumbing is exempt
+   * from the numbers rule only: em dashes, banned phrases, UK spellings and competitor names are
+   * checked in every string, because none of them belongs in plumbing either.
+   */
+  plumbing?: boolean;
   line: number;
 }
 
@@ -81,6 +88,79 @@ const NON_COPY_KEYS = new Set([
   "method",
 ]);
 
+/** Attributes that hold class lists. Anything nested inside them is plumbing. */
+const CLASS_ATTRS = new Set(["className", "class"]);
+/** On components every prop may be rendered as copy, except these. */
+const COMPONENT_PLUMBING_ATTRS = new Set([
+  "className",
+  "class",
+  "href",
+  "src",
+  "key",
+  "id",
+  "data-testid",
+]);
+/** SVG geometry and paint. Plumbing only on intrinsic (lowercase) elements, never on components. */
+const SVG_ATTRS = new Set([
+  "viewBox",
+  "d",
+  "fill",
+  "stroke",
+  "strokeWidth",
+  "strokeLinejoin",
+  "strokeLinecap",
+  "points",
+  "transform",
+  "x",
+  "y",
+  "x1",
+  "x2",
+  "y1",
+  "y2",
+  "cx",
+  "cy",
+  "r",
+  "width",
+  "height",
+]);
+/** Variables that hold class lists by naming convention: `baseClass`, `variantClasses`. */
+const CLASS_VARIABLE = /(?:^class(?:es|Name)?|[a-z0-9](?:Class|Classes|ClassName))$/;
+
+/**
+ * Whether a string under this attribute is plumbing. A literal that is the attribute's whole value
+ * uses the full non-copy list; a string nested deeper (conditionals, arrays, calls) is plumbing only
+ * under a class attribute, or under SVG geometry on an intrinsic element.
+ */
+function attrIsPlumbing(attr: ts.JsxAttribute, sf: ts.SourceFile, nested: boolean): boolean {
+  const name = attr.name.getText(sf);
+  if (CLASS_ATTRS.has(name)) return true;
+  const element = attr.parent.parent;
+  // A dotted tag (<motion.svg>) is a component to React, so only a plain identifier is intrinsic.
+  const intrinsic = ts.isIdentifier(element.tagName) && /^[a-z]/.test(element.tagName.text);
+  if (!intrinsic) return !nested && COMPONENT_PLUMBING_ATTRS.has(name);
+  if (SVG_ATTRS.has(name)) return true;
+  return !nested && NON_COPY_ATTRS.has(name);
+}
+
+/**
+ * True when a string nested in an expression is plumbing: inside a class attribute (also through
+ * conditionals and helper calls), SVG geometry on an intrinsic element, or a top-level value of a
+ * class-list variable. The walk stops at the enclosing JSX element or statement, so copy rendered as
+ * children, labels and props of components still counts.
+ */
+function inPlumbing(node: ts.Node, sf: ts.SourceFile): boolean {
+  let objectDepth = 0;
+  for (let n = node.parent; n && !ts.isSourceFile(n); n = n.parent) {
+    if (ts.isJsxAttribute(n)) return attrIsPlumbing(n, sf, true);
+    if (ts.isObjectLiteralExpression(n) || ts.isArrayLiteralExpression(n)) objectDepth++;
+    if (ts.isVariableDeclaration(n))
+      return ts.isIdentifier(n.name) && CLASS_VARIABLE.test(n.name.text) && objectDepth <= 1;
+    if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) return false;
+    if (ts.isStatement(n) || ts.isFunctionLike(n)) return false;
+  }
+  return false;
+}
+
 function propertyKey(node: ts.Node): string | null {
   const parent = node.parent;
   if (parent && ts.isPropertyAssignment(parent) && parent.initializer === node) {
@@ -95,10 +175,11 @@ export function extractCopy(code: string, file: string): CopyItem[] {
   const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, kind);
   const items: CopyItem[] = [];
 
-  const push = (node: ts.Node, text: string) => {
+  const push = (node: ts.Node, text: string, plumbing = false) => {
     const t = text.replace(/\s+/g, " ").trim();
-    if (t)
-      items.push({ text: t, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1 });
+    if (!t) return;
+    const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+    items.push(plumbing ? { text: t, line, plumbing } : { text: t, line });
   };
 
   const visit = (node: ts.Node) => {
@@ -114,18 +195,20 @@ export function extractCopy(code: string, file: string): CopyItem[] {
       const isElementAccess =
         ts.isElementAccessExpression(parent) && parent.argumentExpression === node;
       const isCaseLabel = ts.isCaseClause(parent) || ts.isLiteralTypeNode(parent);
-      const attr = ts.isJsxAttribute(parent) ? parent.name.getText(sf) : null;
       const key = propertyKey(node);
-      const skip =
+      // Code, not text: directives, index keys, case labels and module specifiers.
+      const isCode =
         isDirective ||
         isElementAccess ||
         isCaseLabel ||
-        (attr !== null && NON_COPY_ATTRS.has(attr)) ||
-        (key !== null && NON_COPY_KEYS.has(key)) ||
         (ts.isCallExpression(parent) && /^(require|import)$/.test(parent.expression.getText(sf)));
-      if (!skip) push(node, node.text);
+      const plumbing =
+        (ts.isJsxAttribute(parent) && attrIsPlumbing(parent, sf, false)) ||
+        (key !== null && NON_COPY_KEYS.has(key)) ||
+        inPlumbing(node, sf);
+      if (!isCode) push(node, node.text, plumbing);
     } else if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
-      push(node, node.text);
+      push(node, node.text, inPlumbing(node, sf));
     }
     ts.forEachChild(node, visit);
   };
@@ -229,7 +312,7 @@ export function checkCopy(
     for (const [word, re] of spellings)
       if (re.test(text))
         add(item, "uk-spelling", `uses the UK spelling "${word}". Use US English.`);
-    if (!checkNumbers) continue;
+    if (!checkNumbers || item.plumbing) continue;
     for (const m of text.matchAll(NUMBER)) {
       const n = m[0].replace(/,$/, "");
       if (!allowedNumbers.has(n))

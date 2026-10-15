@@ -20,6 +20,12 @@ const deny = loadDenylist();
 const sourceFiles = (roots: readonly string[]) =>
   roots.flatMap((root) => walk(root)).filter((f) => !isTestFile(f) && /\.(tsx?|mdx?)$/.test(f));
 
+/** Files directly in src/app (root layout metadata, not-found and error pages) are public copy. */
+const appRootFiles = () =>
+  readdirSync("src/app", { withFileTypes: true })
+    .filter((e) => e.isFile() && /\.tsx?$/.test(e.name))
+    .map((e) => `src/app/${e.name}`);
+
 function scanFiles(files: readonly string[], options: { numbers: boolean }) {
   const numbers = claimNumbers(readFileSync("docs/claims.md", "utf8"));
   return files.flatMap((file) => {
@@ -36,8 +42,10 @@ describe("compliance:copy", () => {
     expect(existsSync("docs/claims.md")).toBe(true);
   });
 
-  it("marketing pages and emails pass every copy rule", () => {
-    expect(formatFindings(scanFiles(sourceFiles(deny.copy.scanRoots), { numbers: true }))).toBe("");
+  it("marketing pages, emails and root app files pass every copy rule", () => {
+    const files = [...sourceFiles(deny.copy.scanRoots), ...appRootFiles()];
+    expect(files).toContain("src/app/layout.tsx");
+    expect(formatFindings(scanFiles(files, { numbers: true }))).toBe("");
   });
 
   it("shared UI components keep the numbers rule: they also render on public pages", () => {

@@ -1,45 +1,67 @@
 @import "tailwindcss";
 
 /*
-  Placeholder tokens for M0. Direction from docs/BRIEF.md: warm off-white paper, near-black ink,
-  one deep ink blue accent, a real dark mode. Fonts and the highlighter mark land in M7.
-  Contrast checked against WCAG 2.2 AA for text on paper in both themes.
+  AskedFor tokens (docs/PLAN.md 9.2). Warm paper, near-black ink, one deep ink-blue accent, a real
+  dark mode. tests/design/contrast.test.ts computes WCAG 2.2 contrast from these values: 4.5:1 for
+  every text pair and 3:1 for control borders and the focus ring, in both themes.
+
+  --highlight is the highlighter mark behind the words that ask for something; text on it is ink.
+  --positive and --negative mark trends and are always paired with an arrow and words, never
+  color alone. --rule is decorative; --rule-strong outlines controls such as inputs and checkboxes.
 */
 :root {
   --paper: #fbf8f1;
+  --paper-sunk: #f2ede1;
   --ink: #17150f;
   --ink-muted: #565143;
   --rule: #d9d2c0;
+  --rule-strong: #857d69;
   --accent: #1b2a5c;
   --accent-ink: #fbf8f1;
+  --highlight: #f3dd6d;
+  --positive: #1d6b3a;
+  --negative: #a3261c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #12110e;
+    --paper-sunk: #1c1a16;
     --ink: #ede8db;
     --ink-muted: #aaa392;
     --rule: #34302a;
+    --rule-strong: #7a7362;
     --accent: #9db4ff;
     --accent-ink: #12110e;
+    --highlight: #6b5a12;
+    --positive: #7ccf96;
+    --negative: #ff9c8f;
   }
 }
 
 @theme inline {
   --color-paper: var(--paper);
+  --color-sunk: var(--paper-sunk);
   --color-ink: var(--ink);
   --color-muted: var(--ink-muted);
   --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
-  --font-serif: ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-highlight: var(--highlight);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  /* Self-hosted: Fraunces from @fontsource-variable/fraunces, Geist from the geist package. */
+  --font-serif: "Fraunces Variable", ui-serif, "Iowan Old Style", Georgia, serif;
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 html {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+  color-scheme: light dark;
   -webkit-text-size-adjust: 100%;
 }
 
