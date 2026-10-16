@@ -4,6 +4,7 @@ import { claimNumbers, checkCopy, extractCopy, findLogoFiles } from "./scan-copy
 import { findBlockedPackages, lockfileName } from "./scan-deps";
 import {
   FETCH_WRAPPER_FILE,
+  OWN_SITE_FILE,
   findNetworkPrimitives,
   findUnexpectedHosts,
   moduleName,
@@ -46,6 +47,63 @@ describe("network scanner", () => {
     ["import equals", `import n = require("node-fetch")`],
   ])("flags a banned module: %s", (_label, code) => {
     expect(rules(scan(code))).toContain("banned-network-module");
+  });
+
+  it("lets only own-site.ts import node:https and node:dns", () => {
+    const code = `import https from "node:https";\nimport dns from "node:dns";`;
+    expect(scan(code, OWN_SITE_FILE)).toEqual([]);
+    expect(rules(scan(code, "src/server/net/other.ts"))).toEqual([
+      "banned-network-module",
+      "banned-network-module",
+    ]);
+    expect(rules(scan(`import dns from "dns";`, "src/app/page.tsx"))).toContain(
+      "banned-network-module",
+    );
+  });
+
+  it("still refuses every other network module in own-site.ts", () => {
+    for (const mod of ["node:http", "node:net", "node:tls", "undici", "node:child_process"])
+      expect(rules(scan(`import x from "${mod}";`, OWN_SITE_FILE)), mod).toContain(
+        "banned-network-module",
+      );
+    expect(rules(scan(`await fetch("https://x.example")`, OWN_SITE_FILE))).toContain(
+      "global-fetch",
+    );
+  });
+
+  it("does not let own-site.ts re-export node:https or node:dns", () => {
+    for (const code of [
+      `export * from "node:https";`,
+      `export { request } from "node:https";`,
+      `export { lookup } from "dns";`,
+      `const h = require("node:https");`,
+      `const d = await import("node:dns");`,
+    ])
+      expect(rules(scan(code, OWN_SITE_FILE)), code).toContain("banned-network-module");
+  });
+
+  it("lets only onboarding and the preview call fetchOwnSite()", () => {
+    const uses = [
+      `import { fetchOwnSite } from "@/server/net/own-site";`,
+      `const { fetchOwnSite } = await import("@/server/net/own-site");`,
+      `export { fetchOwnSite } from "@/server/net/own-site";`,
+    ];
+    for (const code of uses)
+      expect(rules(scan(code, "src/sources/forum.ts")), code).toContain("own-site-importer");
+    expect(
+      rules(scan(`export { fetchOwnSite } from "./own-site";`, "src/server/net/index.ts")),
+    ).toContain("own-site-importer");
+    expect(
+      rules(scan(`import { fetchOwnSite } from "../net/own-site.ts";`, "src/server/jobs/run.ts")),
+    ).toContain("own-site-importer");
+    expect(scan(uses[0]!, "src/server/onboarding/draft.ts")).toEqual([]);
+    expect(scan(uses[0]!, "src/server/preview/preview.ts")).toEqual([]);
+    expect(
+      scan(`import { fetchOwnSite } from "./own-site";`, "src/server/net/own-site.test.ts"),
+    ).toEqual([]);
+    expect(
+      scan(`import type { OwnSitePage } from "@/server/net/own-site";`, "src/app/page.tsx"),
+    ).toEqual([]);
   });
 
   it.each(["WebSocket", "XMLHttpRequest", "EventSource"])("flags new %s()", (ctor) => {

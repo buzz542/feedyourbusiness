@@ -13,6 +13,34 @@ import type { Finding } from "./finding";
 /** The single file allowed to reference the global fetch: it is the wrapper itself. */
 export const FETCH_WRAPPER_FILE = "src/server/net/safe-fetch.ts";
 
+/**
+ * fetchOwnSite() (docs/PLAN.md 12.3) opens its own guarded connections, so this one file may import
+ * node:https and node:dns, and nothing else on the banned list.
+ */
+export const OWN_SITE_FILE = "src/server/net/own-site.ts";
+const OWN_SITE_MODULES = new Set(["https", "dns"]);
+/**
+ * fetchOwnSite() reaches any public https URL, so only the onboarding draft and the instant preview
+ * may call it (type-only imports are fine anywhere). Anything else fetches through safeFetch().
+ */
+export const OWN_SITE_IMPORTERS = ["src/server/onboarding/", "src/server/preview/"] as const;
+const OWN_SITE_MODULE = OWN_SITE_FILE.replace(/\.ts$/, "");
+
+/** The repo path a specifier points at ("@/x" and relative forms), without its extension. */
+function resolveSpecifier(file: string, specifier: string): string {
+  let target = specifier;
+  if (specifier.startsWith("@/")) target = `src/${specifier.slice(2)}`;
+  else if (specifier.startsWith(".")) {
+    const parts = file.split("/").slice(0, -1);
+    for (const part of specifier.split("/")) {
+      if (part === "..") parts.pop();
+      else if (part !== ".") parts.push(part);
+    }
+    target = parts.join("/");
+  }
+  return target.replace(/\.(ts|tsx|js|mjs)$/, "");
+}
+
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self", "global"]);
 const NETWORK_CONSTRUCTORS = new Set([
   "XMLHttpRequest",
@@ -75,8 +103,28 @@ export function findNetworkPrimitives(
       detail,
     });
 
-  const checkModule = (node: ts.Node, specifier: string) => {
-    if (banned.has(moduleName(specifier))) {
+  /** `staticImport`: a plain import declaration, the only form the own-site exception covers. */
+  const checkModule = (
+    node: ts.Node,
+    specifier: string,
+    { staticImport = false, typeOnly = false } = {},
+  ) => {
+    if (
+      !typeOnly &&
+      file !== OWN_SITE_FILE &&
+      file !== OWN_SITE_FILE.replace(/\.ts$/, ".test.ts") &&
+      !OWN_SITE_IMPORTERS.some((dir) => file.startsWith(dir)) &&
+      resolveSpecifier(file, specifier) === OWN_SITE_MODULE
+    ) {
+      add(
+        node,
+        "own-site-importer",
+        `uses fetchOwnSite(), which only ${OWN_SITE_IMPORTERS.join(" and ")} may call`,
+      );
+    }
+    const name = moduleName(specifier);
+    if (staticImport && file === OWN_SITE_FILE && OWN_SITE_MODULES.has(name)) return;
+    if (banned.has(name)) {
       add(
         node,
         "banned-network-module",
@@ -87,13 +135,16 @@ export function findNetworkPrimitives(
 
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      checkModule(node, node.moduleSpecifier.text);
+      checkModule(node, node.moduleSpecifier.text, {
+        staticImport: true,
+        typeOnly: node.importClause?.isTypeOnly === true,
+      });
     } else if (
       ts.isExportDeclaration(node) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      checkModule(node, node.moduleSpecifier.text);
+      checkModule(node, node.moduleSpecifier.text, { typeOnly: node.isTypeOnly });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference)

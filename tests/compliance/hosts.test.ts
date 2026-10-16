@@ -4,6 +4,7 @@ import { loadDenylist } from "../../compliance/lib/denylist.mjs";
 import { formatFindings, isTestFile, walk } from "../../compliance/lib/finding";
 import { findNetworkPrimitives, findUnexpectedHosts } from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
+import { isPlatformWebHost } from "@/server/net/platform-hosts";
 import { SafeFetchError } from "@/server/net/safe-fetch";
 import { safeFetch } from "@/server/net";
 import { allowedHosts, declaredHosts, sources } from "@/sources/registry";
@@ -107,5 +108,7 @@ describe("compliance:hosts (runtime)", () => {
     ]);
     const hosts = [...allowedHosts(everythingOn), ...sources.flatMap((s) => s.allowedHosts)];
     expect(hosts.filter((h) => NEVER.test(h) || PLATFORM_WEB_HOSTS.has(h))).toEqual([]);
+    // The same list fetchOwnSite() and the preview refuse (src/server/net/platform-hosts.ts).
+    expect(hosts.filter(isPlatformWebHost)).toEqual([]);
   });
 });
