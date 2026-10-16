@@ -141,10 +141,13 @@ describe("URL host scanner", () => {
 
 describe("dependency scanner", () => {
   const pkg = { dependencies: { next: "16.0.0" }, devDependencies: { vitest: "5.0.0" } };
-  const lock = (names: string[], dev: Record<string, boolean> = {}) => ({
+  const lock = (names: string[], dev: Record<string, boolean | "optional"> = {}) => ({
     packages: Object.fromEntries([
       ["", {}],
-      ...names.map((n) => [`node_modules/${n}`, { dev: dev[n] }]),
+      ...names.map((n) => [
+        `node_modules/${n}`,
+        dev[n] === "optional" ? { devOptional: true } : dev[n] === undefined ? {} : { dev: dev[n] },
+      ]),
     ]),
   });
 
@@ -185,6 +188,17 @@ describe("dependency scanner", () => {
     expect(
       rules(findBlockedPackages(lock(["playwright"], { playwright: false }), pkg, deny)),
     ).toContain("dev-only-package");
+  });
+
+  it("reads npm's real lockfile markers: no dev key means production", () => {
+    // A production install carries no dev key at all; npm never writes dev: false.
+    expect(rules(findBlockedPackages(lock(["playwright-core"]), pkg, deny))).toContain(
+      "dev-only-package",
+    );
+    // A dev dependency that is also an optional peer of a production dependency is devOptional.
+    expect(
+      findBlockedPackages(lock(["playwright"], { playwright: "optional" }), pkg, deny),
+    ).toEqual([]);
   });
 
   it("reads package names from lockfile keys", () => {

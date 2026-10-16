@@ -23,7 +23,8 @@
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
     "db:migrate": "supabase db push --linked",
     "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
-    "db:types:local": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/db-types.ts"
+    "db:types:local": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/db-types.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "5.3.0",
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.9",
+    "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",

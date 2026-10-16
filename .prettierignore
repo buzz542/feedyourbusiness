@@ -13,3 +13,5 @@ supabase/migrations
 tsconfig.json
 # Embeds the hard compliance rules from the brief verbatim; tests/docs/prd.test.ts guards that.
 docs/PRD.md
+test-results
+playwright-report

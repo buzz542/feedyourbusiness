@@ -2,7 +2,10 @@ import { isBlockedPackage, packageName, type Denylist } from "./denylist.mjs";
 import type { Finding } from "./finding";
 
 interface Lockfile {
-  packages?: Record<string, { dev?: boolean; optional?: boolean; peer?: boolean }>;
+  packages?: Record<
+    string,
+    { dev?: boolean; devOptional?: boolean; optional?: boolean; peer?: boolean }
+  >;
 }
 
 interface PackageJson {
@@ -67,7 +70,14 @@ export function findBlockedPackages(
       );
     }
     const normalized = packageName(name);
-    if (normalized && deny.packages.devOnly.includes(normalized) && entry.dev === false) {
+    // npm marks dev installs with dev; a production install has no dev key at all. devOptional
+    // means a dev dependency that is also an optional peer of a production one: next 16 declares
+    // @playwright/test that way, so npm cannot write anything else for it. Note that
+    // `npm ci --omit=dev` still installs devOptional packages, so this check does not prove
+    // Playwright stays out of a production install; package.json (checked above) keeps it out of
+    // dependencies, and no app code imports it, so it never reaches a deployed bundle.
+    const devInstall = entry.dev === true || entry.devOptional === true;
+    if (normalized && deny.packages.devOnly.includes(normalized) && !devInstall) {
       add(
         "package-lock.json",
         "dev-only-package",
