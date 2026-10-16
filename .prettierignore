@@ -15,3 +15,5 @@ tsconfig.json
 docs/PRD.md
 test-results
 playwright-report
+# Fixture pages are parsed as written; formatting them would change the test.
+tests/fixtures/pages
