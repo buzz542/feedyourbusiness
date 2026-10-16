@@ -213,10 +213,13 @@ describe("products and search terms", () => {
   });
 
   it("a user can create a product they own, and it starts as a draft", async () => {
-    const row = await asBob(async () =>
+    // One product per account (D9), so this uses a user who has none yet.
+    const DANA = "00000000-0000-4000-8000-0000000000d4";
+    await db.query("insert into auth.users (id) values ($1)", [DANA]);
+    const row = await withRole(db, "authenticated", DANA, async () =>
       one<{ status: string }>(
-        "insert into public.products (owner_id, url, name) values ($1, 'https://bob2.example.test', 'Bob 2') returning status",
-        [BOB],
+        "insert into public.products (owner_id, url, name) values ($1, 'https://dana.example.test', 'Dana') returning status",
+        [DANA],
       ),
     );
     expect(row.status).toBe("draft");

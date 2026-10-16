@@ -38,13 +38,37 @@ const SUPABASE_BOOTSTRAP = `
 
 export type DbRole = "anon" | "authenticated" | "service_role";
 
-export async function createDb(): Promise<PGlite> {
+/**
+ * A database with every migration applied, or only those that sort before `options.before` (a
+ * migration file name), so a test can seed data and then run a later migration over it.
+ */
+export async function createDb(options: { before?: string } = {}): Promise<PGlite> {
+  const files = listMigrations();
+  if (options.before && !files.includes(options.before))
+    throw new Error(`No migration named ${options.before}`);
   const db = new PGlite();
   await db.exec(SUPABASE_BOOTSTRAP);
-  for (const file of listMigrations()) {
-    await db.exec(readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"));
+  for (const file of files) {
+    if (options.before && file >= options.before) break;
+    await applyMigration(db, file);
   }
   return db;
+}
+
+/** The migration file whose name ends with `_<name>.sql`, whatever version it was renamed to. */
+export function migrationNamed(name: string): string {
+  const file = listMigrations().find((f) => f.endsWith(`_${name}.sql`));
+  if (!file) throw new Error(`No migration named ${name}`);
+  return file;
+}
+
+/** Apply `file` and every migration after it, so a seeded test also sees later changes. */
+export async function applyMigrationsFrom(db: PGlite, file: string): Promise<void> {
+  for (const f of listMigrations()) if (f >= file) await applyMigration(db, f);
+}
+
+export async function applyMigration(db: PGlite, file: string): Promise<void> {
+  await db.exec(readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"));
 }
 
 export function listMigrations(): string[] {
