@@ -75,6 +75,7 @@
     "dgram",
     "dns",
     "child_process",
+    "module",
     "node-fetch",
     "cross-fetch",
     "isomorphic-fetch",

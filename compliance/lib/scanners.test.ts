@@ -106,6 +106,49 @@ describe("network scanner", () => {
     ).toEqual([]);
   });
 
+  it("closes the ways around the importer rule", () => {
+    for (const spec of [
+      "@/server/net/../net/own-site",
+      "@/server/./net/own-site",
+      "@//server/net/own-site",
+      "@/server/net/own-site.ts",
+    ])
+      expect(
+        rules(scan(`import { fetchOwnSite } from "${spec}";`, "src/sources/forum.ts")),
+        spec,
+      ).toContain("own-site-importer");
+    expect(
+      rules(scan(`import { fetchOwnSite } from ".//own-site";`, "src/server/net/other.ts")),
+    ).toContain("own-site-importer");
+    // A barrel in an allowed directory would hand it to everyone.
+    for (const code of [
+      `export { fetchOwnSite } from "@/server/net/own-site";`,
+      `export * from "@/server/net/own-site";`,
+      `export * from "../net/own-site";`,
+    ])
+      expect(rules(scan(code, "src/server/onboarding/index.ts")), code).toContain(
+        "own-site-importer",
+      );
+    // Types only, inline or not, carry nothing at runtime.
+    expect(
+      scan(`import { type OwnSitePage } from "@/server/net/own-site";`, "src/app/page.tsx"),
+    ).toEqual([]);
+    expect(scan(`export type { OwnSitePage } from "@/server/net/own-site";`, "src/x.ts")).toEqual(
+      [],
+    );
+    expect(
+      rules(
+        scan(`import { type OwnSitePage, fetchOwnSite } from "@/server/net/own-site";`, "src/x.ts"),
+      ),
+    ).toContain("own-site-importer");
+  });
+
+  it("refuses createRequire, which would load a banned module by another name", () => {
+    expect(rules(scan(`import { createRequire } from "node:module";`))).toContain(
+      "banned-network-module",
+    );
+  });
+
   it.each(["WebSocket", "XMLHttpRequest", "EventSource"])("flags new %s()", (ctor) => {
     expect(rules(scan(`const s = new ${ctor}("wss://x.example")`))).toContain("raw-network-api");
   });

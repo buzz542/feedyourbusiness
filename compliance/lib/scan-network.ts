@@ -26,19 +26,39 @@ const OWN_SITE_MODULES = new Set(["https", "dns"]);
 export const OWN_SITE_IMPORTERS = ["src/server/onboarding/", "src/server/preview/"] as const;
 const OWN_SITE_MODULE = OWN_SITE_FILE.replace(/\.ts$/, "");
 
-/** The repo path a specifier points at ("@/x" and relative forms), without its extension. */
-function resolveSpecifier(file: string, specifier: string): string {
-  let target = specifier;
-  if (specifier.startsWith("@/")) target = `src/${specifier.slice(2)}`;
-  else if (specifier.startsWith(".")) {
-    const parts = file.split("/").slice(0, -1);
-    for (const part of specifier.split("/")) {
-      if (part === "..") parts.pop();
-      else if (part !== ".") parts.push(part);
-    }
-    target = parts.join("/");
+/**
+ * The repo path a specifier points at, without its extension. "@/x" and relative forms are resolved,
+ * and ".", ".." and empty segments are collapsed the way the bundler does ("@/server/net/../net/x",
+ * "@//server/x", ".//x").
+ */
+export function resolveSpecifier(file: string, specifier: string): string {
+  let parts: string[];
+  if (specifier.startsWith("@/")) parts = ["src", ...specifier.slice(2).split("/")];
+  else if (specifier.startsWith("."))
+    parts = [...file.split("/").slice(0, -1), ...specifier.split("/")];
+  else return specifier;
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") out.pop();
+    else out.push(part);
   }
-  return target.replace(/\.(ts|tsx|js|mjs)$/, "");
+  return out.join("/").replace(/\.(ts|tsx|js|mjs)$/, "");
+}
+
+/** `import type { A }` and `import { type A, type B }`: nothing exists at runtime. */
+function isTypeOnlyImport(node: ts.ImportDeclaration): boolean {
+  const clause = node.importClause;
+  if (!clause) return false;
+  if (clause.isTypeOnly) return true;
+  if (clause.name) return false;
+  const bindings = clause.namedBindings;
+  return (
+    bindings !== undefined &&
+    ts.isNamedImports(bindings) &&
+    bindings.elements.length > 0 &&
+    bindings.elements.every((element) => element.isTypeOnly)
+  );
 }
 
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self", "global"]);
@@ -104,17 +124,23 @@ export function findNetworkPrimitives(
     });
 
   /** `staticImport`: a plain import declaration, the only form the own-site exception covers. */
+  /**
+   * `staticImport`: a plain import declaration, the only form the own-site exception covers.
+   * `reexport`: an export ... from declaration, which would hand fetchOwnSite() to every importer.
+   */
   const checkModule = (
     node: ts.Node,
     specifier: string,
-    { staticImport = false, typeOnly = false } = {},
+    { staticImport = false, typeOnly = false, reexport = false } = {},
   ) => {
-    if (
-      !typeOnly &&
+    const ownSite = !typeOnly && resolveSpecifier(file, specifier) === OWN_SITE_MODULE;
+    if (ownSite && reexport && file !== OWN_SITE_FILE) {
+      add(node, "own-site-importer", "re-exports fetchOwnSite(); import it where it is used");
+    } else if (
+      ownSite &&
       file !== OWN_SITE_FILE &&
       file !== OWN_SITE_FILE.replace(/\.ts$/, ".test.ts") &&
-      !OWN_SITE_IMPORTERS.some((dir) => file.startsWith(dir)) &&
-      resolveSpecifier(file, specifier) === OWN_SITE_MODULE
+      !OWN_SITE_IMPORTERS.some((dir) => file.startsWith(dir))
     ) {
       add(
         node,
@@ -137,14 +163,17 @@ export function findNetworkPrimitives(
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       checkModule(node, node.moduleSpecifier.text, {
         staticImport: true,
-        typeOnly: node.importClause?.isTypeOnly === true,
+        typeOnly: isTypeOnlyImport(node),
       });
     } else if (
       ts.isExportDeclaration(node) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      checkModule(node, node.moduleSpecifier.text, { typeOnly: node.isTypeOnly });
+      checkModule(node, node.moduleSpecifier.text, {
+        typeOnly: node.isTypeOnly,
+        reexport: true,
+      });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference)

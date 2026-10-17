@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  budgetFor,
   fetchOwnSite,
-  nodeDeps,
   normalizeProductUrl,
   OwnSiteError,
   type OwnSiteDeps,
@@ -247,7 +247,14 @@ describe("fetchOwnSite", () => {
     "https://www.youtube-nocookie.com/embed/a",
     "https://www-reddit-com.cdn.ampproject.org/c/s/www.reddit.com/r/x",
     "https://new-reader.example/https://www.reddit.com/r/x",
-    "https://new-proxy.example/fetch?u=https%3A%2F%2Fx.com%2Fa",
+    "https://reader.example/https://u@www.reddit.com/r/x",
+    "https://reader.example/https:%5C%5Cwww.reddit.com%5Cr%5Cx",
+    "https://reader.example/https://www%E3%80%82reddit%E3%80%82com/r/x",
+    "https://reader.example/https://www.reddit.com%3Fa",
+    "https://reader.example/www.reddit.com/r/x",
+    "https://www.reddit.com.suffix-proxy.example/r/x",
+    "https://hn-algolia-com.proxy.example/api/v1/search",
+    "https://hacker--news-firebaseio-com.proxy.example/v0/item/1.json",
   ];
 
   it.each(PLANTED)("refuses the platform URL %s as the first URL", async (url) => {
@@ -283,7 +290,40 @@ describe("fetchOwnSite", () => {
   });
 });
 
+describe("the first URL", () => {
+  it("is fetched without its query or fragment, where proxies carry the URL they fetch", async () => {
+    const d = deps({ "https://invoicer.example/pricing": { status: 200 } });
+    const page = await fetchOwnSite(
+      "https://invoicer.example/pricing?u=https://www.reddit.com/r/x#top",
+      d,
+    );
+    expect(page.url).toBe("https://invoicer.example/pricing");
+    expect(vi.mocked(d.transport).mock.calls[0]![0].href).toBe("https://invoicer.example/pricing");
+  });
+
+  it.each([
+    "https://corsproxy.example/?https://www.reddit.com/r/x",
+    "https://proxy.example/?url=www.reddit.com/r/x",
+    "https://new-proxy.example/fetch?u=https%3A%2F%2Fx.com%2Fa",
+  ])("still refuses a redirect that carries a platform URL in its query: %s", async (target) => {
+    const d = deps({
+      "https://invoicer.example/": {
+        status: 302,
+        headers: { location: target.replace(/^https:\/\/[^/]+/, "") },
+      },
+    });
+    expect(await code(fetchOwnSite("https://invoicer.example/", d))).toBe("platform_host");
+  });
+});
+
 describe("the 10 second budget", () => {
+  it("can be shortened by tests but never lengthened", () => {
+    expect(budgetFor()).toBe(10_000);
+    expect(budgetFor(50)).toBe(50);
+    expect(budgetFor(60_000)).toBe(10_000);
+    expect(budgetFor(0)).toBe(1);
+  });
+
   /** A transport that honors the abort signal, like https.request does. */
   const slow = (response: "never" | "drip"): OwnSiteDeps => ({
     resolve: async () => PUBLIC,
@@ -316,7 +356,7 @@ describe("the 10 second budget", () => {
 
   it("passes the abort signal to the resolver", async () => {
     let seen: AbortSignal | undefined;
-    const d: OwnSiteDeps = {
+    const d: Partial<OwnSiteDeps> = {
       timeoutMs: 50,
       resolve: (_host, signal) => {
         seen = signal;
@@ -324,19 +364,28 @@ describe("the 10 second budget", () => {
           signal.addEventListener("abort", () => fail(signal.reason), { once: true }),
         );
       },
-      transport: nodeDeps.transport,
     };
     expect(await code(fetchOwnSite("https://invoicer.example/", d))).toBe("timeout");
     expect(seen?.aborted).toBe(true);
   });
 });
 
+describe("fetchOwnSite with the real resolver", () => {
+  it("fails a name that cannot resolve, inside the budget", async () => {
+    // .invalid never resolves (RFC 2606). Without DNS in the sandbox, the budget ends it instead.
+    const started = Date.now();
+    expect(["network", "timeout"]).toContain(
+      await code(fetchOwnSite("https://askedfor-test.invalid/", { timeoutMs: 500 })),
+    );
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
 describe("fetchOwnSite with the real transport", () => {
   it("connects only through the guarded lookup (a private answer stops the connection)", async () => {
     // Without the guarded lookup, https.request would ask the system resolver and fail as network.
-    const d: OwnSiteDeps = {
+    const d: Partial<OwnSiteDeps> = {
       resolve: async () => [{ address: "127.0.0.1", family: 4 }],
-      transport: nodeDeps.transport,
     };
     expect(await code(fetchOwnSite("https://invoicer.example/", d))).toBe("private_address");
   });

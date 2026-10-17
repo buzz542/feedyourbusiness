@@ -77,13 +77,19 @@ describe("isPlatformHost", () => {
     "instagr.am",
     "fb.watch",
     "api.x.com",
+    "reddit.com.evil.example",
+    "www.reddit.com.suffix-proxy.example",
+    "hn-algolia-com.proxy.example",
+    "hacker--news-firebaseio-com.proxy.example",
+    "www-youtube--nocookie-com.proxy.example",
+    "www\u3002reddit\u3002com",
   ])("refuses %s", (host) => {
     expect(isPlatformHost(host)).toBe(true);
   });
 
   it.each([
     "notreddit.com",
-    "reddit.com.evil.example",
+    "x.com.au",
     "box.com",
     "mythreads.com",
     "algolia.com",
@@ -112,6 +118,17 @@ describe("embedsPlatformUrl", () => {
     "https://proxy.example/?u=https%253A%252F%252Fold.reddit.com",
     "https://proxy.example/search?q=cache:https://news.ycombinator.com/item?id=1",
     "https://proxy.example/%2F%2Fwww.linkedin.com%2Fin%2Fa",
+    "https://corsproxy.example/?https://www.reddit.com/r/x",
+    "https://reader.example/https://x@www.reddit.com/r/x",
+    "https://proxy.example/raw?url=https://@www.reddit.com/r/x",
+    "https://proxy.example/?url=www.reddit.com/r/x",
+    "https://reader.example/https://www.reddit.com%3Fa",
+    "https://proxy.example/?u=https:%5C%5Cwww.reddit.com%5Cr%5Cx",
+    "https://reader.example/https:%5C%5Cwww.reddit.com%5Cr",
+    "https://reader.example/https://www%E3%80%82reddit%E3%80%82com/r/x",
+    "https://reader.example/https:/www.reddit.com/r/x",
+    "https://reader.example/www.reddit.com/r/x",
+    "https://reader.example/https://www.reddit.com.suffix-proxy.example/r/x",
   ])("refuses %s", (url) => {
     expect(embedsPlatformUrl(new URL(url))).toBe(true);
   });
@@ -123,6 +140,12 @@ describe("embedsPlatformUrl", () => {
     "https://invoicer.example/?utm_source=reddit.com",
     "https://invoicer.example/blog/why-reddit-users-love-us",
     "https://invoicer.example/docs/v1.2.3/setup",
+    "https://invoicer.example/docs/archive.md",
+    "https://invoicer.example/docs/2026.archive.md",
+    "https://invoicer.example/blog/leaving-reddit-com.html",
+    "https://invoicer.example/compare/us-vs-x-com.html",
+    "https://invoicer.example/channels/x.com",
+    "https://invoicer.example/a//b",
   ])("allows %s", (url) => {
     expect(embedsPlatformUrl(new URL(url))).toBe(false);
   });

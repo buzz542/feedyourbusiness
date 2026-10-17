@@ -182,19 +182,32 @@ function toOwnSiteError(error: unknown, signal: AbortSignal): OwnSiteError {
   return new OwnSiteError("network");
 }
 
+/** The budget a caller may ask for: shorter than 10 seconds for tests, never longer. */
+export const budgetFor = (timeoutMs?: number): number =>
+  Math.min(Math.max(1, timeoutMs ?? TIMEOUT_MS), TIMEOUT_MS);
+
+/**
+ * Fetch the user's page. `overrides` replaces single dependencies in tests; production passes
+ * nothing, and the real resolver and transport are not exported, so nothing can use them to fetch
+ * a URL without these checks.
+ */
 export async function fetchOwnSite(
   raw: string,
-  deps: OwnSiteDeps = nodeDeps,
+  overrides: Partial<OwnSiteDeps> = {},
 ): Promise<OwnSitePage> {
+  const deps: OwnSiteDeps = { ...nodeDeps, ...overrides };
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     throw new OwnSiteError("invalid_url");
   }
+  // A product page needs neither, and a query is where proxies carry the URL they fetch.
+  url.search = "";
+  url.hash = "";
   checkUrl(url);
   const firstHost = url.hostname.toLowerCase();
-  const signal = AbortSignal.timeout(deps.timeoutMs ?? TIMEOUT_MS);
+  const signal = AbortSignal.timeout(budgetFor(deps.timeoutMs));
   const lookup = guardedLookup(deps.resolve, signal);
 
   try {
@@ -243,8 +256,9 @@ const DNS_TIMEOUT_MS = 3_000;
  * libuv thread and cannot be cancelled), cancelled when the request times out; connections use
  * node:https with the guarded lookup.
  */
-export const nodeDeps: OwnSiteDeps = {
+const nodeDeps: OwnSiteDeps = {
   async resolve(hostname, signal) {
+    if (signal.aborted) throw new Error("Aborted before resolving");
     const resolver = new dns.promises.Resolver({ timeout: DNS_TIMEOUT_MS, tries: 2 });
     const cancel = () => resolver.cancel();
     signal.addEventListener("abort", cancel, { once: true });
