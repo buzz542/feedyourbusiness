@@ -1,0 +1,7 @@
+{
+  "did": "did:plc:exampleaskedfor0001",
+  "handle": "askedfor-bot.example.test",
+  "accessJwt": "eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJhdCtqd3QifQ.eyJzY29wZSI6ImNvbS5hdHByb3RvLmFwcFBhc3MiLCJzdWIiOiJkaWQ6cGxjOmV4YW1wbGVhc2tlZGZvcjAwMDEiLCJpYXQiOjE3OTIyMjc2MDAsImV4cCI6MTc5MjIzNDgwMH0.c2lnbmF0dXJl",
+  "refreshJwt": "refresh-token-example",
+  "active": true
+}

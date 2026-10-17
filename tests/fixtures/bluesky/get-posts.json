@@ -1,0 +1,23 @@
+{
+  "posts": [
+    {
+      "uri": "at://did:plc:examplemakerone/app.bsky.feed.post/3kexamplea1",
+      "cid": "bafyreiexample3kexamplea1",
+      "author": {
+        "did": "did:plc:examplemakerone",
+        "handle": "maker-one.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Still here.",
+        "createdAt": "2026-10-17T07:00:00.000Z",
+        "langs": ["en"]
+      },
+      "indexedAt": "2026-10-17T07:00:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0
+    }
+  ]
+}

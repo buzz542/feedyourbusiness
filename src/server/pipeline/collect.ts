@@ -25,6 +25,8 @@ export interface CollectHandlerDeps {
   monthlyCap(source: CollectSource): number | null;
   userAgent: string;
   sleep?: (ms: number) => Promise<void>;
+  /** Defaults to the server's environment. */
+  credential?: (name: string) => string | undefined;
 }
 
 const realSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
@@ -73,6 +75,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       now: now(),
       userAgent: deps.userAgent,
       sleep: deps.sleep ?? realSleep,
+      credential: deps.credential ?? ((name) => process.env[name]),
     };
     const handle = typeof job.payload.handle === "string" ? job.payload.handle : null;
     const state = handle && source.poll ? await source.poll(ctx, handle) : await source.start(ctx);

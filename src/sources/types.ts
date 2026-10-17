@@ -60,6 +60,8 @@ export interface CollectContext {
   userAgent: string;
   /** For polite pacing and backing off on 429. Tests pass a fake. */
   sleep(ms: number): Promise<void>;
+  /** A secret this source needs (BLUESKY_APP_PASSWORD...), read on the server; never logged. */
+  credential(name: string): string | undefined;
 }
 
 export type RunState =

@@ -56,6 +56,17 @@ describe("source registry", () => {
       "hn.algolia.com",
       "hacker-news.firebaseio.com",
     ]);
+    expect(allowedHosts({ SOURCE_BLUESKY_ENABLED: "true" })).toEqual(["bsky.social"]);
+  });
+
+  it("never allows a link host, even with every collect source on", () => {
+    const all = Object.fromEntries(
+      sources.filter((s) => s.mode === "collect").map((s) => [killSwitchName(s), "true"]),
+    );
+    const hosts = allowedHosts(all);
+    for (const source of sources)
+      for (const host of source.linkHosts) expect(hosts, host).not.toContain(host);
+    expect(hosts).not.toContain("bsky.app");
   });
 
   it("keeps a search-link source for each platform users search themselves", () => {

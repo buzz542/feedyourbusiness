@@ -36,6 +36,7 @@ function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
     now: NOW,
     userAgent: "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)",
     sleep: vi.fn(async () => {}),
+    credential: () => undefined,
     ...over,
   };
 }
