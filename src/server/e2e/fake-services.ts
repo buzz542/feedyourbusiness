@@ -25,7 +25,9 @@ export function fakeServicesEnabled(env: Env = process.env): boolean {
 /** An invented product page. */
 const FAKE_PAGE = `<!doctype html><html><head><title>Invoicer | Invoices that chase themselves</title>
 <meta name="description" content="Invoicer sends polite reminders until your clients pay."></head>
-<body><h1>Get paid on time</h1><p>A small tool for freelancers who send invoices.</p></body></html>`;
+<body><h1>Get paid on time</h1><p>A small tool for freelancers who send invoices.</p>
+<h2>How it works</h2><p>Add your clients and your invoices. Invoicer sends a friendly reminder when a
+payment is late, then another a week later, and stops the moment the client pays.</p></body></html>`;
 
 const FAKE_DRAFT: Draft = {
   name: "Invoicer",

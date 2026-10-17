@@ -401,10 +401,16 @@ describe("normalizeProductUrl", () => {
     expect(normalizeProductUrl(raw)).toBe(expected);
   });
 
-  it.each(["", "not a url", "ftp://x.example", "https://localhost", "https://", "mailto:a@b.c"])(
-    "refuses %j",
-    (raw) => {
-      expect(normalizeProductUrl(raw)).toBeNull();
-    },
-  );
+  it.each([
+    "",
+    "not a url",
+    "ftp://x.example",
+    "https://localhost",
+    "https://",
+    "mailto:a@b.c",
+    "https://93.184.216.34/",
+    "93.184.216.34",
+  ])("refuses %j", (raw) => {
+    expect(normalizeProductUrl(raw)).toBeNull();
+  });
 });

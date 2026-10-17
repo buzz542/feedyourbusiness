@@ -112,6 +112,7 @@ describe("draftMessage", () => {
       "invalid_url",
       "invalid_description",
       "declined",
+      "page_empty",
       "timeout",
       "spend_cap",
       "unavailable",

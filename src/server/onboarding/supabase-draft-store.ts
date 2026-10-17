@@ -28,7 +28,7 @@ export function createSupabaseDraftStore(db: UserClient, userId: string): DraftS
     );
     if (existing) {
       if (existing.status !== "draft" || existing.confirmed_at) return "confirmed";
-      must(await db.from("products").update({ url }).eq("id", existing.id));
+      // The URL changes only with a saved draft, so it always matches the profile drafted from it.
       return { productId: existing.id };
     }
     const inserted = await db
@@ -46,10 +46,11 @@ export function createSupabaseDraftStore(db: UserClient, userId: string): DraftS
   return {
     ensureDraftProduct: (url) => ensureDraftProduct(url),
 
-    async saveDraft(productId, draft) {
+    async saveDraft(productId, url, draft) {
       must(
         await db.rpc("save_product_draft", {
           p_product_id: productId,
+          p_url: url,
           p_name: draft.name,
           p_one_liner: draft.one_liner,
           p_description: draft.description,

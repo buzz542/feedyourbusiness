@@ -1,6 +1,6 @@
--- The onboarding review step (docs/PLAN.md 4.3). Both functions run as the caller (security
--- invoker): row-level security and column grants decide what they may touch, so only the caller's
--- own product changes.
+-- The onboarding review step (docs/PLAN.md 4.3). save_product_profile runs as the caller (security
+-- invoker): row-level security and column grants decide what it may touch, so only the caller's own
+-- product changes. confirm_product checks ownership itself (see below).
 
 -- Every edited field in one transaction. Terms whose text is unchanged keep their row (and their
 -- paused flag); competitors named by id are edited, the rest of the product's competitors are
@@ -68,10 +68,12 @@ grant execute on function public.save_product_profile(uuid, jsonb, jsonb, jsonb)
 
 -- Step 5: the draft becomes active with confirmed_at, once it has a term to search for. Nothing is
 -- collected before this, and nothing until the account is entitled (checked where jobs are made).
+-- Security definer because owners cannot write status or confirmed_at themselves
+-- (products_lockdown); it checks the caller owns the product.
 create function public.confirm_product(p_product_id uuid)
 returns timestamptz
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
@@ -80,6 +82,7 @@ begin
   update public.products p
      set status = 'active', confirmed_at = now()
    where p.id = p_product_id
+     and p.owner_id = (select auth.uid())
      and p.status = 'draft'
      and p.confirmed_at is null
      and exists (

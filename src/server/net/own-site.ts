@@ -114,7 +114,8 @@ export function normalizeProductUrl(raw: string): string | null {
     return null;
   }
   if (url.protocol !== "https:" || url.username || url.password) return null;
-  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(url.hostname)) return null;
+  // A domain name: dotted labels, the last one not a number (so no IPv4 literal).
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(url.hostname) || /\.\d+$/.test(url.hostname)) return null;
   url.hash = "";
   const out = url.href;
   return out.length <= 2048 ? out : null;

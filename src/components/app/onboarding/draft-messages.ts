@@ -44,6 +44,11 @@ export function draftMessage(result: Failure): DraftMessage | null {
         text: `We could not read that page: ${SITE[result.siteError ?? "network"]}. Describe your product in a few sentences instead.`,
         offerDescription: true,
       };
+    case "page_empty":
+      return {
+        text: "That page has almost no text we can read, which usually means it needs JavaScript to show anything. Describe your product in a few sentences instead.",
+        offerDescription: true,
+      };
     case "declined":
       return {
         text: "We could not draft a profile from that page. Describe your product in a few sentences instead.",

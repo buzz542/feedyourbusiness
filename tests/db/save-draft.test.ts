@@ -23,8 +23,9 @@ const save = (
   over: Partial<{ terms: string; competitors: string; subreddits: string[]; name: string }> = {},
 ) =>
   withRole(db, "authenticated", as, () =>
-    db.query("select public.save_product_draft($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)", [
+    db.query("select public.save_product_draft($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb)", [
       product,
+      "https://drafted.example.test/",
       over.name ?? "Invoicer",
       "Invoices that chase themselves",
       "A small tool for freelancers.",
@@ -69,10 +70,11 @@ describe("save_product_draft", () => {
   it("saves the profile, terms with their intent, and draft competitors", async () => {
     await save(ALICE, alice);
     const [p] = await rows<Record<string, unknown>>(
-      "select name, one_liner, description, audience, subreddits, status from public.products where id = $1",
+      "select url, name, one_liner, description, audience, subreddits, status from public.products where id = $1",
       [alice],
     );
     expect(p).toEqual({
+      url: "https://drafted.example.test/",
       name: "Invoicer",
       one_liner: "Invoices that chase themselves",
       description: "A small tool for freelancers.",
@@ -177,7 +179,7 @@ describe("save_product_draft", () => {
     await expect(
       withRole(db, "anon", null, () =>
         db.query(
-          "select public.save_product_draft($1, 'x', '', '', '', '{}', '[]'::jsonb, '[]'::jsonb)",
+          "select public.save_product_draft($1, 'https://x.example.test', 'x', '', '', '', '{}', '[]'::jsonb, '[]'::jsonb)",
           [alice],
         ),
       ),

@@ -568,7 +568,7 @@ export type Database = {
         Returns: number
       }
       save_product_draft: {
-        Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json }
+        Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json; p_url: string }
         Returns: undefined
       }
       save_product_profile: {

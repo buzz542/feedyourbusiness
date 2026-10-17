@@ -237,22 +237,28 @@ describe("products and search terms", () => {
   });
 
   it("a user cannot hand their product to someone else", async () => {
+    // Refused by row-level security, or since products_lockdown by the column grants first.
     await expect(
       asAlice(() =>
         db.query("update public.products set owner_id = $1 where id = $2", [BOB, ids.aliceProduct]),
       ),
-    ).rejects.toThrow(/row-level security/i);
+    ).rejects.toThrow(/row-level security|permission denied/i);
   });
 
   it("a user cannot update or delete another user's product", async () => {
     const upd = await asAlice(() =>
       db.query("update public.products set name = 'pwned' where id = $1", [ids.bobProduct]),
     );
+    expect(upd.affectedRows).toBe(0);
+    // Since products_lockdown no user may delete a product at all; before it, RLS hid Bob's row.
     const del = await asAlice(() =>
       db.query("delete from public.products where id = $1", [ids.bobProduct]),
-    );
-    expect(upd.affectedRows).toBe(0);
-    expect(del.affectedRows).toBe(0);
+    ).catch((error: Error) => error);
+    if (del instanceof Error) expect(del.message).toMatch(/permission denied/);
+    else expect(del.affectedRows).toBe(0);
+    expect(
+      (await db.query("select 1 from public.products where id = $1", [ids.bobProduct])).rows,
+    ).toHaveLength(1);
   });
 
   it("refuses non-https product URLs", async () => {

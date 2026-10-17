@@ -1,9 +1,10 @@
--- The onboarding draft (docs/PLAN.md 4.3, 8.3), saved in one transaction: the profile, the search
--- terms and the draft's competitors. Runs as the caller (security invoker), so row-level security and
+-- The onboarding draft (docs/PLAN.md 4.3, 8.3), saved in one transaction: the URL it was drafted
+-- from, the profile, the search terms and the draft's competitors. Runs as the caller (security invoker), so row-level security and
 -- column grants decide what it may touch: only the caller's own product, and only while it is a draft.
 -- A new draft replaces the earlier draft's terms and competitors; competitors the user added stay.
 create function public.save_product_draft(
   p_product_id uuid,
+  p_url text,
   p_name text,
   p_one_liner text,
   p_description text,
@@ -23,7 +24,8 @@ begin
   end if;
 
   update public.products
-     set name = p_name,
+     set url = p_url,
+         name = p_name,
          one_liner = p_one_liner,
          description = p_description,
          audience = p_audience,
@@ -46,7 +48,7 @@ begin
     on conflict do nothing;
 end;
 $$;
-revoke all on function public.save_product_draft(uuid, text, text, text, text, text[], jsonb, jsonb)
+revoke all on function public.save_product_draft(uuid, text, text, text, text, text, text[], jsonb, jsonb)
   from public, anon;
-grant execute on function public.save_product_draft(uuid, text, text, text, text, text[], jsonb, jsonb)
+grant execute on function public.save_product_draft(uuid, text, text, text, text, text, text[], jsonb, jsonb)
   to authenticated, service_role;

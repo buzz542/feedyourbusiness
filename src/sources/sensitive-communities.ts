@@ -22,6 +22,12 @@ const NAMES = new Set([
   "herpes",
   "lupus",
   "hiv",
+  "std",
+  "deaf",
+  "blind",
+  "trees",
+  "drugs",
+  "lsd",
   // sex life, sexual orientation, gender identity
   "sex",
   "gay",
@@ -36,6 +42,9 @@ const NAMES = new Set([
   "quran",
   "bible",
   "church",
+  // racial or ethnic origin
+  "desis",
+  "abcdesis",
   // politics
   "maga",
   "labour",
@@ -43,7 +52,9 @@ const NAMES = new Set([
   "brexit",
   "trump",
   "the_donald",
+  "thedonald",
   "donaldtrump",
+  "labouruk",
   // trade unions
   "union",
   "unions",
@@ -105,6 +116,20 @@ const PATTERNS: readonly string[] = [
   "therapy",
   "dysphoria",
   "insomnia",
+  "askdoc",
+  "babybump",
+  "thebump",
+  "pcos",
+  "endometrio",
+  "covid",
+  "psoria",
+  "hearingloss",
+  "blindness",
+  "celiac",
+  "arthritis",
+  "ostomy",
+  "cocaine",
+  "psychonaut",
   // sex life, sexual orientation, gender identity
   "lgbt",
   "lesbian",
@@ -119,6 +144,13 @@ const PATTERNS: readonly string[] = [
   "fetish",
   "polyam",
   "swinger",
+  "gaybro",
+  "askgay",
+  "gaymer",
+  "deadbedroom",
+  "nofap",
+  "sexover",
+  "sexwork",
   // religion and belief
   "christ",
   "catholic",
@@ -142,6 +174,14 @@ const PATTERNS: readonly string[] = [
   "jehovah",
   "spiritual",
   "satan",
+  "latterday",
+  "quaker",
+  "orthodox",
+  "evangelic",
+  "pentecost",
+  "presbyterian",
+  "anglican",
+  "episcopal",
   // political opinion
   "politic",
   "conservative",
@@ -156,6 +196,14 @@ const PATTERNS: readonly string[] = [
   "leftist",
   "feminis",
   "election",
+  "anarcho",
+  "latestagecapital",
+  "forpresident",
+  "palestin",
+  "zionis",
+  "trumpsupport",
+  "asktrump",
+  "greenparty",
   // racial or ethnic origin, migration
   "blackpeople",
   "blackladies",
@@ -170,6 +218,7 @@ const PATTERNS: readonly string[] = [
   "racism",
   "immigra",
   "refugee",
+  "aznidentity",
   // trade union membership
   "laborunion",
   "labourunion",
@@ -196,7 +245,9 @@ const normalize = (name: string) =>
 
 export function isSensitiveCommunity(name: string): boolean {
   const n = normalize(name);
-  return NAMES.has(n) || PATTERNS.some((pattern) => n.includes(pattern));
+  // Patterns are written without separators: "self_harm" and "Black_Ladies" match too.
+  const joined = n.replaceAll("_", "");
+  return NAMES.has(n) || NAMES.has(joined) || PATTERNS.some((pattern) => joined.includes(pattern));
 }
 
 /** A user's profile rather than a community (`u_name`, `u/name`, `user/name`): it carries a username. */

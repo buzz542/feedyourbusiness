@@ -43,7 +43,15 @@ export const DraftSchema = z.object({
       }),
     )
     .min(20)
-    .max(30),
+    .max(30)
+    // Duplicates are dropped before saving, so at least 20 must be distinct for the 20 to 30
+    // contract to hold; a reply that fails this is retried once like any invalid output.
+    .refine(
+      (terms) =>
+        new Set(terms.map((t) => t.term.replace(/\s+/g, " ").trim().toLowerCase())).size >= 20 &&
+        terms.every((t) => t.term.replace(/\s+/g, " ").trim().length >= 2),
+      { message: "at least 20 distinct terms" },
+    ),
   subreddits: z.array(z.string().regex(/^[A-Za-z0-9_]{2,21}$/)).max(10),
 });
 export type Draft = z.infer<typeof DraftSchema>;
@@ -63,8 +71,8 @@ export interface CleanDraft {
 export interface DraftStore {
   /** The caller's product while it is still a draft, created for `url` if there is none. */
   ensureDraftProduct(url: string): Promise<{ productId: string } | "confirmed">;
-  /** Replaces the draft's profile, terms and draft competitors in one transaction. */
-  saveDraft(productId: string, draft: CleanDraft): Promise<void>;
+  /** Replaces the draft's URL, profile, terms and draft competitors in one transaction. */
+  saveDraft(productId: string, url: string, draft: CleanDraft): Promise<void>;
 }
 
 export interface DraftDeps {
@@ -81,6 +89,8 @@ export type DraftFailure =
   | { ok: false; reason: "invalid_description" }
   | { ok: false; reason: "already_confirmed" }
   | { ok: false; reason: "site_unreachable"; productId: string; siteError: OwnSiteErrorCode }
+  /** The page has almost no text without JavaScript: the maker describes it instead. */
+  | { ok: false; reason: "page_empty"; productId: string }
   | { ok: false; reason: "spend_cap" | "declined" | "failed" | "timeout" };
 
 export type DraftResult = { ok: true; productId: string; draft: CleanDraft } | DraftFailure;
@@ -178,15 +188,26 @@ export function cleanDraft(draft: Draft, fallbackName = "My product"): CleanDraf
   };
 }
 
-/** Page text inside <page> tags, with any tag that could close them defused. */
+/** Less page text than this is a shell that needs JavaScript (or an empty page). */
+export const MIN_PAGE_TEXT = 200;
+
+/** The URL and the page text inside <page> tags, with any tag that could close them defused. */
 function draftInput(url: string, text: string): string {
-  const safe = text.replace(/<(\/?)page\b/gi, "<$1 page");
-  return `<url>${url}</url>\n<page>\n${safe}\n</page>`;
+  const defuse = (value: string) => value.replace(/<(\/?)page\b/gi, "<$1 page");
+  return `<page>\nURL: ${defuse(url)}\n\n${defuse(text)}\n</page>`;
 }
 
 /** The model call and the save, shared by the URL and the pasted-description paths. */
 async function runDraft(
-  input: { productId: string; url: string; text: string; fallbackName: string },
+  input: {
+    productId: string;
+    /** The URL saved on the product. */
+    productUrl: string;
+    /** The URL the model sees: the page's final URL after redirects. */
+    url: string;
+    text: string;
+    fallbackName: string;
+  },
   started: number,
   deps: DraftDeps,
 ): Promise<DraftResult> {
@@ -215,11 +236,13 @@ async function runDraft(
     if (error instanceof LlmRefusalError) return { ok: false, reason: "declined" };
     if (error instanceof LlmOutputError) return { ok: false, reason: "failed" };
     if (signal.aborted) return { ok: false, reason: "timeout" };
+    // An API or network error, or a bug: tell the user it failed, keep the class name for us.
+    console.error(`[draft] model call failed: ${(error as Error)?.name ?? "Error"}`);
     return { ok: false, reason: "failed" };
   }
 
   const clean = cleanDraft(draft, input.fallbackName);
-  await deps.store.saveDraft(input.productId, clean);
+  await deps.store.saveDraft(input.productId, input.productUrl, clean);
   return { ok: true, productId: input.productId, draft: clean };
 }
 
@@ -247,11 +270,16 @@ export async function draftFromUrl(rawUrl: string, deps: DraftDeps): Promise<Dra
     throw error;
   }
 
+  const text = pageText(page.text, page.contentType);
+  if (text.length < MIN_PAGE_TEXT)
+    return { ok: false, reason: "page_empty", productId: product.productId };
+
   return runDraft(
     {
       productId: product.productId,
+      productUrl: url,
       url: page.url,
-      text: pageText(page.text, page.contentType),
+      text,
       fallbackName: new URL(url).hostname,
     },
     started,
@@ -276,6 +304,7 @@ export async function draftFromDescription(
   return runDraft(
     {
       productId: product.productId,
+      productUrl: url,
       url,
       text: `Description from the maker:\n${description}`,
       fallbackName: new URL(url).hostname,
