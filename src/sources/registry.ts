@@ -1,3 +1,5 @@
+import { isHostAllowed } from "@/server/net/safe-fetch";
+import { isPlatformWebHost } from "@/server/net/platform-hosts";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import type { CollectSource, LinkSource, Source } from "./types";
 
@@ -55,8 +57,69 @@ export function allowedHosts(env: Env = process.env): string[] {
 export function declaredHosts(): string[] {
   const hosts = sources.flatMap((s) => [
     ...s.allowedHosts,
-    ...(s.mode === "link" ? s.linkHosts : []),
+    ...s.linkHosts,
     new URL(s.termsUrl).hostname,
   ]);
   return [...new Set(hosts)];
+}
+
+/** Platforms the hard rules say are never collected, by us or by a vendor (docs/PLAN.md 2.1). */
+export const NEVER_COLLECTED = [
+  "indiehackers",
+  "linkedin",
+  "facebook",
+  "instagram",
+  "tiktok",
+  "threads",
+  "youtube",
+  "discord",
+  "producthunt",
+] as const;
+
+const isHttps = (raw: string) => {
+  try {
+    return new URL(raw).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+/** D4: Reddit and X posts are kept 7 days, the rest 30. */
+const SEVEN_DAY_SOURCES = new Set(["reddit", "x"]);
+
+/**
+ * Every rule of the source contract (docs/PLAN.md 7.1, 2.1.9) that code can check, as messages.
+ * Empty for a valid registry; the registry test runs it on the real list and on planted ones.
+ */
+export function registryProblems(list: readonly Source[]): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  const collect = list.filter((s): s is CollectSource => s.mode === "collect");
+  const fetchable = collect.flatMap((s) => s.allowedHosts);
+
+  for (const source of list) {
+    if (seen.has(source.id)) problems.push(`duplicate id ${source.id}`);
+    seen.add(source.id);
+  }
+  for (const source of collect) {
+    const id = source.id;
+    if ((NEVER_COLLECTED as readonly string[]).includes(id))
+      problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);
+    if (source.access === "vendor_api") {
+      if (id !== "reddit") problems.push(`${id}: only reddit may use a vendor (D1)`);
+      if (!source.vendor) problems.push(`${id}: vendor_api needs a vendor`);
+      else if (!isHttps(source.vendor.dpaUrl))
+        problems.push(`${id}: the vendor's DPA link must be https`);
+    }
+    const days = SEVEN_DAY_SOURCES.has(id) ? 7 : 30;
+    if (source.retentionDays !== days) problems.push(`${id}: retention must be ${days} days (D4)`);
+    for (const host of source.allowedHosts)
+      if (isPlatformWebHost(host)) problems.push(`${id}: ${host} is a platform's own site`);
+    // safeFetch's own host check: a link host must be refused for every source's fetch.
+    for (const host of source.linkHosts)
+      if (isHostAllowed(host, fetchable)) problems.push(`${id}: link host ${host} is fetchable`);
+    if (source.costPerUnitUsd < 0 || source.dailyBudget < 0)
+      problems.push(`${id}: cost and budget must not be negative`);
+  }
+  return problems;
 }
