@@ -6,7 +6,8 @@ import type { Draft, DraftDeps, DraftStore } from "@/server/onboarding/draft";
 /**
  * Fake external services for localhost E2E (docs/TASKS.md M2): the onboarding draft runs without
  * fetching a site or calling the model. Honored only when E2E_FAKE_SERVICES is exactly "1", no
- * Vercel environment is set (no deployment of any kind) and the site URL is localhost.
+ * Vercel environment is set (no deployment of any kind), the server is `next dev` and the site URL
+ * is localhost.
  */
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -14,7 +15,9 @@ type Env = Readonly<Record<string, string | undefined>>;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export function fakeServicesEnabled(env: Env = process.env): boolean {
-  if (env.E2E_FAKE_SERVICES !== "1" || env.VERCEL_ENV) return false;
+  // `next dev` only: a production build (next start, any deployment) never fakes a service.
+  if (env.E2E_FAKE_SERVICES !== "1" || env.VERCEL_ENV || env.NODE_ENV !== "development")
+    return false;
   try {
     return LOCAL_HOSTS.has(new URL(env.NEXT_PUBLIC_SITE_URL ?? "").hostname);
   } catch {

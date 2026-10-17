@@ -98,7 +98,7 @@ describe("parseProfile", () => {
     [
       { subreddits: ["depression"] },
       "subreddits",
-      "AskedFor does not search communities about health, sexuality, religion, politics, ethnicity or similar topics, so r/depression is left out.",
+      "Remove r/depression: AskedFor does not search communities about health, sexuality, religion, politics, ethnicity or similar topics.",
     ],
     [
       { subreddits: ["u_someone"] },
@@ -131,6 +131,15 @@ describe("saveProfile", () => {
   it("saves nothing when a field is wrong", async () => {
     const s = store();
     expect((await saveProfile("p1", input({ name: "" }), { store: s })).ok).toBe(false);
+    expect(s.save).not.toHaveBeenCalled();
+  });
+
+  it("keeps at least one term, so a saved draft never falls back to the URL step", async () => {
+    const s = store();
+    expect(await saveProfile("p1", input({ terms: [] }), { store: s })).toEqual({
+      ok: false,
+      errors: { terms: "Add at least one search term." },
+    });
     expect(s.save).not.toHaveBeenCalled();
   });
 });

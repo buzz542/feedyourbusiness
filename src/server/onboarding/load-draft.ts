@@ -20,12 +20,19 @@ export async function loadDraftView(
       )
       .eq("id", productId)
       .maybeSingle(),
-    db.from("search_terms").select("term, intent").eq("product_id", productId).order("created_at"),
+    // Terms saved together share created_at: the term breaks the tie, so the order holds on reload.
+    db
+      .from("search_terms")
+      .select("term, intent")
+      .eq("product_id", productId)
+      .order("created_at")
+      .order("term"),
     db
       .from("competitors")
       .select("id, name, domain, aliases")
       .eq("product_id", productId)
-      .order("created_at"),
+      .order("created_at")
+      .order("id"),
   ]);
   if (product.error || terms.error || competitors.error)
     throw new Error("Supabase: could not load the draft");

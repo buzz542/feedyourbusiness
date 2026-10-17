@@ -149,10 +149,9 @@ export function ReviewForm({ draft, saved }: { draft: DraftView; saved: boolean 
       className="mt-8 space-y-8"
       noValidate
       aria-busy={pending}
-      onSubmit={(event) => {
-        event.preventDefault();
-        run("confirm");
-      }}
+      // Confirming starts collection, so only the Confirm button does it: Enter in a field submits
+      // nothing (there is no submit button, and this guard covers any browser that submits anyway).
+      onSubmit={(event) => event.preventDefault()}
     >
       <div aria-live="polite" className="min-h-5 text-sm">
         {errorCount > 0 ? (
@@ -430,7 +429,7 @@ export function ReviewForm({ draft, saved }: { draft: DraftView; saved: boolean 
       </Section>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
-        <Button type="submit" disabled={pending}>
+        <Button disabled={pending} onClick={() => run("confirm")}>
           Confirm and continue
         </Button>
         <Button variant="secondary" disabled={pending} onClick={() => run("save")}>

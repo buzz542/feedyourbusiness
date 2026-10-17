@@ -74,6 +74,10 @@ test.describe("onboarding", () => {
     await page.getByLabel("Add a subreddit").fill("r/SaaS");
     await page.getByLabel("Add a subreddit").press("Enter");
     await page.getByLabel("Minimum match").fill("70");
+    // Enter in a text field never confirms (only the Confirm button does).
+    await page.getByLabel("Name", { exact: true }).press("Enter");
+    await expect(page.getByRole("heading", { name: "Review your profile" })).toBeVisible();
+    expect((await productOf(config!, userId))?.status).toBe("draft");
 
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page).toHaveURL(/\/app\/onboarding\?saved=1$/);
@@ -105,7 +109,8 @@ test.describe("onboarding", () => {
 
     await page.getByLabel("Your product's web address").fill("unreachable.example");
     await page.getByRole("button", { name: "Draft my profile" }).click();
-    await expect(page.getByRole("alert")).toContainText("We could not read that page");
+    // By id: Next's route announcer is also role="alert".
+    await expect(page.locator("#draft-message")).toContainText("We could not read that page");
     await page
       .getByLabel("Describe your product")
       .fill("Invoicer sends polite reminders to clients who have not paid their invoices yet.");
@@ -119,7 +124,7 @@ test.describe("onboarding", () => {
     await startOnboarding(page);
     await page.getByLabel("Your product's web address").fill("not a url");
     await page.getByRole("button", { name: "Draft my profile" }).click();
-    await expect(page.getByRole("alert")).toHaveText(
+    await expect(page.locator("#draft-message")).toHaveText(
       "Enter your product's web address, like example.com.",
     );
   });

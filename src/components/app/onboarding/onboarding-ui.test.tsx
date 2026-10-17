@@ -62,6 +62,9 @@ describe("ReviewForm", () => {
 
   it("offers save, confirm and starting again", () => {
     expect(html).toContain("Confirm and continue");
+    // No submit button: pressing Enter in a field must never confirm (and start collection).
+    expect(html).not.toContain('type="submit"');
+    expect(html).toMatch(/<button type="button"[^>]*>Confirm and continue</);
     expect(html).toContain("Save changes");
     expect(html).toContain('href="/app/onboarding?step=url"');
   });

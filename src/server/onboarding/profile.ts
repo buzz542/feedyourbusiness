@@ -103,6 +103,8 @@ export function parseProfile(raw: unknown): ParsedProfile {
     terms.push({ term: t, intent });
   }
   if (input.terms.length > MAX_TERMS) errors.terms = `Keep it to ${MAX_TERMS} terms.`;
+  // A product with no term would have nothing to search, and the page reads it as no draft yet.
+  if (input.terms.length === 0) errors.terms = "Add at least one search term.";
 
   const competitors: Profile["competitors"] = [];
   const seenRivals = new Set<string>();
@@ -146,9 +148,10 @@ export function parseProfile(raw: unknown): ParsedProfile {
       continue;
     }
     if (isSensitiveCommunity(s)) {
+      // Also reached by a subreddit saved before the list grew, so the message says what to do.
       errors.subreddits ??=
-        "AskedFor does not search communities about health, sexuality, religion, politics, " +
-        `ethnicity or similar topics, so r/${s} is left out.`;
+        `Remove r/${s}: AskedFor does not search communities about health, sexuality, ` +
+        "religion, politics, ethnicity or similar topics.";
       continue;
     }
     seenSubs.add(s.toLowerCase());
@@ -199,8 +202,6 @@ export async function confirmProfile(
 ): Promise<ProfileResult> {
   const parsed = parseProfile(raw);
   if (!parsed.ok) return parsed;
-  if (parsed.profile.terms.length === 0)
-    return { ok: false, errors: { terms: "Add at least one search term." } };
   await deps.store.save(productId, parsed.profile);
   if ((await deps.store.confirm(productId)) === "refused")
     return {
