@@ -1,0 +1,28 @@
+{
+  "hits": [
+    {
+      "objectID": "90000002",
+      "author": "example_freelancer_two",
+      "created_at_i": 1792220400,
+      "title": null,
+      "story_text": null,
+      "comment_text": "We tried three invoicing apps &amp; none of them let us set late fees.",
+      "story_title": "Ask HN: Is there a tool that chases unpaid invoices for you?",
+      "_tags": ["comment", "author_example_freelancer_two", "story_90000001"]
+    },
+    {
+      "objectID": "90000004",
+      "author": "example_long_writer",
+      "created_at_i": 1792224000,
+      "title": null,
+      "story_text": null,
+      "comment_text": "<p>Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. Chasing payments every month is the worst part of running a studio. </p>",
+      "story_title": "Show HN: A calendar for small studios",
+      "_tags": ["comment", "author_example_long_writer", "story_90000009"]
+    }
+  ],
+  "nbHits": 2,
+  "page": 0,
+  "nbPages": 1,
+  "hitsPerPage": 20
+}

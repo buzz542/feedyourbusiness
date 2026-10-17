@@ -46,9 +46,16 @@ describe("source registry", () => {
     for (const source of sources) expect(new URL(source.termsUrl).protocol).toBe("https:");
   });
 
-  it("allows no outbound host until a collect source is registered", () => {
+  it("allows no outbound host while every collect source is off (the default)", () => {
     expect(allowedHosts({})).toEqual([]);
     expect(allowedHosts({ SOURCE_REDDIT_LINKS_ENABLED: "true" })).toEqual([]);
+  });
+
+  it("allows a collect source's API hosts, and only those, once it is switched on", () => {
+    expect(allowedHosts({ SOURCE_HACKERNEWS_ENABLED: "true" })).toEqual([
+      "hn.algolia.com",
+      "hacker-news.firebaseio.com",
+    ]);
   });
 
   it("keeps a search-link source for each platform users search themselves", () => {

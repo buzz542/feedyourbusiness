@@ -56,6 +56,10 @@ export interface CollectContext {
   /** Units this run may use (reserved with consume_budget). Modules stop at it. */
   budget: number;
   now: Date;
+  /** Descriptive, with a monitored contact (docs/PLAN.md 7.4): send it on every request. */
+  userAgent: string;
+  /** For polite pacing and backing off on 429. Tests pass a fake. */
+  sleep(ms: number): Promise<void>;
 }
 
 export type RunState =

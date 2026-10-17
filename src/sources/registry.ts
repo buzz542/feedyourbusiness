@@ -1,17 +1,18 @@
 import { isHostAllowed } from "@/server/net/safe-fetch";
 import { isPlatformWebHost } from "@/server/net/platform-hosts";
+import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import type { CollectSource, LinkSource, Source } from "./types";
 
 /**
  * The only allowlist (docs/PLAN.md, "Sources").
  *
- * Link-mode sources only so far. The collect sources (hackernews, bluesky, reddit through the data
- * vendor, x through the official API) are added by the Collection milestone, each after its hosts,
- * auth and terms are confirmed against the current docs. Until then no host is allowed, and
- * safeFetch() refuses every request.
+ * Collect sources are added in the Collection milestone (M3), each after its hosts, auth and terms
+ * are confirmed against the current docs, and stay off until SOURCE_<ID>_ENABLED is "true". While
+ * every collect source is off, no host is allowed and safeFetch() refuses every request.
  */
 export const sources: readonly Source[] = [
+  hackernews,
   redditLinks,
   linkedin,
   facebook,

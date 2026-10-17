@@ -23,7 +23,11 @@ export interface CollectHandlerDeps {
   }): Promise<{ stored: number }>;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
+  userAgent: string;
+  sleep?: (ms: number) => Promise<void>;
 }
+
+const realSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 const POLL_DELAY_MS = 2 * 60_000;
 const MAX_POLL_MS = 60 * 60_000;
@@ -67,6 +71,8 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       since: new Date(now().getTime() - (firstRun ? 7 * 24 : 48) * HOUR),
       budget: units,
       now: now(),
+      userAgent: deps.userAgent,
+      sleep: deps.sleep ?? realSleep,
     };
     const handle = typeof job.payload.handle === "string" ? job.payload.handle : null;
     const state = handle && source.poll ? await source.poll(ctx, handle) : await source.start(ctx);

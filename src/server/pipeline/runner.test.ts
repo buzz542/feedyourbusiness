@@ -71,6 +71,8 @@ function setup(src: CollectSource) {
     terms: async () => [{ id: "t1", term: "invoice tool" }],
     process,
     monthlyCap: () => null,
+    userAgent: "AskedFor/test",
+    sleep: async () => {},
   };
   const handlers: Record<string, JobHandler> = { collect: createCollectHandler(deps) };
   return { store, budget, stored, process, handlers };
