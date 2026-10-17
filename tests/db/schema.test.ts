@@ -342,16 +342,18 @@ describe("posts: third-party content", () => {
         `insert into public.posts (source, external_id, url, excerpt, posted_at, author_hash, delete_after)
          values ('bluesky', 'long-lived', 'https://bsky.example.test/p', 'x', now(), 'h', now() + interval '31 days')`,
       ),
-    ).rejects.toThrow(/posts_retention_max_30_days/);
+      // Since `collection`, the per-source cap (30 days for Bluesky) may be the one that reports it.
+    ).rejects.toThrow(/posts_retention_max_30_days|posts_retention_by_source/);
   });
 
-  it("only allows the two collected sources", async () => {
+  it("only allows the collected sources", async () => {
+    // M0 allowed two; `collection` (6.3) adds reddit and x. A platform never collected stays out.
     await expect(
       db.query(
         `insert into public.posts (source, external_id, url, excerpt, posted_at, author_hash)
-         values ('reddit', 'r1', 'https://reddit.example.test/r1', 'x', now(), 'h')`,
+         values ('linkedin', 'l1', 'https://linkedin.example.test/l1', 'x', now(), 'h')`,
       ),
-    ).rejects.toThrow(/check constraint/i);
+    ).rejects.toThrow(/posts_source_check/i);
   });
 
   it("stores each external post once", async () => {

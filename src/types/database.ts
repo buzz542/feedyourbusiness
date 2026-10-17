@@ -121,6 +121,65 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          locked_until: string | null
+          payload: Json
+          product_id: string | null
+          run_after: string
+          source: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          last_error?: string | null
+          locked_until?: string | null
+          payload?: Json
+          product_id?: string | null
+          run_after?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          locked_until?: string | null
+          payload?: Json
+          product_id?: string | null
+          run_after?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       llm_usage: {
         Row: {
           cache_read_tokens: number
@@ -173,6 +232,7 @@ export type Database = {
           author_handle: string | null
           author_hash: string
           collected_at: string
+          community: string | null
           delete_after: string
           excerpt: string
           external_id: string
@@ -185,6 +245,7 @@ export type Database = {
           author_handle?: string | null
           author_hash: string
           collected_at?: string
+          community?: string | null
           delete_after?: string
           excerpt: string
           external_id: string
@@ -197,6 +258,7 @@ export type Database = {
           author_handle?: string | null
           author_hash?: string
           collected_at?: string
+          community?: string | null
           delete_after?: string
           excerpt?: string
           external_id?: string
@@ -467,6 +529,38 @@ export type Database = {
         }
         Relationships: []
       }
+      term_stats: {
+        Row: {
+          day: string
+          fetched: number
+          relevant: number
+          source: string
+          term_id: string
+        }
+        Insert: {
+          day: string
+          fetched?: number
+          relevant?: number
+          source: string
+          term_id: string
+        }
+        Update: {
+          day?: string
+          fetched?: number
+          relevant?: number
+          source?: string
+          term_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "term_stats_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "search_terms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       themes: {
         Row: {
           count: number
@@ -559,13 +653,54 @@ export type Database = {
         Args: { p_event_id: string; p_type: string }
         Returns: string
       }
+      claim_jobs: {
+        Args: { p_lease_seconds: number; p_limit: number; p_now: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          locked_until: string | null
+          payload: Json
+          product_id: string | null
+          run_after: string
+          source: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       confirm_product: {
         Args: { p_product_id: string }
+        Returns: string
+      }
+      consume_budget: {
+        Args: { p_day: string; p_limit: number; p_product_id: string; p_source: string; p_units: number }
+        Returns: boolean
+      }
+      finish_job: {
+        Args: { p_error_class: string; p_id: string; p_payload: Json; p_run_after: string; p_status: string }
+        Returns: undefined
+      }
+      ingest_post: {
+        Args: { p_author_hash: string; p_community: string; p_excerpt: string; p_external_id: string; p_now: string; p_posted_at: string; p_source: string; p_url: string }
         Returns: string
       }
       llm_spend_since: {
         Args: { p_product_id?: string; p_since: string }
         Returns: number
+      }
+      purge_expired: {
+        Args: { p_now: string }
+        Returns: Json
       }
       save_product_draft: {
         Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json; p_url: string }
@@ -575,9 +710,17 @@ export type Database = {
         Args: { p_competitors: Json; p_product_id: string; p_profile: Json; p_terms: Json }
         Returns: undefined
       }
+      settle_budget: {
+        Args: { p_actual: number; p_cost_usd: number; p_day: string; p_product_id: string; p_reserved: number; p_source: string }
+        Returns: undefined
+      }
       text_items_ok: {
         Args: { items: string[]; max_len: number }
         Returns: boolean
+      }
+      vendor_usage: {
+        Args: { p_month_start: string; p_source: string }
+        Returns: number
       }
     }
     Enums: {
