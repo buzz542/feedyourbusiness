@@ -242,6 +242,8 @@ export function findUnexpectedHosts(
   allowed: ReadonlySet<string>,
 ): Finding[] {
   return findUrlHosts(code, file).flatMap(({ host, line }) => {
+    // fetchOwnSite() exists to fetch the user's own URL, so own-site.ts alone may build one.
+    if (host === null && file === OWN_SITE_FILE) return [];
     if (host === null) {
       return [
         {

@@ -563,6 +563,10 @@ export type Database = {
         Args: { p_product_id?: string; p_since: string }
         Returns: number
       }
+      save_product_draft: {
+        Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json }
+        Returns: undefined
+      }
       text_items_ok: {
         Args: { items: string[]; max_len: number }
         Returns: boolean

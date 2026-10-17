@@ -172,6 +172,18 @@ describe("URL host scanner", () => {
     expect(
       rules(findUnexpectedHosts("const u = `https://${host}/path`", "src/x.ts", allowed)),
     ).toEqual(["dynamic-url-host"]);
+    // Only own-site.ts, which exists to fetch the user's own URL, may build one, and literal hosts
+    // there are still checked.
+    const own = "const u = `https://${raw}`; const v = `https://${host}/path`;";
+    expect(findUnexpectedHosts(own, OWN_SITE_FILE, allowed)).toEqual([]);
+    for (const file of ["src/server/onboarding/draft.ts", "src/sources/forum.ts"])
+      expect(rules(findUnexpectedHosts(own, file, allowed)), file).toEqual([
+        "dynamic-url-host",
+        "dynamic-url-host",
+      ]);
+    expect(
+      rules(findUnexpectedHosts(`const a = "https://cdn.evil.example/x"`, OWN_SITE_FILE, allowed)),
+    ).toEqual(["unexpected-host"]);
   });
 
   it("does not flag a template that only appends a path to a configured base", () => {

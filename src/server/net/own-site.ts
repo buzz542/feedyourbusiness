@@ -117,6 +117,28 @@ function guardedLookup(resolve: OwnSiteDeps["resolve"], signal: AbortSignal): Lo
   };
 }
 
+/**
+ * The URL a user typed, as the https URL we store and fetch, or null. A missing scheme means https,
+ * http is upgraded, and the fragment is dropped. The host must be a domain name.
+ */
+export function normalizeProductUrl(raw: string): string | null {
+  let text = raw.trim();
+  if (!text) return null;
+  if (/^http:\/\//i.test(text)) text = `https://${text.slice(7)}`;
+  else if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) text = `https://${text}`;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return null;
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(url.hostname)) return null;
+  url.hash = "";
+  const out = url.href;
+  return out.length <= 2048 ? out : null;
+}
+
 const wwwTwin = (a: string, b: string) => a === b || a === `www.${b}` || b === `www.${a}`;
 
 /** Every check a URL must pass before we connect to it. */

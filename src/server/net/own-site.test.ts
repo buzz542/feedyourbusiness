@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   fetchOwnSite,
   nodeDeps,
+  normalizeProductUrl,
   OwnSiteError,
   type OwnSiteDeps,
   type TransportResponse,
@@ -339,4 +340,22 @@ describe("fetchOwnSite with the real transport", () => {
     };
     expect(await code(fetchOwnSite("https://invoicer.example/", d))).toBe("private_address");
   });
+});
+
+describe("normalizeProductUrl", () => {
+  it.each([
+    ["invoicer.example", "https://invoicer.example/"],
+    ["  https://Invoicer.example/pricing ", "https://invoicer.example/pricing"],
+    ["http://invoicer.example", "https://invoicer.example/"],
+    ["www.invoicer.example/a?b=c#top", "https://www.invoicer.example/a?b=c"],
+  ])("%j becomes %j", (raw, expected) => {
+    expect(normalizeProductUrl(raw)).toBe(expected);
+  });
+
+  it.each(["", "not a url", "ftp://x.example", "https://localhost", "https://", "mailto:a@b.c"])(
+    "refuses %j",
+    (raw) => {
+      expect(normalizeProductUrl(raw)).toBeNull();
+    },
+  );
 });
