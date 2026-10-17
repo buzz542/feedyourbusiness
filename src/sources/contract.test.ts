@@ -29,7 +29,11 @@ const vendorReddit = (over: Partial<CollectSource> = {}) =>
     id: "reddit",
     displayName: "Reddit",
     access: "vendor_api",
-    vendor: { name: "Data vendor", dpaUrl: "https://vendor.example/dpa" },
+    vendor: {
+      name: "Data vendor",
+      dpaUrl: "https://vendor.example/dpa",
+      dpaSignedOnEnv: "VENDOR_DPA_SIGNED_ON",
+    },
     allowedHosts: ["api.vendor.example"],
     linkHosts: ["www.reddit.com"],
     retentionDays: 7,
@@ -54,12 +58,34 @@ describe("registryProblems", () => {
     ],
     [
       "a vendor DPA link that is not https",
-      [vendorReddit({ vendor: { name: "V", dpaUrl: "http://vendor.example/dpa" } })],
+      [
+        vendorReddit({
+          vendor: {
+            name: "V",
+            dpaUrl: "http://vendor.example/dpa",
+            dpaSignedOnEnv: "V_DPA_SIGNED_ON",
+          },
+        }),
+      ],
       /reddit: the vendor's DPA link must be https/,
     ],
     [
+      "a vendor without a DPA date variable",
+      [
+        vendorReddit({
+          vendor: { name: "V", dpaUrl: "https://vendor.example/dpa", dpaSignedOnEnv: "dpa date" },
+        }),
+      ],
+      /reddit: the vendor's DPA date must live in an env var named <NAME>_DPA_SIGNED_ON/,
+    ],
+    [
       "vendor access on a source other than reddit",
-      [collect({ access: "vendor_api", vendor: { name: "V", dpaUrl: "https://v.example" } })],
+      [
+        collect({
+          access: "vendor_api",
+          vendor: { name: "V", dpaUrl: "https://v.example", dpaSignedOnEnv: "V_DPA_SIGNED_ON" },
+        }),
+      ],
       /hackernews: only reddit may use a vendor/,
     ],
     [

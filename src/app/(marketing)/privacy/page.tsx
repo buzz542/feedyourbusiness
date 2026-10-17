@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { LegalPlaceholder } from "../_components/legal-placeholder";
+import { VendorNotice } from "../_components/vendor-notice";
 
 export const metadata: Metadata = { title: "Privacy notice" };
 
 export default function Page() {
-  return <LegalPlaceholder title="Privacy notice" />;
+  return (
+    <LegalPlaceholder title="Privacy notice">
+      <VendorNotice />
+    </LegalPlaceholder>
+  );
 }

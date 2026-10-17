@@ -6,6 +6,7 @@ const links = [
   { href: "/terms", label: "Terms" },
   { href: "/acceptable-use", label: "Acceptable use" },
   { href: "/cookies", label: "Cookies" },
+  { href: "/sources", label: "Sources" },
 ];
 
 export function SiteFooter() {

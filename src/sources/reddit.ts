@@ -156,7 +156,11 @@ export const reddit: CollectSource = {
   displayName: "Reddit",
   mode: "collect",
   access: "vendor_api",
-  vendor: { name: "Bright Data", dpaUrl: "https://brightdata.com/legal" },
+  vendor: {
+    name: "Bright Data",
+    dpaUrl: "https://brightdata.com/legal",
+    dpaSignedOnEnv: "BRIGHTDATA_DPA_SIGNED_ON",
+  },
   termsUrl: "https://brightdata.com/legal",
   allowedHosts: [BRIGHTDATA_API_HOST],
   linkHosts: ["www.reddit.com", "old.reddit.com"],

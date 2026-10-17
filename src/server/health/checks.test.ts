@@ -80,6 +80,7 @@ describe("runHealthChecks", () => {
         "cron_secret",
         "email",
         "site_url",
+        "sources",
         "stripe_config",
         "stripe_price",
         "stripe_webhook",
@@ -352,6 +353,38 @@ describe("runHealthChecks", () => {
       expect(report.checks.stripe_webhook?.status).toBe("error");
       expect(report.checks.stripe_webhook?.detail).toContain("StripePermissionError");
       expect(report.checks.stripe_webhook?.detail).toContain("Webhook Endpoints");
+    });
+  });
+
+  describe("sources", () => {
+    it("is ok with no collect source on, and lists the ones that are", async () => {
+      expect((await runHealthChecks(deps())).checks.sources).toEqual({
+        status: "ok",
+        detail: "no collect source is on",
+      });
+      const on = withEnv({ SOURCE_HACKERNEWS_ENABLED: "true", SOURCE_BLUESKY_ENABLED: "true" });
+      expect((await runHealthChecks(deps({ env: on }))).checks.sources).toEqual({
+        status: "ok",
+        detail: "on: hackernews, bluesky",
+      });
+    });
+
+    it("reports Reddit held back in production until the vendor's DPA date is set", async () => {
+      const held = await runHealthChecks(deps({ env: withEnv({ SOURCE_REDDIT_ENABLED: "true" }) }));
+      expect(held.ok).toBe(false);
+      expect(held.checks.sources).toEqual({
+        status: "missing",
+        detail:
+          "reddit stays off until BRIGHTDATA_DPA_SIGNED_ON holds the date (docs/PLAN.md 2.1.7)",
+      });
+      const signed = withEnv({
+        SOURCE_REDDIT_ENABLED: "true",
+        BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02",
+      });
+      expect((await runHealthChecks(deps({ env: signed }))).checks.sources).toEqual({
+        status: "ok",
+        detail: "on: reddit",
+      });
     });
   });
 

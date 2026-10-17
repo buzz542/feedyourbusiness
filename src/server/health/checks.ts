@@ -4,6 +4,8 @@ import type { BillingStripe, WebhookEndpointInfo } from "@/server/billing/ports"
 import { isCronAuthorized } from "@/server/http/cron";
 import { json } from "@/server/http/respond";
 import { PROCESSOR_HOSTS } from "@/server/net/hosts";
+import { collectSources, isEnabled, killSwitchName, sources } from "@/sources/registry";
+import type { CollectSource } from "@/sources/types";
 
 /**
  * Deployment health check. One authenticated request tells the founder whether this deployment
@@ -286,6 +288,26 @@ function checkEmail(env: Env): CheckResult {
   return { status: "ok" };
 }
 
+/** Which collect sources are on, and any held back for a missing vendor DPA date (2.1.7). */
+function checkSources(env: Env): CheckResult {
+  const held = sources.filter(
+    (s): s is CollectSource =>
+      s.mode === "collect" && env[killSwitchName(s)] === "true" && !isEnabled(s, env),
+  );
+  if (held.length > 0)
+    return {
+      status: "missing",
+      detail: held
+        .map(
+          (s) =>
+            `${s.id} stays off until ${s.vendor?.dpaSignedOnEnv} holds the date (docs/PLAN.md 2.1.7)`,
+        )
+        .join("; "),
+    };
+  const on = collectSources(env).map((s) => s.id);
+  return { status: "ok", detail: on.length ? `on: ${on.join(", ")}` : "no collect source is on" };
+}
+
 function checkCronSecret(env: Env): CheckResult {
   const secret = env.CRON_SECRET;
   if (!secret) return { status: "missing", detail: "CRON_SECRET" };
@@ -320,6 +342,7 @@ export async function runHealthChecks(deps: HealthDeps): Promise<HealthReport> {
     stripe_webhook: stripeWebhook,
     email: checkEmail(env),
     cron_secret: checkCronSecret(env),
+    sources: checkSources(env),
   };
   return {
     ok: Object.values(checks).every((c) => c.status === "ok"),

@@ -72,8 +72,16 @@ export type RunState =
 export interface CollectSource extends SourceBase {
   readonly mode: "collect";
   readonly access: "official_api" | "vendor_api";
-  /** Required when access is vendor_api: who collects for us, and their DPA. */
-  readonly vendor?: { readonly name: string; readonly dpaUrl: string };
+  /**
+   * Required when access is vendor_api: who collects for us, their DPA, and the env var that holds
+   * the date the DPA, transfer mechanism and DPIA were done (docs/PLAN.md 2.1.7). Deployments keep
+   * the source off until it holds a date.
+   */
+  readonly vendor?: {
+    readonly name: string;
+    readonly dpaUrl: string;
+    readonly dpaSignedOnEnv: string;
+  };
   /** D4: 7 for reddit and x, 30 for the rest. */
   readonly retentionDays: 7 | 30;
   /** 0 for free APIs. */

@@ -6,6 +6,7 @@ import {
   isEnabled,
   killSwitchName,
   sources,
+  vendorClearance,
 } from "./registry";
 import { BRIGHTDATA_API_HOST } from "./reddit-vendor";
 
@@ -117,6 +118,55 @@ describe("kill switches", () => {
     expect(isEnabled(collect as never, {})).toBe(false);
     expect(isEnabled(collect as never, { SOURCE_REDDIT_ENABLED: "1" })).toBe(false);
     expect(isEnabled(collect as never, { SOURCE_REDDIT_ENABLED: "true" })).toBe(true);
+  });
+});
+
+describe("vendor clearance (docs/PLAN.md 2.1.7)", () => {
+  const reddit = sources.find((s) => s.id === "reddit")!;
+  const ON = { SOURCE_REDDIT_ENABLED: "true" };
+
+  it("names the env var that holds the vendor's DPA date", () => {
+    expect(reddit).toMatchObject({ vendor: { dpaSignedOnEnv: "BRIGHTDATA_DPA_SIGNED_ON" } });
+  });
+
+  it("keeps a vendor source off on any deployment until its DPA date is set", () => {
+    for (const VERCEL_ENV of ["production", "preview"]) {
+      expect(isEnabled(reddit, { ...ON, VERCEL_ENV })).toBe(false);
+      expect(vendorClearance(reddit, { ...ON, VERCEL_ENV })).toBe("dpa_missing");
+      expect(allowedHosts({ ...ON, VERCEL_ENV })).toEqual([]);
+      for (const bad of [
+        "",
+        "soon",
+        "2026-13-01",
+        "2026-02-30",
+        "02/11/2026",
+        "2026-11-02T00:00:00Z",
+      ])
+        expect(
+          isEnabled(reddit, { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: bad }),
+          `${VERCEL_ENV} ${bad}`,
+        ).toBe(false);
+      const signed = { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02" };
+      expect(isEnabled(reddit, signed)).toBe(true);
+      expect(vendorClearance(reddit, signed)).toBe("cleared");
+      expect(allowedHosts(signed)).toEqual([BRIGHTDATA_API_HOST]);
+    }
+  });
+
+  it("does not hold back local runs or official API sources", () => {
+    expect(isEnabled(reddit, ON)).toBe(true);
+    expect(isEnabled(reddit, { ...ON, VERCEL_ENV: "development" })).toBe(true);
+    const hn = sources.find((s) => s.id === "hackernews")!;
+    expect(vendorClearance(hn, { VERCEL_ENV: "production" })).toBe("not_vendor");
+    expect(isEnabled(hn, { VERCEL_ENV: "production", SOURCE_HACKERNEWS_ENABLED: "true" })).toBe(
+      true,
+    );
+  });
+
+  it("never turns on a vendor source whose kill switch is off, DPA or not", () => {
+    expect(
+      isEnabled(reddit, { VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02" }),
+    ).toBe(false);
   });
 });
 

@@ -31,14 +31,38 @@ export function killSwitchName(source: Pick<Source, "id">): string {
   return `SOURCE_${source.id.toUpperCase()}_ENABLED`;
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A real calendar day as YYYY-MM-DD (2026-02-30 and 2026-13-01 are not). */
+function isIsoDay(value: string | undefined): boolean {
+  if (!value || !ISO_DAY.test(value)) return false;
+  const day = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
+}
+
 /**
- * Kill switch. Collect sources are off unless SOURCE_<ID>_ENABLED is exactly "true".
- * Link sources are on unless it is exactly "false". A source can be paused in minutes by
- * changing an env var if its terms change.
+ * docs/PLAN.md 2.1.7: on a deployment (production or preview), a vendor source stays off until the
+ * env var its vendor names holds the date the DPA, transfer mechanism and DPIA were done. Local runs
+ * (development, and the founder's capture script) are not held back.
+ */
+export function vendorClearance(
+  source: Source,
+  env: Env = process.env,
+): "not_vendor" | "cleared" | "dpa_missing" {
+  if (source.mode !== "collect" || source.access !== "vendor_api") return "not_vendor";
+  const deployed = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
+  if (!deployed) return "cleared";
+  return source.vendor && isIsoDay(env[source.vendor.dpaSignedOnEnv]) ? "cleared" : "dpa_missing";
+}
+
+/**
+ * Kill switch. Collect sources are off unless SOURCE_<ID>_ENABLED is exactly "true" (and, for a
+ * vendor source on a deployment, its DPA date is set). Link sources are on unless it is exactly
+ * "false". A source can be paused in minutes by changing an env var if its terms change.
  */
 export function isEnabled(source: Source, env: Env = process.env): boolean {
   const value = env[killSwitchName(source)];
-  return source.mode === "collect" ? value === "true" : value !== "false";
+  if (source.mode === "link") return value !== "false";
+  return value === "true" && vendorClearance(source, env) !== "dpa_missing";
 }
 
 export function enabledSources(env: Env = process.env): Source[] {
@@ -113,8 +137,14 @@ export function registryProblems(list: readonly Source[]): string[] {
     if (source.access === "vendor_api") {
       if (id !== "reddit") problems.push(`${id}: only reddit may use a vendor (D1)`);
       if (!source.vendor) problems.push(`${id}: vendor_api needs a vendor`);
-      else if (!isHttps(source.vendor.dpaUrl))
-        problems.push(`${id}: the vendor's DPA link must be https`);
+      else {
+        if (!isHttps(source.vendor.dpaUrl))
+          problems.push(`${id}: the vendor's DPA link must be https`);
+        if (!/^[A-Z][A-Z0-9_]*_DPA_SIGNED_ON$/.test(source.vendor.dpaSignedOnEnv))
+          problems.push(
+            `${id}: the vendor's DPA date must live in an env var named <NAME>_DPA_SIGNED_ON`,
+          );
+      }
     }
     const days = SEVEN_DAY_SOURCES.has(id) ? 7 : 30;
     if (source.retentionDays !== days) problems.push(`${id}: retention must be ${days} days (D4)`);
