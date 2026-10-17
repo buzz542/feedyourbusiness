@@ -7,7 +7,9 @@ import { OwnSiteError, type OwnSitePage } from "@/server/net/own-site";
 import {
   cleanDraft,
   DRAFT_BUDGET_MS,
+  draftFromDescription,
   draftFromUrl,
+  MAX_DESCRIPTION,
   type Draft,
   type DraftDeps,
   type DraftStore,
@@ -207,6 +209,77 @@ describe("draftFromUrl", () => {
     expect(await draftFromUrl("https://invoicer.example/", setup({ spent: 3 }).deps)).toMatchObject(
       { ok: false, reason: "spend_cap" },
     );
+  });
+});
+
+describe("draftFromDescription", () => {
+  const DESCRIPTION =
+    "Invoicer is a small tool for freelancers. It sends polite reminders until clients pay, " +
+    "and adds late fees on request.";
+
+  it("keeps the same output contract as the URL path, without fetching anything", async () => {
+    const { deps, store, fetchSite, client } = setup();
+    const result = await draftFromDescription(
+      { url: "invoicer.example", description: DESCRIPTION },
+      deps,
+    );
+    expect(result).toMatchObject({ ok: true, productId: "p1" });
+    expect(fetchSite).not.toHaveBeenCalled();
+    expect(store.ensureDraftProduct).toHaveBeenCalledWith("https://invoicer.example/");
+    const saved = store.saveDraft.mock.calls[0]![1];
+    expect(saved.terms.length).toBeGreaterThanOrEqual(20);
+    expect(saved.terms.length).toBeLessThanOrEqual(30);
+    expect(saved.competitors).toHaveLength(2);
+    expect(saved.subreddits).toEqual(["freelance", "smallbusiness", "SaaS"]);
+    const request = client.create.mock.calls[0]![0] as LlmRequest;
+    expect(request.model).toBe("claude-sonnet-5-5");
+    expect(request.input).toContain(DESCRIPTION);
+    expect(request.input).toContain("<url>https://invoicer.example/</url>");
+    expect(request.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("stops at the budget and maps model failures the same way", async () => {
+    const input = { url: "https://invoicer.example/", description: DESCRIPTION };
+    expect(
+      await draftFromDescription(input, setup({ replies: ["hang"], budgetMs: 50 }).deps),
+    ).toEqual({ ok: false, reason: "timeout" });
+    const refusal: LlmResponse = { ...ok({}), stopReason: "refusal", text: "" };
+    expect(await draftFromDescription(input, setup({ replies: [refusal] }).deps)).toMatchObject({
+      ok: false,
+      reason: "declined",
+    });
+    expect(await draftFromDescription(input, setup({ spent: 3 }).deps)).toMatchObject({
+      ok: false,
+      reason: "spend_cap",
+    });
+  });
+
+  it("refuses a confirmed product, a bad URL and a description too short to draft from", async () => {
+    expect(
+      await draftFromDescription(
+        { url: "https://invoicer.example/", description: DESCRIPTION },
+        setup({ product: "confirmed" }).deps,
+      ),
+    ).toEqual({ ok: false, reason: "already_confirmed" });
+    const { deps, store } = setup();
+    expect(
+      await draftFromDescription({ url: "not a url", description: DESCRIPTION }, deps),
+    ).toEqual({ ok: false, reason: "invalid_url" });
+    expect(
+      await draftFromDescription({ url: "invoicer.example", description: "  An app.  " }, deps),
+    ).toEqual({ ok: false, reason: "invalid_description" });
+    expect(store.ensureDraftProduct).not.toHaveBeenCalled();
+  });
+
+  it("sends at most 5,000 characters of the description", async () => {
+    const { deps, client } = setup();
+    await draftFromDescription(
+      { url: "invoicer.example", description: `${DESCRIPTION} ${"x".repeat(9_000)}` },
+      deps,
+    );
+    const request = client.create.mock.calls[0]![0] as LlmRequest;
+    expect(MAX_DESCRIPTION).toBe(5_000);
+    expect(request.input.length).toBeLessThan(5_000 + 200);
   });
 });
 

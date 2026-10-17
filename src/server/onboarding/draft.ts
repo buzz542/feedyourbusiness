@@ -22,6 +22,9 @@ const DRAFT_MODEL = "claude-sonnet-5-5" as const;
 const MAX_TERMS = 30;
 const MAX_COMPETITORS = 8;
 const MAX_SUBREDDITS = 10;
+/** The pasted description: enough to draft from, and at most this many characters sent. */
+const MIN_DESCRIPTION = 20;
+export const MAX_DESCRIPTION = 5_000;
 
 /** The model's output (8.3). */
 export const DraftSchema = z.object({
@@ -75,6 +78,7 @@ export interface DraftDeps {
 
 export type DraftFailure =
   | { ok: false; reason: "invalid_url" }
+  | { ok: false; reason: "invalid_description" }
   | { ok: false; reason: "already_confirmed" }
   | { ok: false; reason: "site_unreachable"; productId: string; siteError: OwnSiteErrorCode }
   | { ok: false; reason: "spend_cap" | "declined" | "failed" | "timeout" };
@@ -247,6 +251,32 @@ export async function draftFromUrl(rawUrl: string, deps: DraftDeps): Promise<Dra
       productId: product.productId,
       url: page.url,
       text: pageText(page.text, page.contentType),
+      fallbackName: new URL(url).hostname,
+    },
+    started,
+    deps,
+  );
+}
+
+/** The fallback when the site cannot be fetched (4.3): the same draft from the maker's own words. */
+export async function draftFromDescription(
+  input: { url: string; description: string },
+  deps: DraftDeps,
+): Promise<DraftResult> {
+  const started = deps.clock().getTime();
+  const url = normalizeProductUrl(input.url);
+  if (!url) return { ok: false, reason: "invalid_url" };
+  const description = input.description.trim().slice(0, MAX_DESCRIPTION);
+  if (description.length < MIN_DESCRIPTION) return { ok: false, reason: "invalid_description" };
+
+  const product = await deps.store.ensureDraftProduct(url);
+  if (product === "confirmed") return { ok: false, reason: "already_confirmed" };
+
+  return runDraft(
+    {
+      productId: product.productId,
+      url,
+      text: `Description from the maker:\n${description}`,
       fallbackName: new URL(url).hostname,
     },
     started,
