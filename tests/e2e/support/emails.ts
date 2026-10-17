@@ -7,4 +7,8 @@ export const E2E_PROJECTS = ["desktop", "mobile"] as const;
 
 export const signInEmail = (project: string): string => `e2e-sign-in-${project}@askedfor.test`;
 
-export const allE2EEmails = (): string[] => E2E_PROJECTS.map(signInEmail);
+export const onboardingEmail = (project: string): string =>
+  `e2e-onboarding-${project}@askedfor.test`;
+
+export const allE2EEmails = (): string[] =>
+  E2E_PROJECTS.flatMap((project) => [signInEmail(project), onboardingEmail(project)]);

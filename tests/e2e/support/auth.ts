@@ -105,3 +105,17 @@ export async function deleteUserByEmail(config: E2EConfig, email: string): Promi
     if (data.users.length < 200) return;
   }
 }
+
+/** The user's product as stored, read with the admin client, for checks the UI cannot show. */
+export async function productOf(
+  config: E2EConfig,
+  userId: string,
+): Promise<{ name: string; status: string; confirmed_at: string | null } | null> {
+  const { data, error } = await admin(config)
+    .from("products")
+    .select("name, status, confirmed_at")
+    .eq("owner_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`products read failed: ${error.code}`);
+  return data;
+}

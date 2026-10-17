@@ -44,6 +44,9 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       NEXT_PUBLIC_SITE_URL: baseURL,
+      // Fake site fetch and model for onboarding (src/server/e2e/fake-services.ts). The server only
+      // honors it with VERCEL_ENV unset and a localhost site URL.
+      E2E_FAKE_SERVICES: "1",
       SIGNUP_ALLOWLIST: [process.env.SIGNUP_ALLOWLIST, ...allE2EEmails()].filter(Boolean).join(","),
     },
   },

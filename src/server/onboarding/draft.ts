@@ -114,7 +114,8 @@ export const DRAFT_SYSTEM = [
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 const key = (text: string) => squash(text).toLowerCase();
 
-function normalizeDomain(raw: string | null): string | null {
+/** A competitor domain as a bare host ("https://www.Example.com/x" becomes "example.com"), or null. */
+export function normalizeDomain(raw: string | null): string | null {
   if (!raw) return null;
   const host = raw
     .trim()

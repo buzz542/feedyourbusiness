@@ -559,12 +559,20 @@ export type Database = {
         Args: { p_event_id: string; p_type: string }
         Returns: string
       }
+      confirm_product: {
+        Args: { p_product_id: string }
+        Returns: string
+      }
       llm_spend_since: {
         Args: { p_product_id?: string; p_since: string }
         Returns: number
       }
       save_product_draft: {
         Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json }
+        Returns: undefined
+      }
+      save_product_profile: {
+        Args: { p_competitors: Json; p_product_id: string; p_profile: Json; p_terms: Json }
         Returns: undefined
       }
       text_items_ok: {

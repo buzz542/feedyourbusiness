@@ -2,6 +2,7 @@ import "server-only";
 import dns from "node:dns";
 import https from "node:https";
 import { isIpLiteral, isPublicAddress, unbracket } from "./ip";
+import { OwnSiteError } from "./own-site-error";
 import { embedsPlatformUrl, isPlatformHost } from "./platform-hosts";
 
 /**
@@ -19,27 +20,7 @@ import { embedsPlatformUrl, isPlatformHost } from "./platform-hosts";
  *   (the resolver is cancelled on timeout). Body capped at 2 MB. text/html or text/plain only.
  */
 
-export type OwnSiteErrorCode =
-  | "invalid_url"
-  | "insecure_scheme"
-  | "non_default_port"
-  | "credentials_in_url"
-  | "platform_host"
-  | "private_address"
-  | "redirect_off_site"
-  | "too_many_redirects"
-  | "too_large"
-  | "unsupported_type"
-  | "http_error"
-  | "timeout"
-  | "network";
-
-export class OwnSiteError extends Error {
-  constructor(readonly code: OwnSiteErrorCode) {
-    super(`Could not fetch the site: ${code}`);
-    this.name = "OwnSiteError";
-  }
-}
+export { OwnSiteError, type OwnSiteErrorCode } from "./own-site-error";
 
 export interface ResolvedAddress {
   address: string;
