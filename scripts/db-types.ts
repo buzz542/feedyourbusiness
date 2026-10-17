@@ -68,6 +68,8 @@ interface Fn {
   args: { name: string; udt: string; hasDefault: boolean }[];
   returns: string;
   setofTable: string | null;
+  /** The columns of a `returns table (...)` function. */
+  tableColumns: { name: string; udt: string }[];
 }
 
 async function main() {
@@ -142,6 +144,7 @@ async function main() {
       proname: string;
       arg_names: string[] | null;
       arg_types: string[];
+      all_types: string[];
       arg_modes: string[] | null;
       n_defaults: number;
       ret: string;
@@ -151,6 +154,8 @@ async function main() {
       `select p.proname,
               p.proargnames as arg_names,
               array(select format_type(t, null) from unnest(p.proargtypes) t) as arg_types,
+              array(select format_type(t, null)
+                    from unnest(coalesce(p.proallargtypes, p.proargtypes::oid[])) t) as all_types,
               p.proargmodes::text[] as arg_modes,
               p.pronargdefaults as n_defaults,
               format_type(p.prorettype, null) as ret,
@@ -163,9 +168,13 @@ async function main() {
        order by p.proname`,
     )
   ).rows.map((r): Fn => {
-    if (r.arg_modes?.some((m) => m !== "i"))
+    // "i": input, "t": a column of `returns table (...)`. OUT, INOUT and VARIADIC are not supported.
+    if (r.arg_modes?.some((m) => m !== "i" && m !== "t"))
       throw new Error(`Function ${r.proname} has OUT, INOUT or VARIADIC arguments: not supported`);
     const names = r.arg_names ?? [];
+    const tableColumns = (r.arg_modes ?? []).flatMap((m, i) =>
+      m === "t" ? [{ name: names[i] ?? `column${i}`, udt: r.all_types[i] ?? "unknown" }] : [],
+    );
     const inputNames = names.filter((_, i) => !r.arg_modes || r.arg_modes[i] === "i");
     const firstDefault = r.arg_types.length - r.n_defaults;
     return {
@@ -177,6 +186,7 @@ async function main() {
       })),
       returns: r.ret,
       setofTable: r.retset && r.ret_table ? r.ret_table : null,
+      tableColumns,
     };
   });
 
@@ -239,7 +249,11 @@ async function main() {
         ? `${pad(8)}Args: never`
         : `${pad(8)}Args: { ${args.map((a) => `${a.name}${a.hasDefault ? "?" : ""}: ${tsType(a.udt)}`).join("; ")} }`,
     );
-    if (fn.setofTable) {
+    if (fn.tableColumns.length > 0) {
+      lines.push(`${pad(8)}Returns: {`);
+      for (const c of fn.tableColumns) lines.push(`${pad(10)}${c.name}: ${tsType(c.udt)}`);
+      lines.push(`${pad(8)}}[]`);
+    } else if (fn.setofTable) {
       const cols = columns.filter((c) => c.table === fn.setofTable);
       lines.push(`${pad(8)}Returns: {`);
       for (const c of cols) lines.push(`${pad(10)}${c.name}: ${colType(c)}`);

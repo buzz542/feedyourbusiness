@@ -253,6 +253,20 @@ describe("jobs", () => {
     expect(failed.finished_at).not.toBeNull();
   });
 
+  it("merges the payload, so a checkpoint written while running survives", async () => {
+    const { id } = await job("queued", NOW);
+    await db.query(`update public.jobs set payload = '{"reserved": 8}' where id = $1`, [id]);
+    await asService(() =>
+      db.query("select public.finish_job($1, 'queued', 'TypeError', $2::jsonb, null)", [
+        id,
+        JSON.stringify({ failures: 1 }),
+      ]),
+    );
+    expect(await one("select payload from public.jobs where id = $1", [id])).toEqual({
+      payload: { reserved: 8, failures: 1 },
+    });
+  });
+
   it("keeps one job per dedupe key", async () => {
     await job("queued", NOW, { dedupeKey: "collect:p:hackernews:2026-10-17" });
     await expect(

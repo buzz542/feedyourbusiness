@@ -678,6 +678,12 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      collectable_products: {
+        Args: never
+        Returns: {
+          id: string
+        }[]
+      }
       confirm_product: {
         Args: { p_product_id: string }
         Returns: string
@@ -687,7 +693,7 @@ export type Database = {
         Returns: boolean
       }
       finish_job: {
-        Args: { p_error_class: string; p_id: string; p_payload: Json; p_run_after: string; p_status: string }
+        Args: { p_error_class?: string; p_id: string; p_payload?: Json; p_run_after?: string; p_status: string }
         Returns: undefined
       }
       ingest_post: {
@@ -702,6 +708,10 @@ export type Database = {
         Args: { p_now: string }
         Returns: Json
       }
+      reserve_job_budget: {
+        Args: { p_day: string; p_job_id: string; p_limit: number; p_month_start?: string; p_monthly_cap?: number; p_product_id: string; p_source: string; p_units: number }
+        Returns: string
+      }
       save_product_draft: {
         Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json; p_url: string }
         Returns: undefined
@@ -713,6 +723,10 @@ export type Database = {
       settle_budget: {
         Args: { p_actual: number; p_cost_usd: number; p_day: string; p_product_id: string; p_reserved: number; p_source: string }
         Returns: undefined
+      }
+      settle_job_budget: {
+        Args: { p_actual: number; p_cost_usd: number; p_job_id: string }
+        Returns: boolean
       }
       text_items_ok: {
         Args: { items: string[]; max_len: number }

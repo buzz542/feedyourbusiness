@@ -127,6 +127,25 @@ describe("vercel.json", () => {
     else throw new Error(`unsupported REMINDER_CRON_PERIOD_HOURS ${REMINDER_CRON_PERIOD_HOURS}`);
   });
 
+  it("schedules the job crons (7.2, 13): daily and weekly now, the tick only on Pro", () => {
+    const schedule = (path: string) => (config.crons ?? []).find((c) => c.path === path)?.schedule;
+    expect(schedule("/api/cron/daily")).toBe("0 6 * * *");
+    expect(schedule("/api/cron/weekly")).toBe("0 21 * * 0");
+    if (REMINDER_CRON_PERIOD_HOURS === 24) expect(schedule("/api/cron/tick")).toBeUndefined();
+    else expect(schedule("/api/cron/tick")).toBe("*/10 * * * *");
+  });
+
+  it("gives every job cron route 300 seconds and the tick route a GET with the secret check", () => {
+    for (const path of ["/api/cron/daily", "/api/cron/tick", "/api/cron/weekly"]) {
+      const file = `src/app${path}/route.ts`;
+      expect(existsSync(file), file).toBe(true);
+      const code = readFileSync(file, "utf8");
+      expect(code, file).toMatch(/export const maxDuration = 300;/);
+      expect(code, file).toMatch(/export async function GET\(/);
+      expect(code, file).toContain("isCronAuthorized(request, process.env.CRON_SECRET)");
+    }
+  });
+
   it("points every cron at a GET route that checks CRON_SECRET", () => {
     for (const cron of config.crons ?? []) {
       const file = `src/app${cron.path}/route.ts`;

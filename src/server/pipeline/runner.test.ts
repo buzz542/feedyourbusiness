@@ -1,0 +1,281 @@
+import { describe, expect, it, vi } from "vitest";
+import type { CollectedPost, CollectSource, RunState } from "@/sources/types";
+import { createCollectHandler, type CollectHandlerDeps } from "./collect";
+import { enqueueDaily } from "./enqueue";
+import { FakeBudget, FakeJobStore } from "./fakes";
+import type { JobHandler } from "./ports";
+import { runJobs } from "./runner";
+
+/**
+ * The jobs runner and the collect job's steps (docs/PLAN.md 7.2, 7.3), with a fake clock, fake
+ * sources and the in-memory job store.
+ */
+
+const DAY = "2026-10-17";
+const T0 = new Date(`${DAY}T06:00:00Z`);
+
+function clockFrom(start: Date) {
+  let now = start.getTime();
+  return {
+    now: () => new Date(now),
+    advance: (ms: number) => {
+      now += ms;
+    },
+  };
+}
+
+const post = (id: string): CollectedPost => ({
+  externalId: id,
+  url: `https://news.hn.example/item?id=${id}`,
+  excerpt: `Looking for a tool ${id}`,
+  postedAt: new Date(`${DAY}T05:00:00Z`),
+  authorKey: `author-${id}`,
+  community: "Hacker News",
+  termId: null,
+  nsfw: false,
+});
+
+function source(over: Partial<CollectSource> = {}): CollectSource {
+  return {
+    id: "hackernews",
+    displayName: "Hacker News",
+    mode: "collect",
+    access: "official_api",
+    termsUrl: "https://terms.example/",
+    allowedHosts: ["api.hn.example"],
+    linkHosts: ["news.hn.example"],
+    dailyBudget: 20,
+    retentionDays: 30,
+    costPerUnitUsd: 0,
+    start: vi.fn(async (): Promise<RunState> => ({
+      kind: "done",
+      posts: [post("1"), post("2")],
+      units: 2,
+    })),
+    ...over,
+  };
+}
+
+function setup(src: CollectSource) {
+  const store = new FakeJobStore();
+  const budget = new FakeBudget(store);
+  const stored = new Map<string, CollectedPost>();
+  const process = vi.fn<CollectHandlerDeps["process"]>(async ({ posts }) => {
+    for (const p of posts) if (!stored.has(p.externalId)) stored.set(p.externalId, p);
+    return { stored: posts.length };
+  });
+  const deps: CollectHandlerDeps = {
+    sourceFor: (id) => (id === src.id ? src : null),
+    fetchFor: () => vi.fn(),
+    budget,
+    terms: async () => [{ id: "t1", term: "invoice tool" }],
+    process,
+    monthlyCap: () => null,
+  };
+  const handlers: Record<string, JobHandler> = { collect: createCollectHandler(deps) };
+  return { store, budget, stored, process, handlers };
+}
+
+async function enqueueCollect(store: FakeJobStore) {
+  await store.enqueue([
+    {
+      kind: "collect",
+      productId: "p1",
+      source: "hackernews",
+      dedupeKey: `collect:p1:hackernews:${DAY}`,
+    },
+  ]);
+}
+
+describe("runJobs", () => {
+  it("runs a collect job: reserve, start, process, settle", async () => {
+    const src = source();
+    const { store, budget, stored, handlers } = setup(src);
+    await enqueueCollect(store);
+    const clock = clockFrom(T0);
+    const summary = await runJobs({ store, handlers, clock: clock.now });
+    expect(summary).toMatchObject({ claimed: 1, done: 1, failed: 0 });
+    expect([...stored.keys()]).toEqual(["1", "2"]);
+    expect(store.jobs[0]!.status).toBe("done");
+    // 20 reserved, 2 used: 18 given back.
+    expect(budget.ledger.get(`p1:hackernews:${DAY}`)).toBe(2);
+  });
+
+  it("resumes a pending vendor run on a later tick", async () => {
+    const poll = vi
+      .fn<NonNullable<CollectSource["poll"]>>()
+      .mockResolvedValueOnce({ kind: "pending", handle: "snap-1" })
+      .mockResolvedValueOnce({ kind: "done", posts: [post("9")], units: 1 });
+    const src = source({
+      id: "reddit",
+      access: "vendor_api",
+      retentionDays: 7,
+      start: vi.fn(async (): Promise<RunState> => ({ kind: "pending", handle: "snap-1" })),
+      poll,
+    });
+    const { store, stored, handlers } = setup(src);
+    await store.enqueue([
+      { kind: "collect", productId: "p1", source: "reddit", dedupeKey: `collect:p1:reddit:${DAY}` },
+    ]);
+    const clock = clockFrom(T0);
+
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(store.jobs[0]).toMatchObject({ status: "waiting", payload: { handle: "snap-1" } });
+
+    // Too early: run_after is two minutes out.
+    clock.advance(60_000);
+    expect((await runJobs({ store, handlers, clock: clock.now })).claimed).toBe(0);
+
+    clock.advance(70_000);
+    await runJobs({ store, handlers, clock: clock.now }); // still pending
+    clock.advance(130_000);
+    await runJobs({ store, handlers, clock: clock.now }); // done
+    expect(src.start).toHaveBeenCalledTimes(1);
+    expect(poll).toHaveBeenCalledWith(expect.anything(), "snap-1");
+    expect(store.jobs[0]!.status).toBe("done");
+    expect([...stored.keys()]).toEqual(["9"]);
+  });
+
+  it("re-runs a job that crashed mid-step without charging the budget twice or storing a post twice", async () => {
+    const src = source();
+    const { store, budget, stored, process, handlers } = setup(src);
+    // The first run stores one post, then crashes before finishing.
+    process.mockImplementationOnce(async ({ posts }) => {
+      stored.set(posts[0]!.externalId, posts[0]!);
+      throw Object.assign(new Error("connection reset"), { name: "FetchError" });
+    });
+    await enqueueCollect(store);
+    const clock = clockFrom(T0);
+
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(store.jobs[0]).toMatchObject({
+      status: "queued",
+      payload: { failures: 1, reserved: 20 },
+    });
+
+    clock.advance(10 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(store.jobs[0]!.status).toBe("done");
+    expect(budget.reserveCalls).toBe(2); // asked twice, charged once
+    expect(budget.ledger.get(`p1:hackernews:${DAY}`)).toBe(2);
+    expect([...stored.keys()].sort()).toEqual(["1", "2"]);
+  });
+
+  it("stops claiming once the time budget is spent", async () => {
+    const clock = clockFrom(T0);
+    const store = new FakeJobStore();
+    const slow: JobHandler = async () => {
+      clock.advance(100_000); // each job takes 100 seconds
+      return { status: "done" };
+    };
+    await store.enqueue(
+      Array.from({ length: 30 }, (_, i) => ({
+        kind: "purge" as const,
+        productId: null,
+        source: null,
+        dedupeKey: `purge:${i}`,
+      })),
+    );
+    const summary = await runJobs({ store, handlers: { purge: slow }, clock: clock.now, limit: 1 });
+    // 240 seconds: the claims at 0, 100 and 200 seconds run; none after.
+    expect(summary.claimed).toBe(3);
+    expect(store.claims).toBe(3);
+    expect(store.jobs.filter((j) => j.status === "queued")).toHaveLength(27);
+  });
+
+  it("marks a job failed with its error class after three failures", async () => {
+    const clock = clockFrom(T0);
+    const store = new FakeJobStore();
+    const broken: JobHandler = async () => {
+      throw Object.assign(new Error("secret detail"), { name: "TypeError" });
+    };
+    await store.enqueue([{ kind: "purge", productId: null, source: null, dedupeKey: "purge:x" }]);
+    for (let i = 0; i < 3; i++) {
+      await runJobs({ store, handlers: { purge: broken }, clock: clock.now });
+      clock.advance(60 * 60_000);
+    }
+    expect(store.jobs[0]).toMatchObject({
+      status: "failed",
+      payload: { failures: 3, lastError: "TypeError" },
+    });
+    expect(JSON.stringify(store.jobs[0])).not.toContain("secret detail");
+  });
+
+  it("gives a reservation back when a collect job fails for good", async () => {
+    const src = source({
+      start: vi.fn(async (): Promise<RunState> => ({ kind: "failed", errorClass: "HttpError" })),
+    });
+    const { store, budget, handlers } = setup(src);
+    await enqueueCollect(store);
+    const clock = clockFrom(T0);
+    for (let i = 0; i < 3; i++) {
+      await runJobs({ store, handlers, clock: clock.now });
+      clock.advance(60 * 60_000);
+    }
+    expect(store.jobs[0]!.status).toBe("failed");
+    expect(budget.ledger.get(`p1:hackernews:${DAY}`)).toBe(0);
+  });
+
+  it("finishes a collect job without calling the source when the budget is spent", async () => {
+    const src = source();
+    const { store, budget, handlers } = setup(src);
+    budget.ledger.set(`p1:hackernews:${DAY}`, 15); // 15 of 20 used
+    await enqueueCollect(store);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(src.start).not.toHaveBeenCalled();
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "budget" } });
+  });
+
+  it("stops a collect job whose source was switched off", async () => {
+    const src = source();
+    const { store, handlers } = setup(src);
+    await store.enqueue([
+      {
+        kind: "collect",
+        productId: "p1",
+        source: "bluesky",
+        dedupeKey: `collect:p1:bluesky:${DAY}`,
+      },
+    ]);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "source_off" } });
+  });
+});
+
+describe("enqueueDaily", () => {
+  const sources = [source(), source({ id: "bluesky", checkDeleted: async () => [] })];
+
+  it("enqueues collect per product and source, deletion sync per source, and purge, once a day", async () => {
+    const store = new FakeJobStore();
+    const input = {
+      store,
+      products: async () => ["p1", "p2"],
+      sources,
+      kinds: new Set(["collect", "deletion_sync", "purge"] as const),
+      now: T0,
+    };
+    expect(await enqueueDaily(input)).toBe(6);
+    expect(store.jobs.map((j) => j.dedupeKey).sort()).toEqual([
+      `collect:p1:bluesky:${DAY}`,
+      `collect:p1:hackernews:${DAY}`,
+      `collect:p2:bluesky:${DAY}`,
+      `collect:p2:hackernews:${DAY}`,
+      `deletion_sync:bluesky:${DAY}`,
+      `purge:${DAY}`,
+    ]);
+    expect(await enqueueDaily(input)).toBe(0);
+    expect(store.jobs).toHaveLength(6);
+  });
+
+  it("enqueues only the kinds that have a handler", async () => {
+    const store = new FakeJobStore();
+    await enqueueDaily({
+      store,
+      products: async () => ["p1"],
+      sources,
+      kinds: new Set(["purge"] as const),
+      now: T0,
+    });
+    expect(store.jobs.map((j) => j.kind)).toEqual(["purge"]);
+  });
+});

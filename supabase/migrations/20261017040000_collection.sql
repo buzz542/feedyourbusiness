@@ -147,13 +147,15 @@ as $$
   returning j.*;
 $$;
 
--- Ends a job (done or failed) or reschedules it (queued or waiting, with a new run_after).
+-- Ends a job (done or failed) or reschedules it (queued or waiting, with a new run_after). The
+-- payload is merged, never replaced, so a checkpoint the job wrote while running (its budget
+-- reservation) survives a runner that only knew the payload it claimed.
 create function public.finish_job(
   p_id uuid,
   p_status text,
-  p_error_class text,
-  p_payload jsonb,
-  p_run_after timestamptz
+  p_error_class text default null,
+  p_payload jsonb default null,
+  p_run_after timestamptz default null
 )
 returns void
 language sql
@@ -162,7 +164,7 @@ as $$
   update public.jobs
      set status = p_status,
          last_error = left(p_error_class, 120),
-         payload = coalesce(p_payload, payload),
+         payload = payload || coalesce(p_payload, '{}'::jsonb),
          run_after = coalesce(p_run_after, run_after),
          locked_until = null,
          finished_at = case when p_status in ('done', 'failed') then now() else null end
