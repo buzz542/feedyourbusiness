@@ -87,15 +87,8 @@ describe("pageText on a second fixture page", () => {
     expect(text).toContain("Does it work with my calendar?");
   });
 
-  it("drops hidden content, dialogs, navigation and scripts", () => {
-    for (const gone of [
-      "We use one cookie",
-      "Alderbrook",
-      "Coming soon",
-      "Developer docs",
-      "Jump to",
-      "app.js",
-    ])
+  it("drops dialogs, navigation and scripts", () => {
+    for (const gone of ["We use one cookie", "Developer docs", "Jump to", "app.js"])
       expect(text, gone).not.toContain(gone);
   });
 });
@@ -125,8 +118,9 @@ describe("pageText edge cases", () => {
   });
 
   it("does not cut an emoji in half at the cap", () => {
-    const out = html(`<p>${"a".repeat(MAX_PAGE_TEXT - 8)}\u{1F600}${"b".repeat(50)}</p>`);
-    expect(out.length).toBeLessThanOrEqual(MAX_PAGE_TEXT);
+    // "Page:\n" is 6 characters, so the emoji's first half is the 30,000th character.
+    const out = html(`<p>${"a".repeat(MAX_PAGE_TEXT - 7)}\u{1F600}${"b".repeat(50)}</p>`);
+    expect(out).toHaveLength(MAX_PAGE_TEXT - 1);
     expect(out).not.toMatch(LONE_SURROGATE);
   });
 
@@ -172,11 +166,87 @@ describe("pageText edge cases", () => {
     expect(html("<p>A</p><!--><p>B</p><!---><p>C</p>")).toBe("Page:\nA\n\nB\n\nC");
   });
 
-  it("drops hidden and aria-hidden content", () => {
-    expect(html('<div aria-hidden="true">Logo Logo</div><p hidden>Secret</p><p>Shown</p>')).toBe(
-      "Page:\nShown",
+  it("keeps the real content React streams into hidden divs", () => {
+    const streamed =
+      '<body><!--$?--><template id="B:0"></template><p>Loading...</p><!--/$-->' +
+      '<div hidden id="S:0"><h1>Invoices that chase themselves</h1><p>Invoicer sends reminders.</p></div>' +
+      '<script>$RC("B:0","S:0")</script></body>';
+    const out = html(streamed);
+    expect(out).toContain("- Invoices that chase themselves");
+    expect(out).toContain("Invoicer sends reminders.");
+    expect(out).not.toContain("$RC");
+  });
+
+  it("keeps aria-hidden text, which is still on screen", () => {
+    expect(
+      html(
+        '<main><p><span class="icon" aria-hidden="true" /> Fast setup</p><h2>Plans</h2><p>Sends reminders</p></main>',
+      ),
+    ).toContain("Fast setup");
+  });
+
+  it("matches the navigation role in any case and among other roles", () => {
+    expect(html('<div role="navigation menubar">Log in</div><p>Main</p>')).toBe("Page:\nMain");
+    expect(html('<div role="Navigation">Log in</div><p>Main</p>')).toBe("Page:\nMain");
+  });
+
+  it("ends a skipped element where its parent closes, as a browser does", () => {
+    const span = html(
+      '<main><p><span role="navigation" /> Menu</p><h2>Plans</h2><p>Sends reminders</p></main>',
     );
-    expect(html('<p hidden="until-found">Findable</p>')).toContain("Findable");
+    expect(span).toContain("- Plans");
+    expect(span).toContain("Sends reminders");
+    expect(html('<div><p role="navigation">Note</div><span>Pay in two clicks</span>')).toBe(
+      "Page:\nPay in two clicks",
+    );
+    expect(html('<ul><li><p role="navigation">Soon</li><li>Invoices</li></ul><span>x</span>')).toBe(
+      "Page:\nInvoices\n\nx",
+    );
+  });
+
+  it("ends a skipped list item at the next item, as optional end tags do", () => {
+    expect(html('<ul><li role="navigation">Soon<li>Invoices<li>Reminders</ul><p>More</p>')).toBe(
+      "Page:\nInvoices\nReminders\n\nMore",
+    );
+    expect(html('<li role="navigation"><ul><li>Docs</li></ul></li><p>After</p>')).toBe(
+      "Page:\nAfter",
+    );
+  });
+
+  it("closes the innermost element first while skipping", () => {
+    expect(html("<div><nav><div>x</div>Docs</nav></div><p>After</p>")).toBe("Page:\nAfter");
+  });
+
+  it("drops nested templates, media fallback and svg with a spaced slash", () => {
+    expect(html("<template><template>a</template>Tpl text</template><p>After</p>")).toBe(
+      "Page:\nAfter",
+    );
+    expect(html("<video>Your browser does not support the video tag</video><p>After</p>")).toBe(
+      "Page:\nAfter",
+    );
+    expect(html("<svg / ><title>Icon</title></svg><p>After</p>")).toBe("Page:\nAfter");
+  });
+
+  it("does not read a self-closed style or script inside svg as raw text", () => {
+    expect(html("<svg><style/><script/></svg><p>After</p>")).toBe("Page:\nAfter");
+  });
+
+  it('ends a comment at "--!>"', () => {
+    expect(html("<!-- a --!><p>After</p>")).toBe("Page:\nAfter");
+  });
+
+  it("caps the title, the description and the number of headings", () => {
+    const out = html(
+      `<title>${"t".repeat(1_000)}</title><meta name="description" content="${"d".repeat(1_000)}">` +
+        Array.from({ length: 60 }, (_, i) => `<h2>Heading ${i}</h2>`).join(""),
+    );
+    expect(out).toContain(`Title: ${"t".repeat(300)}\n`);
+    expect(out).toContain(`Description: ${"d".repeat(500)}\n`);
+    expect(out.match(/^- Heading/gm)).toHaveLength(40);
+  });
+
+  it("maps unassigned C1 references to U+FFFD", () => {
+    expect(html("<p>&#129;&#141;&#143;&#144;&#157;</p>")).toBe("Page:\n" + "\ufffd".repeat(5));
   });
 
   it.each([

@@ -11,9 +11,27 @@ const MAX_DESCRIPTION = 500;
 const MAX_HEADING = 200;
 
 /** Elements whose content is code or markup, never page text. Skipped up to their closing tag. */
-const RAW_TEXT = ["script", "style", "noscript", "template", "textarea", "xmp"] as const;
+const RAW_TEXT = ["script", "style", "noscript", "textarea", "xmp", "noembed", "noframes"] as const;
 /** Elements skipped with everything inside them: navigation, chrome and embedded graphics. */
-const SKIPPED = new Set(["nav", "footer", "svg", "math", "iframe", "object", "select", "dialog"]);
+const SKIPPED = new Set([
+  "nav",
+  "footer",
+  "svg",
+  "math",
+  "iframe",
+  "object",
+  "select",
+  "dialog",
+  "template",
+  // Fallback content browsers only show when the media cannot play.
+  "video",
+  "audio",
+  "canvas",
+  "datalist",
+]);
+/** Elements whose next sibling of the same name closes them (HTML's optional end tags). */
+const SIBLING_CLOSES = new Set(["li", "dt", "dd", "tr", "td", "th", "option"]);
+const MAX_HEADINGS = 40;
 /** The only elements where a self-closing slash means anything (foreign content). */
 const FOREIGN = new Set(["svg", "math"]);
 const VOID = new Set([
@@ -71,8 +89,11 @@ const CLOSES_P = new Set([
   "aside",
   "blockquote",
   "details",
+  "dd",
+  "dialog",
   "div",
   "dl",
+  "dt",
   "fieldset",
   "figcaption",
   "figure",
@@ -85,14 +106,18 @@ const CLOSES_P = new Set([
   "h5",
   "h6",
   "header",
+  "hgroup",
   "hr",
+  "li",
   "main",
   "menu",
   "nav",
   "ol",
   "p",
   "pre",
+  "search",
   "section",
+  "summary",
   "table",
   "ul",
 ]);
@@ -105,21 +130,21 @@ const NAMED: Readonly<Record<string, string>> = {
   quot: '"',
   apos: "'",
   nbsp: " ",
-  ndash: "–",
-  mdash: "—",
-  hellip: "…",
-  lsquo: "‘",
-  rsquo: "’",
-  ldquo: "“",
-  rdquo: "”",
-  copy: "©",
-  reg: "®",
-  trade: "™",
-  middot: "·",
-  bull: "•",
-  times: "×",
-  euro: "€",
-  pound: "£",
+  ndash: "\u2013",
+  mdash: "\u2014",
+  hellip: "\u2026",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  copy: "\u00a9",
+  reg: "\u00ae",
+  trade: "\u2122",
+  middot: "\u00b7",
+  bull: "\u2022",
+  times: "\u00d7",
+  euro: "\u20ac",
+  pound: "\u00a3",
 };
 
 /** What HTML maps numeric references 0x80 to 0x9F to (Windows-1252), per the HTML standard. */
@@ -158,7 +183,7 @@ const C1_REPLACEMENTS: Readonly<Record<number, number>> = {
  * U+FFFD, so no lone surrogate reaches the prompt (the API rejects one in a JSON body).
  */
 function fromCodePoint(code: number): string {
-  if (code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return "�";
+  if (code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return "\ufffd";
   if (code >= 0x80 && code <= 0x9f) return String.fromCodePoint(C1_REPLACEMENTS[code] ?? 0xfffd);
   return String.fromCodePoint(code);
 }
@@ -220,6 +245,8 @@ function parseTag(html: string, start: number): Tag | typeof NOT_A_TAG | typeof 
       continue;
     }
     if (/\s/.test(c)) {
+      // "<svg / >" is not self-closing: the slash must come right before ">".
+      slash = false;
       i++;
       continue;
     }
@@ -264,14 +291,13 @@ function rawTextEnd(html: string, name: string, from: number): number {
   return gt < 0 ? html.length : gt + 1;
 }
 
-/** Content the page does not show: navigation landmarks and hidden elements. */
-function hides(tag: Tag): boolean {
-  const { role, hidden } = tag.attrs;
-  return (
-    role === "navigation" ||
-    tag.attrs["aria-hidden"] === "true" ||
-    (hidden !== undefined && hidden !== "until-found")
-  );
+/**
+ * Navigation landmarks, like <nav>. Elements marked hidden or aria-hidden are kept: React streams a
+ * page's real content in hidden divs and moves it into place with a script, and aria-hidden text is
+ * still on screen.
+ */
+function isNavigation(tag: Tag): boolean {
+  return (tag.attrs.role ?? "").toLowerCase().split(/\s+/).includes("navigation");
 }
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
@@ -279,7 +305,7 @@ const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 function tidy(text: string): string {
   return text
     .split("\n")
-    .map((line) => line.replace(/[ \t\f\v ]+/g, " ").trim())
+    .map((line) => line.replace(/[ \t\f\v\u00a0]+/g, " ").trim())
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -302,8 +328,18 @@ export function pageText(input: string, contentType: "text/html" | "text/plain")
   let body = "";
   let heading: string | null = null;
   let inTitle = false;
-  /** While skipping an element: its name and how deeply that name is nested inside it. */
-  let skip: { name: string; depth: number } | null = null;
+  /** Elements open outside any skip, by name: a skip ends when one of them closes. */
+  const open = new Map<string, number>();
+  /**
+   * While skipping an element: its name, and the elements opened inside it (by name, and in all),
+   * so an end tag closes the innermost match first, as a browser does.
+   */
+  let skip: { name: string; inner: Map<string, number>; innerTotal: number } | null = null;
+  const bump = (counts: Map<string, number>, name: string, by: number) => {
+    const next = (counts.get(name) ?? 0) + by;
+    if (next > 0) counts.set(name, next);
+    else counts.delete(name);
+  };
 
   const text = (raw: string) => {
     if (skip || !raw) return;
@@ -318,7 +354,7 @@ export function pageText(input: string, contentType: "text/html" | "text/plain")
   const endHeading = () => {
     if (heading === null) return;
     const h = cut(squash(heading), MAX_HEADING);
-    if (h) headings.push(h);
+    if (h && headings.length < MAX_HEADINGS) headings.push(h);
     heading = null;
   };
 
@@ -332,9 +368,15 @@ export function pageText(input: string, contentType: "text/html" | "text/plain")
     text(html.slice(i, lt));
 
     if (html.startsWith("<!--", lt)) {
-      // From "<!" + 2 so that "<!-->" and "<!--->" end where they start.
-      const close = html.indexOf("-->", lt + 2);
-      i = close < 0 ? html.length : close + 3;
+      // From "<!" + 2 so that "<!-->" and "<!--->" end where they start; "--!>" ends one too.
+      const dash = html.indexOf("-->", lt + 2);
+      const bang = html.indexOf("--!>", lt + 2);
+      i =
+        dash < 0 && bang < 0
+          ? html.length
+          : bang < 0 || (dash >= 0 && dash < bang)
+            ? dash + 3
+            : bang + 4;
       continue;
     }
     if (html[lt + 1] === "!" || html[lt + 1] === "?") {
@@ -352,31 +394,46 @@ export function pageText(input: string, contentType: "text/html" | "text/plain")
     }
     i = tag.end;
     const { name, closing } = tag;
-    const selfClosing = tag.selfClosing && FOREIGN.has(name);
+    const inForeign = skip !== null && FOREIGN.has(skip.name);
+    // A self-closing slash counts only in svg and math (foreign content), as in HTML.
+    const selfClosing = tag.selfClosing && (FOREIGN.has(name) || inForeign);
+    const container = !VOID.has(name) && !selfClosing;
 
     // Raw text first, even inside a skipped element, so markup in scripts never counts.
-    if (!closing && RAW_TEXT_END.has(name)) {
+    if (!closing && !selfClosing && RAW_TEXT_END.has(name)) {
       i = rawTextEnd(html, name, i);
       continue;
     }
 
     if (skip) {
-      if (closing && (name === "body" || name === "html")) skip = null;
-      else if (skip.name === "p" && !closing && CLOSES_P.has(name)) skip = null;
-      else {
-        if (name === skip.name && !VOID.has(name) && !selfClosing) {
-          skip.depth += closing ? -1 : 1;
-          if (skip.depth === 0) skip = null;
+      let ended = false;
+      if (closing) {
+        if ((skip.inner.get(name) ?? 0) > 0) {
+          bump(skip.inner, name, -1);
+          skip.innerTotal--;
+        } else if (name === skip.name) {
+          skip = null;
+          continue;
+        } else if (name === "body" || name === "html" || (open.get(name) ?? 0) > 0) {
+          ended = true; // a parent closed it
         }
-        continue;
+      } else if (skip.name === "p" && CLOSES_P.has(name)) ended = true;
+      else if (name === skip.name && skip.innerTotal === 0 && SIBLING_CLOSES.has(name))
+        ended = true;
+      else if (container) {
+        bump(skip.inner, name, 1);
+        skip.innerTotal++;
       }
-      if (closing) continue;
+      if (!ended) continue;
+      skip = null;
+      // The tag that ended the skip belongs to the page: handle it below.
     }
 
-    if (!closing && !VOID.has(name) && !selfClosing && (SKIPPED.has(name) || hides(tag))) {
-      skip = { name, depth: 1 };
+    if (!closing && container && (SKIPPED.has(name) || isNavigation(tag))) {
+      skip = { name, inner: new Map(), innerTotal: 0 };
       continue;
     }
+    if (container) bump(open, name, closing ? -1 : 1);
 
     if (name === "title") {
       // Only the first title counts; a closing tag always ends it.
