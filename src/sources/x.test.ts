@@ -1,0 +1,190 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
+import { allowedHosts } from "./registry";
+import type { CollectContext, CollectedPost } from "./types";
+import { collectRecent, x } from "./x";
+
+/** X through the official API v2, shipped off (docs/PLAN.md 7.6). */
+
+const fixture = (name: string) => readFileSync(`tests/fixtures/x/${name}`, "utf8");
+const NOW = new Date("2026-10-17T09:00:00Z");
+const SINCE = new Date("2026-10-15T09:00:00Z");
+
+type Http = (input: string | URL, init?: RequestInit) => Promise<Response>;
+type Reply = string | number | (() => Response);
+
+function fakeHttp(routes: Array<[RegExp, Reply]>) {
+  return vi.fn<Http>(async (input) => {
+    const url = String(input);
+    const route = routes.find(([pattern]) => pattern.test(url));
+    if (!route) throw new Error(`unrouted ${url}`);
+    const reply = route[1];
+    if (typeof reply === "function") return reply();
+    if (typeof reply === "number") return new Response("", { status: reply });
+    return new Response(reply, { status: 200, headers: { "content-type": "application/json" } });
+  });
+}
+
+function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
+  return {
+    fetch: http,
+    terms: [
+      { id: "t-invoice", term: "invoice reminders" },
+      { id: "t-fees", term: "late fees" },
+    ],
+    since: SINCE,
+    budget: 200,
+    now: NOW,
+    userAgent: "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)",
+    sleep: vi.fn(async () => {}),
+    credential: (name) => (name === "X_BEARER_TOKEN" ? "test-bearer" : undefined),
+    ...over,
+  };
+}
+
+const ROUTES: Array<[RegExp, Reply]> = [
+  [/query=%22invoice\+reminders%22/, fixture("search-invoice.json")],
+  [/query=%22late\+fees%22/, fixture("search-fees.json")],
+];
+
+async function collect(c: CollectContext) {
+  const state = await collectRecent(c);
+  if (state.kind !== "done") throw new Error(`expected done, got ${JSON.stringify(state)}`);
+  return state;
+}
+
+describe("x source", () => {
+  it("declares the official API host only, links on x.com, 7-day retention and a zero budget", () => {
+    expect(x).toMatchObject({
+      id: "x",
+      mode: "collect",
+      access: "official_api",
+      allowedHosts: ["api.x.com"],
+      linkHosts: ["x.com"],
+      dailyBudget: 0,
+      retentionDays: 7,
+      costPerUnitUsd: 0.005,
+    });
+    expect(x.checkDeleted).toBeUndefined();
+    expect(allowedHosts({})).not.toContain("api.x.com");
+    expect(allowedHosts({ SOURCE_X_ENABLED: "true" })).toEqual(["api.x.com"]);
+  });
+
+  it("makes no call with a budget of 0, even when switched on", async () => {
+    const http = fakeHttp(ROUTES);
+    expect(await x.start(ctx(http, { budget: 0 }))).toEqual({ kind: "done", posts: [], units: 0 });
+    expect(http).not.toHaveBeenCalled();
+  });
+
+  it("refuses to start until deletion compliance is implemented, whatever the env says", async () => {
+    const http = fakeHttp(ROUTES);
+    expect(await x.start(ctx(http))).toEqual({
+      kind: "failed",
+      errorClass: "DeletionComplianceMissing",
+    });
+    expect(http).not.toHaveBeenCalled();
+  });
+
+  it("searches recent posts per term with the plan's query and fields, and asks for no user data", async () => {
+    const http = fakeHttp(ROUTES);
+    await collect(ctx(http));
+    expect(http).toHaveBeenCalledTimes(2);
+    const [input, init] = http.mock.calls[0]!;
+    const url = new URL(String(input));
+    expect(url.origin + url.pathname).toBe("https://api.x.com/2/tweets/search/recent");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      query: '"invoice reminders" -is:retweet lang:en',
+      start_time: SINCE.toISOString(),
+      max_results: "100",
+      "tweet.fields": "created_at,author_id,lang,possibly_sensitive",
+    });
+    const headers = new Headers(init!.headers);
+    expect(headers.get("authorization")).toBe("Bearer test-bearer");
+    expect(headers.get("user-agent")).toMatch(/AskedFor/);
+  });
+
+  it("maps posts: status link, decoded excerpt, author id, and drops sensitive, old and repeated posts", async () => {
+    const { posts, units } = await collect(ctx(fakeHttp(ROUTES)));
+    expect(posts.map((p) => p.externalId)).toEqual(["1900000000000000001", "1900000000000000004"]);
+    expect(posts[0]).toEqual({
+      externalId: "1900000000000000001",
+      url: "https://x.com/i/web/status/1900000000000000001",
+      excerpt:
+        "Any app that sends invoice reminders for me? Chasing clients by hand & it is a pain.",
+      postedAt: new Date("2026-10-17T07:00:00.000Z"),
+      authorKey: "9000000001",
+      community: "X",
+      termId: "t-invoice",
+      nsfw: false,
+    } satisfies CollectedPost);
+    expect(posts[1]!.excerpt.length).toBeLessThanOrEqual(280);
+    // Billed per post read: every post returned counts.
+    expect(units).toBe(5);
+  });
+
+  it("keeps the start time inside the API's 7-day window on a first run", async () => {
+    const http = fakeHttp(ROUTES);
+    await collect(ctx(http, { since: new Date(NOW.getTime() - 7 * 24 * 60 * 60_000) }));
+    const start = Date.parse(
+      new URL(String(http.mock.calls[0]![0])).searchParams.get("start_time")!,
+    );
+    expect(start).toBeGreaterThan(NOW.getTime() - 7 * 24 * 60 * 60_000);
+  });
+
+  it("splits the budget: 10 to 100 posts a request, never more than the budget in total", async () => {
+    const asked = async (budget: number) => {
+      const http = fakeHttp([[/search\/recent/, fixture("search-empty.json")]]);
+      await collect(ctx(http, { budget }));
+      return http.mock.calls.map(([input]) =>
+        Number(new URL(String(input)).searchParams.get("max_results")),
+      );
+    };
+    expect(await asked(25)).toEqual([12, 12]);
+    expect(await asked(15)).toEqual([15]);
+    expect(await asked(9)).toEqual([]);
+  });
+
+  it("backs off on 429 once, then stops with what it has", async () => {
+    let calls = 0;
+    const http = fakeHttp([
+      [
+        /query=%22invoice\+reminders%22/,
+        () =>
+          ++calls === 1
+            ? new Response("", { status: 429, headers: { "retry-after": "4" } })
+            : new Response(fixture("search-invoice.json")),
+      ],
+      [/query=%22late\+fees%22/, 429],
+    ]);
+    const sleep = vi.fn(async () => {});
+    const { posts } = await collect(ctx(http, { sleep }));
+    expect(sleep).toHaveBeenCalledWith(4_000);
+    expect(posts.map((p) => p.externalId)).toEqual(["1900000000000000001"]);
+  });
+
+  it("fails with a class name on a response that does not match, or without a token", async () => {
+    const bad = fakeHttp([[/search\/recent/, JSON.stringify({ data: [{ id: 5 }] })]]);
+    expect(await collectRecent(ctx(bad))).toEqual({
+      kind: "failed",
+      errorClass: "InvalidResponse",
+    });
+    const none = fakeHttp(ROUTES);
+    expect(await collectRecent(ctx(none, { credential: () => undefined }))).toEqual({
+      kind: "failed",
+      errorClass: "MissingCredentials",
+    });
+    expect(none).not.toHaveBeenCalled();
+  });
+});
+
+describe("x fixtures", () => {
+  it("are synthetic: invented post and author ids", () => {
+    for (const name of ["search-invoice.json", "search-fees.json"]) {
+      const { data } = JSON.parse(fixture(name)) as { data: { id: string; author_id: string }[] };
+      for (const post of data) {
+        expect(post.id, name).toMatch(/^19000000000000000\d\d$/);
+        expect(post.author_id, name).toMatch(/^900000000\d$/);
+      }
+    }
+  });
+});

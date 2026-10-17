@@ -1,0 +1,27 @@
+{
+  "data": [
+    {
+      "id": "1900000000000000001",
+      "text": "Any app that sends invoice reminders for me? Chasing clients by hand &amp; it is a pain.",
+      "author_id": "9000000001",
+      "created_at": "2026-10-17T07:00:00.000Z",
+      "lang": "en",
+      "possibly_sensitive": false,
+      "edit_history_tweet_ids": ["1900000000000000001"]
+    },
+    {
+      "id": "1900000000000000004",
+      "text": "Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them? Late fees on invoices: does anyone automate them?",
+      "author_id": "9000000004",
+      "created_at": "2026-10-17T06:00:00.000Z",
+      "lang": "en",
+      "possibly_sensitive": false,
+      "edit_history_tweet_ids": ["1900000000000000004"]
+    }
+  ],
+  "meta": {
+    "newest_id": "1900000000000000004",
+    "oldest_id": "1900000000000000001",
+    "result_count": 2
+  }
+}

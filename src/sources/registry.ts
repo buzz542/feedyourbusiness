@@ -4,6 +4,7 @@ import { bluesky } from "./bluesky";
 import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import { reddit } from "./reddit";
+import { x } from "./x";
 import type { CollectSource, LinkSource, Source } from "./types";
 
 /**
@@ -17,6 +18,7 @@ export const sources: readonly Source[] = [
   hackernews,
   bluesky,
   reddit,
+  x,
   redditLinks,
   linkedin,
   facebook,
