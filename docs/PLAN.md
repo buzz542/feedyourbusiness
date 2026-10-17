@@ -886,8 +886,9 @@ schema, jsonSchema, maxTokens })`. `system` is a list of blocks; blocks marked `
   capped call is skipped and shown in `/admin`.
 - Models: `claude-haiku-5-5` for classification and the preview, `claude-sonnet-5-5` for the onboarding
   draft and the weekly synthesis. Prices recorded 6 Oct 2026, per million tokens: Haiku 5.5 $0.10 input,
-  $0.50 output; Sonnet 5.5 $2 input, $10 output. Re-check Anthropic's pricing page before M2 and update
-  `PRICES` and section 18.
+  $0.50 output; Sonnet 5.5 $2 input, $10 output. Re-checked 16 Oct 2026 for M2: unchanged, and Haiku 5.5
+  charges $0.50 input and $2.50 output when a prompt (cached tokens included) is over 100K tokens; cache
+  reads cost 0.1x input and 5-minute cache writes 1.25x. `PRICES` in `src/server/llm/prices.ts` has all of it.
 - No collected content is used to train any model.
 
 ### 8.2 Classification (Haiku, batches of 20)

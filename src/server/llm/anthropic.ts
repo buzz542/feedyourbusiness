@@ -9,8 +9,27 @@ import type { LlmClient, LlmResponse } from "./ports";
 
 type MessagesApi = Pick<Anthropic["messages"], "create">;
 
+/**
+ * Client options, all pinned: the SDK would otherwise take its host, an auth token, request logging
+ * and trace content from ANTHROPIC_* environment variables, so prompts could leave for a host that
+ * is not on the processor list (src/server/net/hosts.ts) or be written to logs.
+ * The SDK retries timeouts and connection errors as well as 429 and 5xx, so a caller with a time
+ * budget passes a signal (the draft does).
+ */
+export function anthropicOptions(apiKey: string) {
+  return {
+    apiKey,
+    authToken: null,
+    baseURL: "https://api.anthropic.com",
+    timeout: 60_000,
+    maxRetries: 2,
+    logLevel: "off" as const,
+    openTelemetry: false as const,
+  };
+}
+
 export function createAnthropicClient(apiKey: string): LlmClient {
-  return createLlmClient(new Anthropic({ apiKey, timeout: 60_000, maxRetries: 2 }).messages);
+  return createLlmClient(new Anthropic(anthropicOptions(apiKey)).messages);
 }
 
 /** Maps the port onto the SDK. Separate from the constructor so tests can pass a fake. */

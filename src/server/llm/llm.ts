@@ -32,6 +32,15 @@ export class LlmOutputError extends Error {
   }
 }
 
+/** The reply stopped at max_tokens or the context window: retrying the same request would too. */
+export class LlmTruncatedError extends LlmOutputError {
+  constructor() {
+    super();
+    this.message = "The model's output was cut off";
+    this.name = "LlmTruncatedError";
+  }
+}
+
 export type SpendCap = "product_monthly" | "global_daily";
 
 export class LlmCapError extends Error {
@@ -64,8 +73,6 @@ export interface StructuredCall<T> {
   system: SystemBlock[];
   input: string;
   schema: z.ZodType<T>;
-  /** Defaults to the zod schema's JSON schema. */
-  jsonSchema?: Record<string, unknown>;
   maxTokens: number;
   effort?: LlmEffort;
   signal?: AbortSignal;
@@ -83,6 +90,9 @@ export interface Llm {
 }
 
 const MAX_ATTEMPTS = 2;
+/** The API accepts at most four cache_control breakpoints per request. */
+const MAX_CACHED_BLOCKS = 4;
+const TRUNCATED = new Set(["max_tokens", "model_context_window_exceeded"]);
 
 const startOfUtcMonth = (now: Date) =>
   new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -121,8 +131,30 @@ export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps
     if (spent >= caps.dailyUsdGlobal) throw new LlmCapError("global_daily");
   }
 
+  /**
+   * One llm_usage row per request. A failed write is retried once; if it still fails, the paid
+   * reply is not thrown away (the row is lost, which the global cap tolerates).
+   */
+  async function record(row: Parameters<UsageStore["record"]>[0]): Promise<void> {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await usage.record(row);
+        return;
+      } catch (error) {
+        if (attempt === 2)
+          console.error(`[llm] usage row not written: ${(error as Error).name ?? "Error"}`);
+      }
+    }
+  }
+
   return {
     async callStructured<T>(call: StructuredCall<T>): Promise<T> {
+      // Only the preview belongs to no product; everything else counts against a product's cap.
+      if (call.productId === null && call.task !== "preview")
+        throw new Error(`An ${call.task} call needs a product`);
+      if (call.system.filter((block) => block.cache).length > MAX_CACHED_BLOCKS)
+        throw new Error(`At most ${MAX_CACHED_BLOCKS} system blocks can be cached`);
+
       const request: LlmRequest = {
         model: call.model,
         maxTokens: call.maxTokens,
@@ -134,7 +166,7 @@ export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps
         input: call.input,
         outputFormat: {
           type: "json_schema",
-          schema: call.jsonSchema ?? toOutputSchema(call.schema),
+          schema: toOutputSchema(call.schema),
         },
         ...(call.effort ? { effort: call.effort } : {}),
         ...(call.signal ? { signal: call.signal } : {}),
@@ -143,7 +175,7 @@ export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         await checkCaps(call.productId);
         const response = await client.create(request);
-        await usage.record({
+        await record({
           product_id: call.productId,
           task: call.task,
           model: call.model,
@@ -154,6 +186,7 @@ export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps
           cost_usd: costUsd(call.model, response.usage),
         });
         if (response.stopReason === "refusal") throw new LlmRefusalError();
+        if (TRUNCATED.has(response.stopReason ?? "")) throw new LlmTruncatedError();
         const parsed = parse(response, call.schema);
         if (parsed !== undefined) return parsed;
       }

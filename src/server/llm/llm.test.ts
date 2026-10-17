@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { createLlm, LlmCapError, LlmOutputError, LlmRefusalError, type LlmCaps } from "./llm";
+import {
+  createLlm,
+  LlmCapError,
+  LlmOutputError,
+  LlmRefusalError,
+  LlmTruncatedError,
+  type LlmCaps,
+} from "./llm";
 import type { LlmClient, LlmRequest, LlmResponse, UsageRow, UsageStore } from "./ports";
 import { costUsd, PRICES } from "./prices";
 
@@ -125,13 +132,45 @@ describe("callStructured", () => {
     expect(rows).toHaveLength(2);
   });
 
-  it("treats output cut off at max_tokens as invalid", async () => {
-    const { llm, client } = setup([
-      reply('{"name":"Invo', { stopReason: "max_tokens" }),
-      reply('{"name":"Invoicer","terms":[]}'),
-    ]);
-    await llm.callStructured(call);
-    expect(client.create).toHaveBeenCalledTimes(2);
+  it.each(["max_tokens", "model_context_window_exceeded"])(
+    "does not retry output cut off by %s (the same request would be cut off again)",
+    async (stopReason) => {
+      const { llm, client, rows } = setup([
+        reply('{"name":"Invo', { stopReason }),
+        reply('{"name":"Invoicer","terms":[]}'),
+      ]);
+      const error = await llm.callStructured(call).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(LlmTruncatedError);
+      expect(error).toBeInstanceOf(LlmOutputError);
+      expect(client.create).toHaveBeenCalledTimes(1);
+      expect(rows).toHaveLength(1);
+    },
+  );
+
+  it("keeps a paid reply when the usage row cannot be written, after one retry", async () => {
+    const { llm, usage } = setup([reply('{"name":"Invoicer","terms":[]}')]);
+    const failure = Object.assign(new Error("db down"), { name: "PostgrestError" });
+    vi.mocked(usage.record).mockRejectedValue(failure);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await llm.callStructured(call)).toEqual({ name: "Invoicer", terms: [] });
+    expect(usage.record).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith("[llm] usage row not written: PostgrestError");
+    log.mockRestore();
+  });
+
+  it("refuses a product-less call for anything but the preview", async () => {
+    const { llm, client } = setup([reply("{}")]);
+    await expect(llm.callStructured({ ...call, productId: null })).rejects.toThrow(
+      /needs a product/,
+    );
+    expect(client.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses more than four cached system blocks (the API's limit)", async () => {
+    const { llm, client } = setup([reply("{}")]);
+    const system = Array.from({ length: 5 }, (_, i) => ({ text: `block ${i}`, cache: true }));
+    await expect(llm.callStructured({ ...call, system })).rejects.toThrow(/At most 4/);
+    expect(client.create).not.toHaveBeenCalled();
   });
 
   it("raises LlmRefusalError on a refusal, records its usage, and does not retry", async () => {
@@ -154,7 +193,7 @@ describe("callStructured", () => {
   });
 
   it("stops before calling when the global daily cap is spent", async () => {
-    const { llm, client, usage } = setup([reply("{}")], { global: 25.01 });
+    const { llm, client, usage } = setup([reply("{}")], { global: 25 });
     const error = await llm.callStructured(call).catch((e: unknown) => e);
     expect((error as LlmCapError).cap).toBe("global_daily");
     expect(client.create).not.toHaveBeenCalled();
@@ -210,5 +249,16 @@ describe("prices", () => {
     });
     expect(short).toBeCloseTo(0.01 + 0.0005, 9);
     expect(long).toBeCloseTo(100_001 * 0.5e-6 + 1000 * 2.5e-6, 9);
+  });
+
+  it("counts cached tokens toward Haiku 5.5's 100K prompt threshold", () => {
+    const usage = {
+      inputTokens: 1_000,
+      outputTokens: 0,
+      cacheReadTokens: 99_001,
+      cacheWriteTokens: 0,
+    };
+    // 100,001 prompt tokens in all: the long-prompt card, cache reads at 0.1x its $0.50 input rate.
+    expect(costUsd("claude-haiku-5-5", usage)).toBeCloseTo(1_000 * 0.5e-6 + 99_001 * 0.05e-6, 9);
   });
 });

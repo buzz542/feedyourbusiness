@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 import type { LlmCaps } from "./llm";
 

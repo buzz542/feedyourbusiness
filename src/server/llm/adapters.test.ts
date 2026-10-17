@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLlmClient } from "./anthropic";
+import { anthropicOptions, createLlmClient } from "./anthropic";
 import { loadLlmConfig } from "./config";
 
 /** The Anthropic adapter's mapping (no network) and the model settings. */
@@ -50,6 +50,20 @@ describe("createLlmClient", () => {
       stopReason: "end_turn",
       text: '{"a":1}',
       usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 7 },
+    });
+  });
+});
+
+describe("anthropicOptions", () => {
+  it("pins the host, auth, logging and tracing instead of reading ANTHROPIC_* variables", () => {
+    expect(anthropicOptions("k")).toEqual({
+      apiKey: "k",
+      authToken: null,
+      baseURL: "https://api.anthropic.com",
+      timeout: 60_000,
+      maxRetries: 2,
+      logLevel: "off",
+      openTelemetry: false,
     });
   });
 });

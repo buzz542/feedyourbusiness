@@ -73,9 +73,35 @@ describe("llm_spend_since", () => {
   });
 
   it("is for the server only", async () => {
+    // The function's own grant refuses them, not just the table's.
     await expect(spend("authenticated", alice, "2026-10-01T00:00:00Z")).rejects.toThrow(
-      /permission denied/,
+      /permission denied for function llm_spend_since/,
     );
-    await expect(spend("anon", null, "2026-10-01T00:00:00Z")).rejects.toThrow(/permission denied/);
+    await expect(spend("anon", null, "2026-10-01T00:00:00Z")).rejects.toThrow(
+      /permission denied for function llm_spend_since/,
+    );
+  });
+});
+
+describe("llm_spend_since plans", () => {
+  it("uses the (product_id, created_at) index for one product's sum", async () => {
+    // Enough rows that a sequential scan is not the cheaper plan.
+    await db.query(
+      `insert into public.llm_usage (product_id, task, model, input_tokens, output_tokens, cost_usd, created_at)
+       select null, 'preview', 'claude-haiku-5-5', 1, 1, 0, now() - (g || ' minutes')::interval
+       from generate_series(1, 5000) g`,
+    );
+    await db.query("analyze public.llm_usage");
+    const plan = (
+      await db.query<{ "QUERY PLAN": string }>(
+        `explain select coalesce(sum(cost_usd), 0) from public.llm_usage
+         where product_id = $1 and created_at >= $2`,
+        [alice, "2026-10-01T00:00:00Z"],
+      )
+    ).rows
+      .map((r) => r["QUERY PLAN"])
+      .join("\n");
+    expect(plan).toMatch(/llm_usage_product_created_idx/);
+    expect(await spend("service_role", alice, "2026-10-01T00:00:00Z")).toBeCloseTo(0.75, 6);
   });
 });
