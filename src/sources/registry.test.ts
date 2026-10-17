@@ -7,6 +7,7 @@ import {
   killSwitchName,
   sources,
 } from "./registry";
+import { BRIGHTDATA_API_HOST } from "./reddit-vendor";
 
 /**
  * Hard rules (docs/PLAN.md, section 2): these platforms are never collected, by us or by a vendor.
@@ -57,6 +58,8 @@ describe("source registry", () => {
       "hacker-news.firebaseio.com",
     ]);
     expect(allowedHosts({ SOURCE_BLUESKY_ENABLED: "true" })).toEqual(["bsky.social"]);
+    // Reddit: only the vendor's API host (D1), never a reddit.com host.
+    expect(allowedHosts({ SOURCE_REDDIT_ENABLED: "true" })).toEqual([BRIGHTDATA_API_HOST]);
   });
 
   it("never allows a link host, even with every collect source on", () => {

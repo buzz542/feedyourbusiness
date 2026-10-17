@@ -7,6 +7,7 @@ import {
   OWN_SITE_FILE,
   findNetworkPrimitives,
   findUnexpectedHosts,
+  findVendorHostOutsideReddit,
   moduleName,
 } from "./scan-network";
 import { findSchemaViolations, parseAddedColumns, parseCreateTables } from "./scan-schema";
@@ -249,6 +250,42 @@ describe("URL host scanner", () => {
     expect(
       findUnexpectedHosts(`const a = "https://API.Example.TEST/x"`, "src/x.ts", allowed),
     ).toEqual([]);
+  });
+});
+
+describe("vendor host scanner", () => {
+  // Built from parts so this file never names the host itself.
+  const HOST = ["api", "brightdata", "com"].join(".");
+  const found = (text: string, file: string) =>
+    rules(findVendorHostOutsideReddit(text, file)).length;
+
+  it("flags the vendor host anywhere outside src/sources/reddit*.ts", () => {
+    for (const file of [
+      "src/server/pipeline/collect.ts",
+      "src/sources/hackernews.ts",
+      "src/sources/reddit/evil.ts",
+      "src/sources/x-reddit.ts",
+      "src/sources/reddit.ts.bak",
+      "scripts/capture.ts",
+      "tests/fixtures/reddit/snapshot.json",
+    ])
+      expect(found(`const u = "https://${HOST}/datasets/v3/trigger";`, file), file).toBe(1);
+  });
+
+  it("flags it in comments, in any case, and on every line it appears", () => {
+    const text = `// calls https://${HOST}\nconst a = 1;\nconst b = "${HOST.toUpperCase()}";`;
+    expect(findVendorHostOutsideReddit(text, "src/x.ts").map((f) => f.line)).toEqual([1, 3]);
+  });
+
+  it("allows the Reddit source modules, the vendor's name and its package name", () => {
+    for (const file of [
+      "src/sources/reddit.ts",
+      "src/sources/reddit-brightdata.ts",
+      "src/sources/reddit.test.ts",
+    ])
+      expect(found(`const u = "https://${HOST}/x";`, file), file).toBe(0);
+    expect(found(`<p>Bright Data collects public Reddit pages.</p>`, "src/app/p.tsx")).toBe(0);
+    expect(found(`const blocked = ["@brightdata/sdk"];`, "src/x.ts")).toBe(0);
   });
 });
 

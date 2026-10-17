@@ -295,3 +295,25 @@ export function findUnexpectedHosts(
         ];
   });
 }
+
+/** The only files that may name the Reddit data vendor's host (docs/PLAN.md 2.1.9). */
+export const VENDOR_HOST_FILES = /^src\/sources\/reddit[^/]*\.ts$/;
+// Matches the host, never the vendor's name ("Bright Data") or its package ("@brightdata/sdk").
+const VENDOR_HOST = /brightdata\.com/i;
+
+/** Every line outside src/sources/reddit*.ts that names the vendor's host, comments included. */
+export function findVendorHostOutsideReddit(text: string, file: string): Finding[] {
+  if (VENDOR_HOST_FILES.test(file)) return [];
+  return text.split("\n").flatMap((line, i) =>
+    VENDOR_HOST.test(line)
+      ? [
+          {
+            file,
+            line: i + 1,
+            rule: "vendor-host",
+            detail: "The data vendor's host may appear only in src/sources/reddit*.ts",
+          },
+        ]
+      : [],
+  );
+}

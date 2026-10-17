@@ -3,6 +3,7 @@ import { isPlatformWebHost } from "@/server/net/platform-hosts";
 import { bluesky } from "./bluesky";
 import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
+import { reddit } from "./reddit";
 import type { CollectSource, LinkSource, Source } from "./types";
 
 /**
@@ -15,6 +16,7 @@ import type { CollectSource, LinkSource, Source } from "./types";
 export const sources: readonly Source[] = [
   hackernews,
   bluesky,
+  reddit,
   redditLinks,
   linkedin,
   facebook,

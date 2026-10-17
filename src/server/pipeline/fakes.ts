@@ -82,6 +82,15 @@ export class FakeBudget implements BudgetStore {
     const key = `${input.productId}:${input.source}:${input.day}`;
     const used = this.ledger.get(key) ?? 0;
     if (used + input.units > input.limit) return "refused";
+    // The vendor's monthly cap, across every product (reserve_job_budget does the same in SQL).
+    if (input.monthlyCap != null && input.monthStart) {
+      let month = 0;
+      for (const [k, reads] of this.ledger) {
+        const [, src, day] = k.split(":");
+        if (src === input.source && day! >= input.monthStart) month += reads;
+      }
+      if (month + input.units > input.monthlyCap) return "monthly_cap";
+    }
     this.ledger.set(key, used + input.units);
     job.payload = { ...job.payload, reserved: input.units, day: input.day, budgetKey: key };
     return "reserved";

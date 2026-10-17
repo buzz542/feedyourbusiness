@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import { reddit } from "@/sources/reddit";
 import type { CollectedPost, CollectSource, RunState } from "@/sources/types";
 import { createCollectHandler, type CollectHandlerDeps } from "./collect";
 import { enqueueDaily } from "./enqueue";
@@ -279,5 +281,79 @@ describe("enqueueDaily", () => {
       now: T0,
     });
     expect(store.jobs.map((j) => j.kind)).toEqual(["purge"]);
+  });
+});
+
+describe("collecting Reddit through the vendor (the real module, a fake vendor)", () => {
+  const fixture = (name: string) => readFileSync(`tests/fixtures/reddit/${name}`, "utf8");
+  const CONFIG: Record<string, string> = {
+    BRIGHTDATA_API_TOKEN: "test-token",
+    BRIGHTDATA_REDDIT_DATASET_ID: "gd_lvz8ah06191smkebj4",
+  };
+
+  function redditSetup() {
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    const stored: CollectedPost[] = [];
+    const http = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/trigger?")) return new Response(fixture("trigger.json"));
+      if (url.includes("/progress/")) return new Response(fixture("progress-ready.json"));
+      if (url.includes("/snapshot/")) return new Response(fixture("snapshot.json"));
+      throw new Error(`unrouted ${url}`);
+    });
+    const deps: CollectHandlerDeps = {
+      sourceFor: (id) => (id === "reddit" ? reddit : null),
+      fetchFor: () => http,
+      budget,
+      terms: async () => [
+        { id: "t-invoice", term: "invoice reminders" },
+        { id: "t-fees", term: "late fees" },
+      ],
+      process: async ({ posts }) => {
+        stored.push(...posts);
+        return { stored: posts.length };
+      },
+      monthlyCap: () => 20_000,
+      userAgent: "AskedFor/test",
+      sleep: async () => {},
+      credential: (name) => CONFIG[name],
+    };
+    return { store, budget, stored, http, handlers: { collect: createCollectHandler(deps) } };
+  }
+
+  const enqueue = (store: FakeJobStore, product: string) =>
+    store.enqueue([
+      {
+        kind: "collect",
+        productId: product,
+        source: "reddit",
+        dedupeKey: `collect:${product}:reddit:${DAY}`,
+      },
+    ]);
+
+  it("triggers, waits for the snapshot, then stores the kept posts and records the cost", async () => {
+    const { store, budget, stored, http, handlers } = redditSetup();
+    await enqueue(store, "p1");
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(store.jobs[0]!.status).toBe("waiting");
+    expect(http).toHaveBeenCalledTimes(1); // the trigger only
+    clock.advance(3 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(store.jobs[0]!.status).toBe("done");
+    expect(stored.map((p) => p.externalId)).toEqual(["1exa001", "1exa002", "1exa014", "1exa015"]);
+    // 15 records billed at $1.50 per 1,000; 120 reserved, 105 given back.
+    expect(budget.costs.get(`p1:reddit:${DAY}`)).toBeCloseTo(0.0225, 6);
+    expect(budget.ledger.get(`p1:reddit:${DAY}`)).toBe(15);
+  });
+
+  it("makes no vendor call once the monthly cap is reached", async () => {
+    const { store, budget, http, handlers } = redditSetup();
+    budget.ledger.set(`p9:reddit:2026-10-03`, 19_950); // other customers, this month
+    await enqueue(store, "p1");
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "monthly_cap" } });
+    expect(http).not.toHaveBeenCalled();
   });
 });
