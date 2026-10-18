@@ -26,6 +26,11 @@ export interface RedditRecord {
   /** The community as the provider names it ("SaaS", "r/SaaS"), or null. */
   community: string | null;
   nsfw: boolean;
+  /**
+   * From a community that is not plainly public: private, quarantined, or a type the provider names
+   * that we do not recognize (fail closed). Logged-out collection should never see these.
+   */
+  restricted: boolean;
   /** The query keyword that found it, when the provider says. */
   keyword: string | null;
 }

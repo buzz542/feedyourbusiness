@@ -178,7 +178,9 @@ const ErrorRecord = z.object({ error: z.unknown() }).refine((r) => r.error != nu
 const Input = z.object({ keyword: z.string() }).partial().nullish();
 /**
  * The mapped fields only (zod drops every other field). NSFW: the field name is not confirmed yet,
- * so each likely name is read, and any true value or an "nsfw" tag marks the post.
+ * so each likely name is read, and any true value or an "nsfw" tag marks the post. Community type
+ * (2.1.2, private and quarantined communities): likewise unconfirmed, so each likely field is read
+ * and anything but "public" restricts the post.
  */
 const PostRecord = z.object({
   post_id: z.string().min(1).max(40),
@@ -193,6 +195,10 @@ const PostRecord = z.object({
   over_18: z.boolean().nullish(),
   over18: z.boolean().nullish(),
   tags: z.array(z.string()).nullish(),
+  quarantine: z.boolean().nullish(),
+  is_quarantined: z.boolean().nullish(),
+  community_type: z.string().max(40).nullish(),
+  subreddit_type: z.string().max(40).nullish(),
   discovery_input: Input,
   input: Input,
 });
@@ -216,6 +222,12 @@ function toRecord(raw: unknown): RedditRecord | "error" | null {
     nsfw:
       [r.nsfw, r.is_nsfw, r.over_18, r.over18].some((flag) => flag === true) ||
       (r.tags ?? []).some((tag) => tag.trim().toLowerCase() === "nsfw"),
+    restricted:
+      r.quarantine === true ||
+      r.is_quarantined === true ||
+      [r.community_type, r.subreddit_type].some(
+        (type) => type != null && type.trim().toLowerCase() !== "public",
+      ),
     keyword: r.discovery_input?.keyword ?? r.input?.keyword ?? null,
   };
 }

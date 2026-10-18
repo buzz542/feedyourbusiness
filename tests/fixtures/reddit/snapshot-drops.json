@@ -1,0 +1,364 @@
+[
+  {
+    "post_id": "1exa016",
+    "url": "https://www.reddit.com/r/u_example_three/comments/1exa016/example_profile_sub/",
+    "user_posted": "example_planted_a",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "u_example_three",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/u_example_three/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    }
+  },
+  {
+    "post_id": "1exa017",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa017/example_post_1exa017/",
+    "user_posted": "example_planted_b",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "u_example_four",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    }
+  },
+  {
+    "post_id": "1exa018",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa018/example_post_1exa018/",
+    "user_posted": "example_planted_c",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": true
+  },
+  {
+    "post_id": "1exa019",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa019/example_post_1exa019/",
+    "user_posted": "example_planted_d",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "is_nsfw": true
+  },
+  {
+    "post_id": "1exa020",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa020/example_post_1exa020/",
+    "user_posted": "example_planted_e",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "over18": true
+  },
+  {
+    "post_id": "1exa021",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa021/example_post_1exa021/",
+    "user_posted": "example_planted_f",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "quarantine": true
+  },
+  {
+    "post_id": "1exa022",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa022/example_post_1exa022/",
+    "user_posted": "example_planted_g",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "is_quarantined": true
+  },
+  {
+    "post_id": "1exa023",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa023/example_post_1exa023/",
+    "user_posted": "example_planted_h",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "community_type": "private"
+  },
+  {
+    "post_id": "1exa024",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa024/example_post_1exa024/",
+    "user_posted": "example_planted_i",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "subreddit_type": "gold_only"
+  },
+  {
+    "post_id": "1exa025",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa025/example_post_1exa025/",
+    "user_posted": "example_planted_j",
+    "title": "Looking for invoice software",
+    "description": "[deleted]",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    }
+  },
+  {
+    "post_id": "1exa026",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa026/example_post_1exa026/",
+    "user_posted": "example_planted_k",
+    "title": "[deleted by user]",
+    "description": "",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    }
+  },
+  {
+    "post_id": "1exa027",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa027/example_post_1exa027/",
+    "user_posted": "example_planted_l",
+    "title": "[removed by moderator]",
+    "description": "Invented text.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    }
+  },
+  {
+    "post_id": "1exa028",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa028/example_post_1exa028/",
+    "user_posted": "example_planted_m",
+    "title": "Looking for invoice software",
+    "description": "Invented text for a planted record.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "community_type": "public",
+    "subreddit_type": "public",
+    "quarantine": false,
+    "is_quarantined": false
+  }
+]

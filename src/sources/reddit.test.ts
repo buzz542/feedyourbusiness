@@ -164,12 +164,7 @@ describe("reddit source", () => {
   it("maps posts and drops errors, NSFW, deleted authors, profiles, sensitive communities, off-Reddit links and old posts", async () => {
     const { state } = await collected();
     if (state.kind !== "done") throw new Error(JSON.stringify(state));
-    expect(state.posts.map((p) => p.externalId)).toEqual([
-      "1exa001",
-      "1exa002",
-      "1exa014",
-      "1exa015",
-    ]);
+    expect(state.posts.map((p) => p.externalId)).toEqual(["1exa001", "1exa002", "1exa015"]);
     expect(state.posts[0]).toEqual({
       externalId: "1exa001",
       url: "https://www.reddit.com/r/freelance/comments/1exa001/example_post_1exa001/",
@@ -186,11 +181,23 @@ describe("reddit source", () => {
       url: "https://www.reddit.com/r/smallbusiness/comments/1exa002/late_fees_on_invoices/",
       termId: "t-fees",
     });
-    // A removed body leaves the title alone.
-    expect(state.posts[2]!.excerpt).toBe("Invoice reminder software");
-    expect(state.posts[3]!.excerpt.length).toBeLessThanOrEqual(280);
+    // 1exa014's body was removed at the source, so the post is gone there and not kept here.
+    expect(state.posts[2]!.excerpt.length).toBeLessThanOrEqual(280);
     // Every record is billed, the error record included.
     expect(state.units).toBe(15);
+  });
+
+  it("drops profile communities, every NSFW field, private, quarantined or unknown community types, and removed posts", async () => {
+    const { state } = await collected([
+      READY[0]!,
+      [/\/snapshot\/s_example0001\?format=json$/, fixture("snapshot-drops.json")],
+    ]);
+    if (state.kind !== "done") throw new Error(JSON.stringify(state));
+    // 1exa016 /r/u_<name>/ link, 1exa017 u_ community name, 1exa018 to 1exa020 nsfw, is_nsfw and
+    // over18, 1exa021 and 1exa022 quarantined, 1exa023 private, 1exa024 an unknown type, 1exa025
+    // a deleted body, 1exa026 and 1exa027 a deleted or removed title. 1exa028 is public and kept.
+    expect(state.posts.map((p) => p.externalId)).toEqual(["1exa028"]);
+    expect(state.units).toBe(13);
   });
 
   it("keeps none of the other fields: no comments, other users or vendor extras leave the module", async () => {
@@ -346,13 +353,20 @@ describe("the deletion re-check (docs/PLAN.md 2.3.6, 7.7)", () => {
         user_posted: "[deleted]",
       }, // 1exa002, author deleted
       { error: "Page not found", error_code: "dead_page", input: { url: STORED[2] } },
+      { ...JSON.parse(fixture("snapshot.json"))[0], post_id: "1exa003", description: "[removed]" },
+      {
+        ...JSON.parse(fixture("snapshot.json"))[0],
+        post_id: "1exa004",
+        title: "[deleted by user]",
+        description: "",
+      },
     ]);
     const http = fakeHttp([
       [/\/progress\//, fixture("progress-ready.json")],
       [/\/snapshot\//, snapshot],
     ]);
     const state = await reddit.recheck!.poll(ctx(http), "s_example0001");
-    expect(state).toEqual({ kind: "done", live: ["1exa001"], units: 3 });
+    expect(state).toEqual({ kind: "done", live: ["1exa001"], units: 5 });
   });
 
   it("waits while the re-check snapshot is not ready", async () => {
@@ -456,20 +470,23 @@ describe("the pinned vendor requests (2.1.9)", () => {
 });
 
 describe("reddit fixtures", () => {
-  it("are synthetic: every author and commenter is an invented example_ name", () => {
-    const records = JSON.parse(fixture("snapshot.json")) as Record<string, unknown>[];
-    const names: string[] = [];
-    const walk = (value: unknown, key = "") => {
-      if (Array.isArray(value)) value.forEach((v) => walk(v, key));
-      else if (value && typeof value === "object")
-        for (const [k, v] of Object.entries(value)) walk(v, k);
-      else if (typeof value === "string" && /user|author/i.test(key)) names.push(value);
-    };
-    walk(records);
-    expect(names.length).toBeGreaterThan(10);
-    for (const name of names) expect(name).toMatch(/^(example_[a-z_]+|\[deleted\])$/);
-    for (const record of records)
-      if (typeof record.url === "string")
-        expect(record.url).toMatch(/example_|lookalike|off_reddit|late_fees|a_profile_post/);
-  });
+  it.each(["snapshot.json", "snapshot-drops.json"])(
+    "%s is synthetic: every author and commenter is an invented example_ name",
+    (file) => {
+      const records = JSON.parse(fixture(file)) as Record<string, unknown>[];
+      const names: string[] = [];
+      const walk = (value: unknown, key = "") => {
+        if (Array.isArray(value)) value.forEach((v) => walk(v, key));
+        else if (value && typeof value === "object")
+          for (const [k, v] of Object.entries(value)) walk(v, k);
+        else if (typeof value === "string" && /user|author/i.test(key)) names.push(value);
+      };
+      walk(records);
+      expect(names.length).toBeGreaterThan(10);
+      for (const name of names) expect(name).toMatch(/^(example_[a-z_]+|\[deleted\])$/);
+      for (const record of records)
+        if (typeof record.url === "string")
+          expect(record.url).toMatch(/example_|lookalike|off_reddit|late_fees|a_profile_post/);
+    },
+  );
 });

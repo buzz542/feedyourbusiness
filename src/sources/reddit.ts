@@ -10,8 +10,10 @@ import type { CollectContext, CollectedPost, CollectSource, RunState } from "./t
  * Reddit (docs/PLAN.md 7.7, D1): public posts through the contracted data vendor's API, never from
  * reddit.com. The provider (Bright Data, src/sources/reddit-brightdata.ts) runs the search; this
  * module chooses the queries and drops, before anything leaves it: error records, NSFW posts,
- * deleted authors, profile posts, posts from sensitive communities (2.3.7), links that are not a
- * Reddit post, and posts outside the window. Posts only, never comments.
+ * posts from private, quarantined or unrecognized community types, deleted authors, posts whose
+ * title or body was deleted or removed at the source, profile posts, posts from sensitive
+ * communities (2.3.7), links that are not a Reddit post, and posts outside the window. Posts only,
+ * never comments.
  */
 
 const PROVIDERS: Readonly<Record<string, RedditProvider>> = { brightdata: brightdataProvider };
@@ -26,7 +28,9 @@ const REDDIT_WEB_HOSTS = new Set(["www.reddit.com", "old.reddit.com", "reddit.co
 /** A post's path: /r/<community>/comments/<id>/<optional slug>/ */
 const POST_PATH = /^\/r\/([A-Za-z0-9_]{2,21})\/comments\/([A-Za-z0-9]{1,12})(?:\/[^/]*)?\/?$/;
 const POST_ID = /^[A-Za-z0-9_]{1,40}$/;
-const GONE = new Set(["[deleted]", "[removed]"]);
+/** Reddit's markers for a deleted or removed author, title or body: "[deleted]", "[removed by moderator]". */
+const GONE_MARKER = /^\[(?:deleted|removed)(?: by [a-z ]{1,30})?\]$/i;
+const isGone = (text: string) => GONE_MARKER.test(text.trim());
 
 /** What start() hands to poll(): the provider, its handle, and which keyword is which term. */
 const Handle = z.object({
@@ -75,9 +79,11 @@ function toPost(
   ctx: CollectContext,
   termIds: ReadonlyMap<string, string>,
 ): CollectedPost | null {
-  if (record.nsfw || !POST_ID.test(record.postId)) return null;
+  if (record.nsfw || record.restricted || !POST_ID.test(record.postId)) return null;
   const author = record.author?.trim() ?? "";
-  if (!author || GONE.has(author.toLowerCase())) return null;
+  if (!author || isGone(author)) return null;
+  // A deleted or removed title or body means the post is gone at the source (2.3.6).
+  if (isGone(record.title) || isGone(record.body)) return null;
   const link = postLink(record.url);
   if (!link) return null;
   // The community from the link and the one the provider names must both pass.
@@ -87,7 +93,7 @@ function toPost(
   if (Number.isNaN(posted) || posted <= ctx.since.getTime()) return null;
   const text = [record.title, record.body]
     .map((part) => part.trim())
-    .filter((part) => part && !GONE.has(part.toLowerCase()))
+    .filter((part) => part !== "")
     .join(" ");
   const excerpt = toExcerpt(text);
   if (!excerpt) return null;
@@ -153,12 +159,9 @@ async function poll(ctx: CollectContext, raw: string): Promise<RunState> {
 
 /** A post the re-check found intact: a record with its author and its text still there. */
 function isLive(record: RedditRecord): boolean {
-  const author = record.author?.trim().toLowerCase() ?? "";
-  if (!author || GONE.has(author)) return false;
-  return [record.title, record.body].some((part) => {
-    const text = part.trim().toLowerCase();
-    return text !== "" && !GONE.has(text);
-  });
+  const author = record.author?.trim() ?? "";
+  if (!author || isGone(author) || isGone(record.title) || isGone(record.body)) return false;
+  return [record.title, record.body].some((part) => part.trim() !== "");
 }
 
 /**

@@ -69,6 +69,43 @@ describe("capture-brightdata-fixture", () => {
     expect(files.size).toBe(0);
   });
 
+  it("still prints the field names, and no value, when the schema matches no record", async () => {
+    const records = (JSON.parse(fixture("snapshot.json")) as Record<string, unknown>[]).map(
+      ({ date_posted: _drop, ...rest }) => rest,
+    );
+    const { d, files, lines } = deps(JSON.stringify(records));
+    expect(await captureBrightdataFixture(d)).toBe(false);
+    const output = lines.join("\n");
+    expect(output).toMatch(/Field names: .*post_id.*user_posted/);
+    expect(output).toContain("Mapped fields missing: date_posted");
+    expect(output).toMatch(/FAIL: the run failed with InvalidResponse/);
+    expect(output).not.toMatch(/example_|invoice|reddit\.com|\[deleted\]/i);
+    expect(files.size).toBe(0);
+  });
+
+  it("says whether a community type field came back, and asks for confirmation when none did", async () => {
+    const { d, lines } = deps(fixture("snapshot.json"));
+    await captureBrightdataFixture(d);
+    expect(lines.join("\n")).toContain("Community type fields present: none");
+    expect(lines.join("\n")).toMatch(/NOTE: .*private or quarantined communities/);
+    const typed = (JSON.parse(fixture("snapshot.json")) as Record<string, unknown>[]).map((r) =>
+      "error" in r ? r : { ...r, community_type: "public" },
+    );
+    const second = deps(JSON.stringify(typed));
+    await captureBrightdataFixture(second.d);
+    expect(second.lines.join("\n")).toContain("Community type fields present: community_type");
+  });
+
+  it("never prints a nested key that only one record has, which could be a value", async () => {
+    const records = JSON.parse(fixture("snapshot.json")) as Record<string, unknown>[];
+    records[0] = { ...records[0], mentions: { someone_real_42: 1 } };
+    const { d, lines } = deps(JSON.stringify(records));
+    await captureBrightdataFixture(d);
+    const output = lines.join("\n");
+    expect(output).not.toContain("someone_real_42");
+    expect(output).toContain("mentions");
+  });
+
   it("fails without calling anything when the token is missing", async () => {
     const { d, lines, fetchImpl } = deps("[]", {
       BRIGHTDATA_REDDIT_DATASET_ID: ENV.BRIGHTDATA_REDDIT_DATASET_ID,

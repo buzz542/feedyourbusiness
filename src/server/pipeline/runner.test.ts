@@ -658,7 +658,7 @@ describe("collecting Reddit through the vendor (the real module, a fake vendor)"
     clock.advance(3 * 60_000);
     await runJobs({ store, handlers, clock: clock.now });
     expect(store.jobs[0]!.status).toBe("done");
-    expect(stored.map((p) => p.externalId)).toEqual(["1exa001", "1exa002", "1exa014", "1exa015"]);
+    expect(stored.map((p) => p.externalId)).toEqual(["1exa001", "1exa002", "1exa015"]);
     // 15 records billed at $1.50 per 1,000; 120 reserved, 105 given back.
     expect(budget.costs.get(`p1:reddit:${DAY}`)).toBeCloseTo(0.0225, 6);
     expect(budget.ledger.get(`p1:reddit:${DAY}`)).toBe(15);

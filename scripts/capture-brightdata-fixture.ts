@@ -24,6 +24,8 @@ export interface CaptureDeps {
 
 /** Field names that would carry the NSFW flag; the module reads each (src/sources/reddit-brightdata.ts). */
 const NSFW_FIELDS = ["nsfw", "is_nsfw", "over_18", "over18"];
+/** Fields that would mark a private or quarantined community (2.1.2); the module reads each. */
+const COMMUNITY_TYPE_FIELDS = ["quarantine", "is_quarantined", "community_type", "subreddit_type"];
 /** Fields the Reddit source maps (docs/PLAN.md 7.7). */
 const MAPPED = [
   "post_id",
@@ -37,18 +39,24 @@ const MAPPED = [
 const POLL_MS = 15_000;
 const MAX_POLLS = 40;
 
-/** Top-level field names, and one level of nested ones as "parent.child". Never values. */
+/**
+ * Top-level field names, and one level of nested ones as "parent.child". Never values: a nested
+ * key only one record has could be a value used as a key (a username, say), so it is not printed.
+ */
 function fieldNames(records: unknown[]): string[] {
   const names = new Set<string>();
+  const nestedSeen = new Map<string, number>();
   for (const record of records) {
     if (!record || typeof record !== "object") continue;
     for (const [key, value] of Object.entries(record)) {
       names.add(key);
       const nested = Array.isArray(value) ? value[0] : value;
       if (nested && typeof nested === "object")
-        for (const child of Object.keys(nested)) names.add(`${key}.${child}`);
+        for (const child of Object.keys(nested))
+          nestedSeen.set(`${key}.${child}`, (nestedSeen.get(`${key}.${child}`) ?? 0) + 1);
     }
   }
+  for (const [name, count] of nestedSeen) if (count >= 2) names.add(name);
   return [...names].sort();
 }
 
@@ -87,31 +95,57 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<boole
     await deps.sleep(POLL_MS);
     state = await reddit.poll!(ctx, state.handle);
   }
-  if (state.kind === "failed") {
-    deps.log(`FAIL: the run failed with ${state.errorClass}.`);
-    return false;
-  }
   if (state.kind === "pending") {
     deps.log("FAIL: the snapshot was not ready after 10 minutes. Run it again later.");
     return false;
   }
   if (raw === null) {
-    deps.log("FAIL: no snapshot was downloaded.");
+    deps.log(
+      state.kind === "failed"
+        ? `FAIL: the run failed with ${state.errorClass}.`
+        : "FAIL: no snapshot was downloaded.",
+    );
     return false;
   }
 
+  // A failed run with a downloaded snapshot is the case the field names are most needed for.
   deps.writeFile(path, raw);
   try {
-    const records = JSON.parse(raw) as unknown[];
+    let records: unknown[];
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new TypeError("not an array");
+      records = parsed;
+    } catch {
+      deps.log("FAIL: the snapshot is not a JSON array.");
+      return false;
+    }
     const errors = records.filter((r) => r && typeof r === "object" && "error" in r).length;
     const fields = fieldNames(records.filter((r) => r && typeof r === "object" && !("error" in r)));
     const missing = MAPPED.filter((f) => !fields.includes(f));
     const nsfw = NSFW_FIELDS.filter((f) => fields.includes(f));
-    deps.log(`Records: ${records.length} (${errors} error records), billed units: ${state.units}`);
-    deps.log(`Kept after the source's filters: ${state.posts.length}`);
+    const communityType = COMMUNITY_TYPE_FIELDS.filter((f) => fields.includes(f));
+    deps.log(
+      `Records: ${records.length} (${errors} error records)` +
+        (state.kind === "done" ? `, billed units: ${state.units}` : ""),
+    );
+    if (state.kind === "done") deps.log(`Kept after the source's filters: ${state.posts.length}`);
     deps.log(`Field names: ${fields.join(", ")}`);
     deps.log(`Mapped fields missing: ${missing.length ? missing.join(", ") : "none"}`);
     deps.log(`NSFW fields present: ${nsfw.length ? nsfw.join(", ") : "none"}`);
+    deps.log(
+      `Community type fields present: ${communityType.length ? communityType.join(", ") : "none"}`,
+    );
+    if (communityType.length === 0)
+      deps.log(
+        "NOTE: ask Bright Data to confirm in writing that the dataset never returns posts from private or quarantined communities (F8).",
+      );
+    if (state.kind === "failed") {
+      deps.log(
+        `FAIL: the run failed with ${state.errorClass}. Send the field names above to the build session.`,
+      );
+      return false;
+    }
     if (missing.length > 0) {
       deps.log("FAIL: the schema does not match. Send the field names above to the build session.");
       return false;
