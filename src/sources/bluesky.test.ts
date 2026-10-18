@@ -218,6 +218,63 @@ describe("bluesky source", () => {
     });
   });
 
+  it("renews the session once when the access token is refused", async () => {
+    let searches = 0;
+    const http = fakeHttp([
+      [/createSession$/, fixture("session.json")],
+      [
+        /searchPosts/,
+        () =>
+          ++searches === 1
+            ? new Response(JSON.stringify({ error: "ExpiredToken" }), { status: 401 })
+            : new Response(fixture("search-invoice.json")),
+      ],
+    ]);
+    const { posts } = await collect(ctx(http, { terms: [{ id: "t", term: "invoice" }] }));
+    expect(posts.length).toBeGreaterThan(0);
+    expect(http.mock.calls.filter(([u]) => String(u).endsWith("createSession"))).toHaveLength(2);
+  });
+
+  it("skips a malformed post instead of failing the run", async () => {
+    const good = JSON.parse(fixture("search-invoice.json")).posts[0];
+    const http = fakeHttp([
+      [/createSession$/, fixture("session.json")],
+      [/searchPosts/, JSON.stringify({ posts: [{ uri: 7 }, good] })],
+    ]);
+    const { posts } = await collect(ctx(http, { terms: [{ id: "t", term: "invoice" }] }));
+    expect(posts.map((p) => p.externalId)).toEqual([good.uri]);
+  });
+
+  it("treats a post hidden or opted out of logged-out viewers since collection as gone", async () => {
+    const uri = (n: string) => `at://did:plc:example${n}/app.bsky.feed.post/3k${n}`;
+    const http = fakeHttp([
+      [/createSession$/, fixture("session.json")],
+      [
+        /getPosts/,
+        JSON.stringify({
+          posts: [
+            { uri: uri("live"), author: { did: "did:plc:examplelive" } },
+            {
+              uri: uri("hidden"),
+              author: { did: "did:plc:examplehidden" },
+              labels: [{ val: "!hide" }],
+            },
+            {
+              uri: uri("optout"),
+              author: { did: "did:plc:exampleoptout", labels: [{ val: "!no-unauthenticated" }] },
+            },
+          ],
+        }),
+      ],
+    ]);
+    const gone = await bluesky.checkDeleted!(ctx(http), [
+      uri("live"),
+      uri("hidden"),
+      uri("optout"),
+    ]);
+    expect(gone.sort()).toEqual([uri("hidden"), uri("optout")].sort());
+  });
+
   it("finds deleted posts with getPosts, 25 at a time", async () => {
     const http = fakeHttp([
       [/createSession$/, fixture("session.json")],

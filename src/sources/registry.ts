@@ -171,6 +171,13 @@ export function registryProblems(list: readonly Source[]): string[] {
     if (source.retentionDays !== days) problems.push(`${id}: retention must be ${days} days (D4)`);
     for (const host of source.allowedHosts)
       if (isPlatformWebHost(host)) problems.push(`${id}: ${host} is a platform's own site`);
+    // A source may read only its own env names: "<ID>_..." or "<VENDOR>_..." (2.1.9).
+    const prefixes = [id, ...(source.vendor ? [source.vendor.name] : [])].map(
+      (name) => `${name.toUpperCase().replace(/[^A-Z0-9]/g, "")}_`,
+    );
+    for (const name of source.credentials)
+      if (!/^[A-Z][A-Z0-9_]*$/.test(name) || !prefixes.some((p) => name.startsWith(p)))
+        problems.push(`${id}: credential ${name} is not its own`);
     const finite = (n: number) => Number.isFinite(n) && n >= 0;
     if (!finite(source.costPerUnitUsd) || !finite(source.dailyBudget))
       problems.push(`${id}: cost and budget must be finite and not negative`);

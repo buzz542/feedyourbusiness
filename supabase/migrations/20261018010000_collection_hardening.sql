@@ -25,7 +25,9 @@ begin
      and locked_until < p_now
      and coalesce((payload ->> 'failures')::integer, 0) + 1 >= 3;
 
+  -- Returned in claim order, which the runner works through: the purge first.
   return query
+  with claimed as (
   update public.jobs j
      set status = 'running',
          attempts = j.attempts + 1,
@@ -44,7 +46,11 @@ begin
       limit p_limit
       for update skip locked
    )
-  returning j.*;
+  returning j.*
+  )
+  select * from claimed
+   order by case claimed.kind when 'purge' then 0 when 'deletion_sync' then 1 else 2 end,
+            claimed.run_after;
 end;
 $$;
 

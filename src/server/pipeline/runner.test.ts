@@ -49,6 +49,7 @@ function source(over: Partial<CollectSource> = {}): CollectSource {
     dailyBudget: 20,
     retentionDays: 30,
     costPerUnitUsd: 0,
+    credentials: [],
     start: vi.fn(async (): Promise<RunState> => ({
       kind: "done",
       posts: [post("1"), post("2")],
@@ -246,6 +247,139 @@ describe("runJobs", () => {
   });
 });
 
+describe("settling a vendor run that never finishes", () => {
+  /** A vendor source whose run was triggered: from then on the vendor may bill for it. */
+  function vendorSetup(poll: NonNullable<CollectSource["poll"]>) {
+    const src = source({
+      id: "reddit",
+      access: "vendor_api",
+      retentionDays: 7,
+      costPerUnitUsd: 0.0015,
+      start: vi.fn(async (): Promise<RunState> => ({ kind: "pending", handle: "snap-1" })),
+      poll: vi.fn(poll),
+    });
+    let on = true;
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    const handlers = {
+      collect: createCollectHandler({
+        sourceFor: (id) => (on && id === "reddit" ? src : null),
+        fetchFor: () => vi.fn(),
+        budget,
+        terms: async () => [{ id: "t1", term: "invoice tool" }],
+        process: vi.fn(async () => ({ stored: 0 })),
+        monthlyCap: () => null,
+        userAgent: "AskedFor/test",
+      }),
+    };
+    const enqueue = () =>
+      store.enqueue([
+        {
+          kind: "collect",
+          productId: "p1",
+          source: "reddit",
+          dedupeKey: `collect:p1:reddit:${DAY}`,
+        },
+      ]);
+    return { src, store, budget, handlers, enqueue, switchOff: () => void (on = false) };
+  }
+  const KEY = `p1:reddit:${DAY}`;
+
+  it("counts the whole reservation, at its cost, when the run times out", async () => {
+    const { store, budget, handlers, enqueue } = vendorSetup(async () => ({
+      kind: "pending",
+      handle: "snap-1",
+    }));
+    await enqueue();
+    const clock = clockFrom(T0);
+    for (let i = 0; i < 40 && store.jobs[0]!.status !== "done"; i++) {
+      await runJobs({ store, handlers, clock: clock.now });
+      clock.advance(3 * 60_000);
+    }
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "timeout" } });
+    expect(budget.ledger.get(KEY)).toBe(20);
+    expect(budget.costs.get(KEY)).toBeCloseTo(0.03, 6);
+  });
+
+  it("counts the whole reservation when the run fails for good after the trigger", async () => {
+    const { store, budget, handlers, enqueue } = vendorSetup(async () => ({
+      kind: "failed",
+      errorClass: "VendorRunFailed",
+    }));
+    await enqueue();
+    const clock = clockFrom(T0);
+    for (let i = 0; i < 6 && store.jobs[0]!.status !== "failed"; i++) {
+      await runJobs({ store, handlers, clock: clock.now });
+      clock.advance(60 * 60_000);
+    }
+    expect(store.jobs[0]!.status).toBe("failed");
+    expect(budget.ledger.get(KEY)).toBe(20);
+    expect(budget.costs.get(KEY)).toBeCloseTo(0.03, 6);
+  });
+
+  it("counts the whole reservation when the source is switched off mid-run", async () => {
+    const { store, budget, handlers, enqueue, switchOff } = vendorSetup(async () => ({
+      kind: "pending",
+      handle: "snap-1",
+    }));
+    await enqueue();
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    switchOff();
+    clock.advance(3 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "source_off" } });
+    expect(budget.ledger.get(KEY)).toBe(20);
+    expect(budget.costs.get(KEY)).toBeCloseTo(0.03, 6);
+  });
+
+  it("records records billed beyond the reservation, so the monthly cap sees them", async () => {
+    const { store, budget, handlers, enqueue } = vendorSetup(async () => ({
+      kind: "done",
+      posts: [],
+      units: 25,
+    }));
+    await enqueue();
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    clock.advance(3 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(budget.ledger.get(KEY)).toBe(25);
+    expect(budget.costs.get(KEY)).toBeCloseTo(0.0375, 6);
+  });
+});
+
+describe("credentials", () => {
+  it("gives a source only the env names it declares", async () => {
+    const seen: Record<string, string | undefined> = {};
+    const src = source({
+      credentials: ["HACKERNEWS_TOKEN"],
+      start: vi.fn(async (ctx): Promise<RunState> => {
+        seen.declared = ctx.credential("HACKERNEWS_TOKEN");
+        seen.other = ctx.credential("SUPABASE_SECRET_KEY");
+        return { kind: "done", posts: [], units: 0 };
+      }),
+    });
+    const store = new FakeJobStore();
+    const env: Record<string, string> = { HACKERNEWS_TOKEN: "t", SUPABASE_SECRET_KEY: "secret" };
+    const handlers = {
+      collect: createCollectHandler({
+        sourceFor: () => src,
+        fetchFor: () => vi.fn(),
+        budget: new FakeBudget(store),
+        terms: async () => [{ id: "t1", term: "invoice tool" }],
+        process: vi.fn(async () => ({ stored: 0 })),
+        monthlyCap: () => null,
+        userAgent: "AskedFor/test",
+        credential: (name) => env[name],
+      }),
+    };
+    await enqueueCollect(store);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(seen).toEqual({ declared: "t", other: undefined });
+  });
+});
+
 describe("enqueueDaily", () => {
   const sources = [source(), source({ id: "bluesky", checkDeleted: async () => [] })];
 
@@ -269,6 +403,8 @@ describe("enqueueDaily", () => {
     ]);
     expect(await enqueueDaily(input)).toBe(0);
     expect(store.jobs).toHaveLength(6);
+    // Due by the app's clock, the clock claims use, not the database's.
+    for (const job of store.jobs) expect(job.runAfter).toEqual(T0);
   });
 
   it("enqueues only the kinds that have a handler", async () => {

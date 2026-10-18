@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { sources } from "@/sources/registry";
 import type { CollectSource } from "@/sources/types";
+import { BlueskyLinksNotice } from "../_components/bluesky-links-notice";
 import { VendorNotice } from "../_components/vendor-notice";
 
 export const metadata: Metadata = { title: "Where posts come from" };
@@ -45,6 +46,11 @@ export default function Page() {
             <p className="mt-1 text-muted">
               Deleted from AskedFor after {source.retentionDays} days.
             </p>
+            {source.id === "bluesky" ? (
+              <div className="mt-1 text-muted">
+                <BlueskyLinksNotice />
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>

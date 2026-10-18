@@ -32,6 +32,17 @@ describe("the data provider notice", () => {
   });
 });
 
+describe("Bluesky links (docs/PLAN.md 7.5)", () => {
+  it.each([
+    ["privacy", PrivacyPage],
+    ["sources", SourcesPage],
+  ])("the %s page says a link carries the author's DID", (_name, Page) => {
+    const page = text(renderToStaticMarkup(<Page />));
+    expect(page).toMatch(/Bluesky.*DID/);
+    expect(page).toContain("a permanent public id for the author's account");
+  });
+});
+
 describe("the sources page", () => {
   const page = text(renderToStaticMarkup(<SourcesPage />));
 

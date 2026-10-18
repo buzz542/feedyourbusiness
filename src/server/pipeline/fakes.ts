@@ -102,7 +102,8 @@ export class FakeBudget implements BudgetStore {
     if (!("reserved" in job.payload) || job.payload.settled) return false;
     const key = String(job.payload.budgetKey);
     const reserved = Number(job.payload.reserved);
-    this.ledger.set(key, (this.ledger.get(key) ?? 0) - Math.max(0, reserved - actual));
+    // As settle_budget: unused units go back, an overrun is added.
+    this.ledger.set(key, Math.max(0, (this.ledger.get(key) ?? 0) - reserved + actual));
     this.costs.set(key, (this.costs.get(key) ?? 0) + costUsd);
     job.payload = { ...job.payload, settled: true };
     return true;

@@ -1,3 +1,4 @@
+import "server-only";
 import type { CollectContext, CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
 import type { BudgetStore, Job, JobHandler } from "./ports";
 
@@ -52,9 +53,29 @@ const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 const monthStart = (date: Date) => `${date.toISOString().slice(0, 7)}-01`;
 
 export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
+  const readEnv = deps.credential ?? ((name: string) => process.env[name]);
+
+  /**
+   * A job that ends without finishing its run. Before a vendor run is triggered nothing was used,
+   * so the reservation goes back; once it is (a handle is stored), the vendor may bill for it, so
+   * the whole reservation counts, at the cost recorded with the handle.
+   */
+  const settleAbandoned = async (job: Job) => {
+    if (typeof job.payload.handle !== "string") {
+      await deps.budget.settle(job.id, 0, 0);
+      return;
+    }
+    const reserved = Number(job.payload.reserved ?? 0);
+    const unitCost = Number(job.payload.unitCost ?? 0);
+    await deps.budget.settle(job.id, reserved, reserved * unitCost);
+  };
+
   const handler: JobHandler = async (job, { now, deadline }) => {
     const source = job.source ? deps.sourceFor(job.source) : null;
-    if (!source || !job.productId) return { status: "done", payload: { result: "source_off" } };
+    if (!source || !job.productId) {
+      if ("reserved" in job.payload) await settleAbandoned(job);
+      return { status: "done", payload: { result: "source_off" } };
+    }
     if (now().getTime() >= deadline) return { status: "waiting", runAfter: now() };
     const terms = await deps.terms(job.productId, source);
     // Checked before the budget is reserved. A run that already reserved (a vendor run in flight)
@@ -86,7 +107,8 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       now: now(),
       userAgent: deps.userAgent,
       sleep: deps.sleep ?? realSleep,
-      credential: deps.credential ?? ((name) => process.env[name]),
+      // Only the names the source declares; any other secret reads as unset.
+      credential: (name) => (source.credentials.includes(name) ? readEnv(name) : undefined),
     };
     const handle = typeof job.payload.handle === "string" ? job.payload.handle : null;
     const state = handle && source.poll ? await source.poll(ctx, handle) : await source.start(ctx);
@@ -95,18 +117,19 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       const startedAt =
         typeof job.payload.startedAt === "string" ? job.payload.startedAt : now().toISOString();
       if (now().getTime() - Date.parse(startedAt) > MAX_POLL_MS) {
-        await deps.budget.settle(job.id, 0, 0);
+        await settleAbandoned(job);
         return { status: "done", payload: { result: "timeout" } };
       }
       return {
         status: "waiting",
         runAfter: new Date(now().getTime() + POLL_DELAY_MS),
-        payload: { handle: state.handle, startedAt },
+        payload: { handle: state.handle, startedAt, unitCost: source.costPerUnitUsd },
       };
     }
     if (state.kind === "failed") throw new SourceError(state.errorClass);
 
-    const used = Math.max(0, Math.min(state.units, units));
+    // Every unit the source reports, beyond the reservation too: the monthly cap must see them.
+    const used = Math.max(0, state.units);
     if (!collectable) {
       await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
       return { status: "done", payload: { result: "not_collectable", units: used } };
@@ -121,8 +144,6 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
     return { status: "done", payload: { result: "ok", stored, units: used } };
   };
-  handler.onFailed = async (job) => {
-    await deps.budget.settle(job.id, 0, 0);
-  };
+  handler.onFailed = settleAbandoned;
   return handler;
 }

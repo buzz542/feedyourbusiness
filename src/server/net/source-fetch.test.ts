@@ -16,6 +16,7 @@ const source = (id: string, host: string): CollectSource => ({
   dailyBudget: 10,
   retentionDays: 30,
   costPerUnitUsd: 0,
+  credentials: [],
   start: async () => ({ kind: "done", posts: [], units: 0 }),
 });
 

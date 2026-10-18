@@ -131,5 +131,6 @@ export const x: CollectSource = {
   retentionDays: 7,
   // About $0.005 per post read (pay-per-use); the founder confirms it in the developer console.
   costPerUnitUsd: 0.005,
+  credentials: ["X_BEARER_TOKEN"],
   start,
 };

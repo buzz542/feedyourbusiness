@@ -109,7 +109,9 @@ describe("claim_jobs", () => {
     await job("collect", later(-30));
     await job("deletion_sync", later(-10));
     await job("purge", later(-5));
+    // Picked first, and returned first: the runner works through a batch in this order.
     expect((await claim(T0, 2)).map((j) => j.kind)).toEqual(["purge", "deletion_sync"]);
+    expect((await claim(T0, 2)).map((j) => j.kind)).toEqual(["collect"]);
   });
 });
 

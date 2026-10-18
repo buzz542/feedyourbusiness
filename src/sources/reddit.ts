@@ -168,6 +168,7 @@ export const reddit: CollectSource = {
   retentionDays: 7,
   // $1.50 per 1,000 records (docs/PLAN.md 7.7); the founder confirms their rate (F8).
   costPerUnitUsd: 1.5 / 1000,
+  credentials: ["REDDIT_PROVIDER", "BRIGHTDATA_API_TOKEN", "BRIGHTDATA_REDDIT_DATASET_ID"],
   start,
   poll,
 };

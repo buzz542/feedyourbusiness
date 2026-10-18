@@ -36,7 +36,8 @@ const Hit = z.object({
   comment_text: z.string().nullish(),
   _tags: z.array(z.string()).optional(),
 });
-const SearchResponse = z.object({ hits: z.array(Hit) });
+/** Hits are parsed one by one: a malformed hit is skipped, not the run. */
+const SearchResponse = z.object({ hits: z.array(z.unknown()) });
 const Item = z.object({ deleted: z.boolean().optional(), dead: z.boolean().optional() }).nullable();
 
 class InvalidResponse extends Error {
@@ -116,8 +117,14 @@ async function start(ctx: CollectContext): Promise<RunState> {
       if (!response) break;
       const parsed = SearchResponse.safeParse(await response.json());
       if (!parsed.success) throw new InvalidResponse();
-      const hits = parsed.data.hits.slice(0, perTerm);
-      units += hits.length;
+      const raw = parsed.data.hits.slice(0, perTerm);
+      units += raw.length;
+      const hits = raw.flatMap((item) => {
+        const hit = Hit.safeParse(item);
+        return hit.success ? [hit.data] : [];
+      });
+      // Every hit malformed means the shape changed: fail loudly rather than return nothing.
+      if (raw.length > 0 && hits.length === 0) throw new InvalidResponse();
       for (const hit of hits) {
         if (hit.created_at_i <= since || posts.has(hit.objectID)) continue;
         const post = toPost(hit, term.id);
@@ -158,6 +165,7 @@ export const hackernews: CollectSource = {
   dailyBudget: 300,
   retentionDays: 30,
   costPerUnitUsd: 0,
+  credentials: [],
   start,
   checkDeleted,
 };

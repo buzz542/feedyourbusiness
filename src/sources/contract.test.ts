@@ -20,6 +20,7 @@ function collect(over: Partial<CollectSource> = {}): CollectSource {
     dailyBudget: 50,
     retentionDays: 30,
     costPerUnitUsd: 0,
+    credentials: [],
     start: async () => ({ kind: "done", posts: [], units: 0 }),
     ...over,
   };
@@ -39,6 +40,7 @@ const vendorReddit = (over: Partial<CollectSource> = {}) =>
     linkHosts: ["www.reddit.com"],
     retentionDays: 7,
     costPerUnitUsd: 0.0015,
+    credentials: ["DATAVENDOR_API_TOKEN", "REDDIT_PROVIDER"],
     ...over,
   });
 
@@ -149,6 +151,21 @@ describe("registryProblems", () => {
       "a vendor source calling a host outside the vendor",
       [vendorReddit({ allowedHosts: [BRIGHTDATA_API_HOST, "api.other.example"] })],
       /reddit: a vendor source may call only the vendor's hosts/,
+    ],
+    [
+      "a credential that belongs to something else",
+      [collect({ credentials: ["SUPABASE_SECRET_KEY"] })],
+      /hackernews: credential SUPABASE_SECRET_KEY is not its own/,
+    ],
+    [
+      "another vendor's credential",
+      [vendorReddit({ credentials: ["STRIPE_SECRET_KEY"] })],
+      /reddit: credential STRIPE_SECRET_KEY is not its own/,
+    ],
+    [
+      "a credential named like a prefix trick",
+      [collect({ id: "x", retentionDays: 7, credentials: ["XSUPABASE_SECRET_KEY"] })],
+      /x: credential XSUPABASE_SECRET_KEY is not its own/,
     ],
     [
       "a cost that is not a finite number",

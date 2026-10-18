@@ -25,6 +25,7 @@ export async function enqueueDaily(input: {
           productId: product,
           source: source.id,
           dedupeKey: `collect:${product}:${source.id}:${day}`,
+          runAfter: input.now,
         });
   if (input.kinds.has("deletion_sync"))
     for (const source of input.sources.filter((s) => s.checkDeleted))
@@ -33,8 +34,16 @@ export async function enqueueDaily(input: {
         productId: null,
         source: source.id,
         dedupeKey: `deletion_sync:${source.id}:${day}`,
+        runAfter: input.now,
       });
   if (input.kinds.has("purge"))
-    jobs.push({ kind: "purge", productId: null, source: null, dedupeKey: `purge:${day}` });
+    jobs.push({
+      kind: "purge",
+      productId: null,
+      source: null,
+      dedupeKey: `purge:${day}`,
+      // Due by the app's clock, the clock claims use, not the database's.
+      runAfter: input.now,
+    });
   return jobs.length > 0 ? input.store.enqueue(jobs) : 0;
 }

@@ -166,6 +166,13 @@ describe("hackernews source", () => {
     });
   });
 
+  it("skips a malformed hit instead of failing the run", async () => {
+    const good = JSON.parse(fixture("search-invoice.json")).hits[0];
+    const http = fakeFetch([[/search_by_date/, JSON.stringify({ hits: [{ objectID: 1 }, good] })]]);
+    const { posts } = await collect(ctx(http, { terms: [{ id: "t", term: "invoice" }] }));
+    expect(posts.map((p) => p.externalId)).toEqual([good.objectID]);
+  });
+
   it("finds deleted and dead items, and missing ones", async () => {
     const http = fakeFetch([
       [/item\/90000011\.json$/, fixture("item-live.json")],

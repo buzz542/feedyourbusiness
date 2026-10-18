@@ -86,6 +86,11 @@ export interface CollectSource extends SourceBase {
   readonly retentionDays: 7 | 30;
   /** 0 for free APIs. */
   readonly costPerUnitUsd: number;
+  /**
+   * The env names ctx.credential may read for this source, each starting with the source's id or
+   * its vendor's name ("BLUESKY_", "BRIGHTDATA_"). Any other name reads as unset.
+   */
+  readonly credentials: readonly string[];
   /** Free APIs finish at once; vendors return a handle to poll. */
   start(ctx: CollectContext): Promise<RunState>;
   poll?(ctx: CollectContext, handle: string): Promise<RunState>;

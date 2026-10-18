@@ -51,8 +51,17 @@ const PostView = z.object({
   indexedAt: z.string(),
   labels: z.array(Label).optional(),
 });
-const SearchResponse = z.object({ posts: z.array(PostView) });
-const GetPostsResponse = z.object({ posts: z.array(z.object({ uri: z.string() })) });
+/** Posts are parsed one by one: a malformed post is skipped, not the run. */
+const SearchResponse = z.object({ posts: z.array(z.unknown()) });
+const GetPostsResponse = z.object({
+  posts: z.array(
+    z.object({
+      uri: z.string(),
+      labels: z.array(Label).optional(),
+      author: z.object({ labels: z.array(Label).optional() }).optional(),
+    }),
+  ),
+});
 
 class InvalidResponse extends Error {
   constructor() {
@@ -71,7 +80,7 @@ class MissingCredentials extends Error {
  * One session per function invocation, reused across jobs (Bluesky limits how often an account
  * may create sessions). Kept until shortly before the access token expires.
  */
-let session: { accessJwt: string; expiresAt: number } | null = null;
+let session: { accessJwt: string; expiresAt: number; createdAt: number } | null = null;
 
 /** Tests only: forget the cached session. */
 export function resetBlueskySession(): void {
@@ -90,7 +99,10 @@ function expiryOf(jwt: string): number {
 
 async function accessToken(ctx: CollectContext): Promise<string> {
   const now = ctx.now.getTime();
-  if (session && session.expiresAt - 60_000 > now) return session.accessJwt;
+  // Reused until a minute before it expires, and always within the run that created it, so a
+  // short-lived token can never mean a sign-in per request.
+  if (session && (session.expiresAt - 60_000 > now || session.createdAt === now))
+    return session.accessJwt;
   const identifier = ctx.credential("BLUESKY_IDENTIFIER");
   const password = ctx.credential("BLUESKY_APP_PASSWORD");
   if (!identifier || !password) throw new MissingCredentials();
@@ -103,7 +115,11 @@ async function accessToken(ctx: CollectContext): Promise<string> {
     throw Object.assign(new Error("Session refused"), { name: `Http${response.status}` });
   const parsed = Session.safeParse(await response.json());
   if (!parsed.success) throw new InvalidResponse();
-  session = { accessJwt: parsed.data.accessJwt, expiresAt: expiryOf(parsed.data.accessJwt) };
+  session = {
+    accessJwt: parsed.data.accessJwt,
+    expiresAt: expiryOf(parsed.data.accessJwt),
+    createdAt: now,
+  };
   return session.accessJwt;
 }
 
@@ -114,14 +130,13 @@ const backoffFrom = (response: Response) => {
     : DEFAULT_BACKOFF_MS;
 };
 
-/** An authenticated GET, paced, backing off once on 429; null when still rate limited. */
-async function xrpcGet(
-  ctx: CollectContext,
-  token: string,
-  url: string,
-  first: boolean,
-): Promise<Response | null> {
+/**
+ * An authenticated GET, paced, backing off once on 429; null when still rate limited. A refused
+ * token (401) drops the cached session and signs in again, once.
+ */
+async function xrpcGet(ctx: CollectContext, url: string, first: boolean): Promise<Response | null> {
   if (!first) await ctx.sleep(PACE_MS);
+  let token = await accessToken(ctx);
   const get = () =>
     ctx.fetch(url, {
       headers: {
@@ -131,6 +146,12 @@ async function xrpcGet(
       },
     });
   let response = await get();
+  if (response.status === 401) {
+    await response.body?.cancel();
+    session = null;
+    token = await accessToken(ctx);
+    response = await get();
+  }
   if (response.status === 429) {
     await ctx.sleep(backoffFrom(response));
     response = await get();
@@ -177,7 +198,6 @@ async function start(ctx: CollectContext): Promise<RunState> {
   const posts = new Map<string, CollectedPost>();
   let units = 0;
   try {
-    const token = await accessToken(ctx);
     let first = true;
     for (const [index, term] of ctx.terms.entries()) {
       const remaining = ctx.budget - units;
@@ -193,18 +213,19 @@ async function start(ctx: CollectContext): Promise<RunState> {
         since: ctx.since.toISOString(),
         limit: String(limit),
       });
-      const response = await xrpcGet(
-        ctx,
-        token,
-        `${XRPC}/app.bsky.feed.searchPosts?${params}`,
-        first,
-      );
+      const response = await xrpcGet(ctx, `${XRPC}/app.bsky.feed.searchPosts?${params}`, first);
       first = false;
       if (!response) break;
       const parsed = SearchResponse.safeParse(await response.json());
       if (!parsed.success) throw new InvalidResponse();
-      const views = parsed.data.posts.slice(0, limit);
-      units += views.length;
+      const raw = parsed.data.posts.slice(0, limit);
+      units += raw.length;
+      const views = raw.flatMap((item) => {
+        const view = PostView.safeParse(item);
+        return view.success ? [view.data] : [];
+      });
+      // Every post malformed means the shape changed: fail loudly rather than return nothing.
+      if (raw.length > 0 && views.length === 0) throw new InvalidResponse();
       for (const view of views) {
         if (posts.has(view.uri)) continue;
         const post = toPost(view, term.id);
@@ -223,17 +244,26 @@ async function checkDeleted(
 ): Promise<string[]> {
   const uris = externalIds.filter((id) => POST_URI.test(id));
   if (uris.length === 0) return [];
-  const token = await accessToken(ctx);
   const gone: string[] = [];
   for (let i = 0; i < uris.length; i += LOOKUP_BATCH) {
     const batch = uris.slice(i, i + LOOKUP_BATCH);
     const params = new URLSearchParams();
     for (const uri of batch) params.append("uris", uri);
-    const response = await xrpcGet(ctx, token, `${XRPC}/app.bsky.feed.getPosts?${params}`, i === 0);
+    const response = await xrpcGet(ctx, `${XRPC}/app.bsky.feed.getPosts?${params}`, i === 0);
     if (!response) break;
     const parsed = GetPostsResponse.safeParse(await response.json());
     if (!parsed.success) throw new InvalidResponse();
-    const found = new Set(parsed.data.posts.map((p) => p.uri));
+    // Hidden by moderation or opted out of logged-out viewers since collection: gone here too.
+    const found = new Set(
+      parsed.data.posts
+        .filter(
+          (p) =>
+            ![...(p.labels ?? []), ...(p.author?.labels ?? [])].some((l) =>
+              HIDDEN_LABELS.has(l.val),
+            ),
+        )
+        .map((p) => p.uri),
+    );
     gone.push(...batch.filter((uri) => !found.has(uri)));
   }
   return gone;
@@ -250,6 +280,7 @@ export const bluesky: CollectSource = {
   dailyBudget: 300,
   retentionDays: 30,
   costPerUnitUsd: 0,
+  credentials: ["BLUESKY_IDENTIFIER", "BLUESKY_APP_PASSWORD"],
   start,
   checkDeleted,
 };
