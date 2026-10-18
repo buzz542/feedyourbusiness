@@ -1,0 +1,135 @@
+import "server-only";
+import type { AdminClient } from "@/server/supabase/admin";
+import type { CollectTerm } from "@/sources/types";
+import type { CollectStore } from "./collect-step";
+
+/** Supabase implementation of the collect step's store (docs/PLAN.md 7.3). Service role only. */
+
+function must<T>(result: { data: T; error: { message: string } | null }): T {
+  if (result.error) throw new Error(`Supabase: ${result.error.message}`);
+  return result.data;
+}
+
+/** PostgREST puts `in` lists in the URL; keep each request well under its limits. */
+const CHUNK = 200;
+function chunks<T>(items: readonly T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += CHUNK) out.push(items.slice(i, i + CHUNK));
+  return out;
+}
+
+export function createSupabaseCollectStore(db: AdminClient): CollectStore {
+  return {
+    async suppressed(source, hashes) {
+      const found = new Set<string>();
+      for (const part of chunks(hashes)) {
+        const rows = must(
+          await db
+            .from("suppression")
+            .select("author_hash")
+            .eq("source", source)
+            .in("author_hash", part),
+        );
+        for (const row of rows ?? []) found.add(row.author_hash);
+      }
+      return found;
+    },
+
+    async linked(productId, source, externalIds) {
+      const found = new Set<string>();
+      for (const part of chunks(externalIds)) {
+        const posts = must(
+          await db
+            .from("posts")
+            .select("id, external_id")
+            .eq("source", source)
+            .in("external_id", part),
+        );
+        if (!posts?.length) continue;
+        const links = must(
+          await db
+            .from("product_posts")
+            .select("post_id")
+            .eq("product_id", productId)
+            .in(
+              "post_id",
+              posts.map((p) => p.id),
+            ),
+        );
+        const linkedIds = new Set((links ?? []).map((l) => l.post_id));
+        for (const post of posts) if (linkedIds.has(post.id)) found.add(post.external_id);
+      }
+      return found;
+    },
+
+    async ingest(post, now) {
+      const id = must(
+        await db.rpc("ingest_post", {
+          p_source: post.source,
+          p_external_id: post.externalId,
+          p_url: post.url,
+          p_excerpt: post.excerpt,
+          p_posted_at: post.postedAt.toISOString(),
+          p_author_hash: post.authorHash,
+          // Every source names a community; null stays null rather than becoming "".
+          p_community: post.community as string,
+          p_now: now.toISOString(),
+        }),
+      ) as string | null; // null: the author is suppressed (the generated type hides it)
+      return id ?? null;
+    },
+
+    async link(productId, postId, label) {
+      must(
+        await db.from("product_posts").upsert(
+          {
+            product_id: productId,
+            post_id: postId,
+            relevance: label.relevance,
+            category: label.category,
+            reason: label.reason,
+          },
+          { onConflict: "product_id,post_id", ignoreDuplicates: true },
+        ),
+      );
+    },
+
+    async recordTermStats(jobId, day, source, stats) {
+      must(
+        await db.rpc("record_term_stats", {
+          p_job_id: jobId,
+          p_day: day,
+          p_source: source,
+          p_stats: stats.map((s) => ({
+            term_id: s.termId,
+            fetched: s.fetched,
+            relevant: s.relevant,
+          })),
+        }),
+      );
+    },
+  };
+}
+
+/**
+ * Step 1 of 7.3 at run time: null when the product is no longer collectable (paused, unconfirmed,
+ * or its owner no longer entitled), otherwise its active, unpaused terms.
+ */
+export async function loadCollectTerms(
+  db: AdminClient,
+  productId: string,
+): Promise<CollectTerm[] | null> {
+  const collectable = must(await db.rpc("collectable_products").eq("id", productId));
+  if (!collectable?.length) return null;
+  const terms = must(
+    await db
+      .from("search_terms")
+      .select("id, term")
+      .eq("product_id", productId)
+      .eq("active", true)
+      .eq("paused", false)
+      .order("created_at")
+      .order("id"),
+  );
+  return (terms ?? []).map((t) => ({ id: t.id, term: t.term }));
+}

@@ -13,13 +13,18 @@ export interface CollectHandlerDeps {
   sourceFor(id: string): CollectSource | null;
   fetchFor(source: CollectSource): CollectContext["fetch"];
   budget: BudgetStore;
-  terms(productId: string, source: CollectSource): Promise<CollectTerm[]>;
-  /** Steps 5 to 9 of 7.3 for one batch of posts. Must be idempotent. */
+  /**
+   * Step 1 of 7.3: the product's active terms for this source, or null when the product is no
+   * longer collectable (paused, unconfirmed, or its owner no longer entitled) since the enqueue.
+   */
+  terms(productId: string, source: CollectSource): Promise<CollectTerm[] | null>;
+  /** Steps 5 to 9 of 7.3 for one batch of posts (createCollectStep). Must be idempotent. */
   process(input: {
     job: Job;
     source: CollectSource;
     posts: CollectedPost[];
     now: Date;
+    since: Date;
   }): Promise<{ stored: number }>;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
@@ -51,6 +56,12 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     const source = job.source ? deps.sourceFor(job.source) : null;
     if (!source || !job.productId) return { status: "done", payload: { result: "source_off" } };
     if (now().getTime() >= deadline) return { status: "waiting", runAfter: now() };
+    const terms = await deps.terms(job.productId, source);
+    // Checked before the budget is reserved. A run that already reserved (a vendor run in flight)
+    // finishes so its cost is settled, but stores nothing for a product that is no longer collected.
+    const collectable = terms !== null;
+    if (!collectable && !("reserved" in job.payload))
+      return { status: "done", payload: { result: "not_collectable" } };
 
     const firstRun = job.kind === "first_run";
     const units = source.dailyBudget * (firstRun ? 2 : 1);
@@ -69,7 +80,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
 
     const ctx: CollectContext = {
       fetch: deps.fetchFor(source),
-      terms: await deps.terms(job.productId, source),
+      terms: terms ?? [],
       since: new Date(now().getTime() - (firstRun ? 7 * 24 : 48) * HOUR),
       budget: units,
       now: now(),
@@ -95,8 +106,18 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     }
     if (state.kind === "failed") throw new SourceError(state.errorClass);
 
-    const { stored } = await deps.process({ job, source, posts: state.posts, now: now() });
     const used = Math.max(0, Math.min(state.units, units));
+    if (!collectable) {
+      await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
+      return { status: "done", payload: { result: "not_collectable", units: used } };
+    }
+    const { stored } = await deps.process({
+      job,
+      source,
+      posts: state.posts,
+      now: now(),
+      since: ctx.since,
+    });
     await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
     return { status: "done", payload: { result: "ok", stored, units: used } };
   };

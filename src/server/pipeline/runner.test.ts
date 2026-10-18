@@ -284,6 +284,77 @@ describe("enqueueDaily", () => {
   });
 });
 
+describe("a product that stopped being collectable", () => {
+  it("is skipped at run time: no budget reserved, no source called (docs/PLAN.md 7.3 step 1)", async () => {
+    const src = source();
+    const { store, budget, handlers } = setup(src);
+    const paused: CollectHandlerDeps = {
+      sourceFor: () => src,
+      fetchFor: () => vi.fn(),
+      budget,
+      terms: async () => null, // paused, unconfirmed or no longer entitled since the enqueue
+      process: vi.fn(),
+      monthlyCap: () => null,
+      userAgent: "AskedFor/test",
+    };
+    await enqueueCollect(store);
+    await runJobs({
+      store,
+      handlers: { collect: createCollectHandler(paused) },
+      clock: clockFrom(T0).now,
+    });
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "not_collectable" } });
+    expect(budget.reserveCalls).toBe(0);
+    expect(src.start).not.toHaveBeenCalled();
+  });
+});
+
+describe("a vendor run in flight when the product stops being collectable", () => {
+  it("still settles what the vendor billed, and stores nothing", async () => {
+    let collectable = true;
+    const poll = vi.fn<NonNullable<CollectSource["poll"]>>(async () => ({
+      kind: "done",
+      posts: [post("9")],
+      units: 6,
+    }));
+    const src = source({
+      id: "reddit",
+      access: "vendor_api",
+      retentionDays: 7,
+      costPerUnitUsd: 0.0015,
+      start: vi.fn(async (): Promise<RunState> => ({ kind: "pending", handle: "snap-1" })),
+      poll,
+    });
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    const process = vi.fn<CollectHandlerDeps["process"]>(async () => ({ stored: 1 }));
+    const handlers = {
+      collect: createCollectHandler({
+        sourceFor: () => src,
+        fetchFor: () => vi.fn(),
+        budget,
+        terms: async () => (collectable ? [{ id: "t1", term: "invoice tool" }] : null),
+        process,
+        monthlyCap: () => null,
+        userAgent: "AskedFor/test",
+      }),
+    };
+    await store.enqueue([
+      { kind: "collect", productId: "p1", source: "reddit", dedupeKey: `collect:p1:reddit:${DAY}` },
+    ]);
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    collectable = false; // paused while the vendor works
+    clock.advance(3 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(poll).toHaveBeenCalledTimes(1);
+    expect(process).not.toHaveBeenCalled();
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "not_collectable" } });
+    expect(budget.ledger.get(`p1:reddit:${DAY}`)).toBe(6);
+    expect(budget.costs.get(`p1:reddit:${DAY}`)).toBeCloseTo(0.009, 6);
+  });
+});
+
 describe("collecting Reddit through the vendor (the real module, a fake vendor)", () => {
   const fixture = (name: string) => readFileSync(`tests/fixtures/reddit/${name}`, "utf8");
   const CONFIG: Record<string, string> = {

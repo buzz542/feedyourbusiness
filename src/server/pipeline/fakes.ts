@@ -1,3 +1,4 @@
+import type { CollectStore, PostLabel, StoredPost, TermStat } from "./collect-step";
 import type { BudgetStore, Job, JobOutcome, JobStore, NewJob, ReserveResult } from "./ports";
 
 /**
@@ -105,5 +106,56 @@ export class FakeBudget implements BudgetStore {
     this.costs.set(key, (this.costs.get(key) ?? 0) + costUsd);
     job.payload = { ...job.payload, settled: true };
     return true;
+  }
+}
+
+/** In-memory CollectStore with ingest_post's rules: suppression checked at insert, repeats return the stored id. */
+export class FakeCollectStore implements CollectStore {
+  /** id -> stored post */
+  posts = new Map<string, StoredPost & { id: string }>();
+  links: Array<{ productId: string; postId: string } & PostLabel> = [];
+  /** "source|hash" pairs on the suppression list (the pre-check reads these). */
+  suppression = new Set<string>();
+  /** Hashes ingest refuses although the pre-check missed them (a suppression added mid-run). */
+  suppressedAtIngest = new Set<string>();
+  termStats: Array<{ jobId: string; day: string; source: string; stats: TermStat[] }> = [];
+  private nextId = 1;
+
+  async suppressed(source: string, hashes: readonly string[]): Promise<Set<string>> {
+    return new Set(hashes.filter((h) => this.suppression.has(`${source}|${h}`)));
+  }
+
+  async linked(productId: string, source: string, externalIds: readonly string[]) {
+    const ids = new Set(externalIds);
+    const out = new Set<string>();
+    for (const link of this.links) {
+      const post = this.posts.get(link.postId);
+      if (link.productId === productId && post?.source === source && ids.has(post.externalId))
+        out.add(post.externalId);
+    }
+    return out;
+  }
+
+  async ingest(post: StoredPost): Promise<string | null> {
+    if (
+      this.suppressedAtIngest.has(post.authorHash) ||
+      this.suppression.has(`${post.source}|${post.authorHash}`)
+    )
+      return null;
+    for (const [id, stored] of this.posts)
+      if (stored.source === post.source && stored.externalId === post.externalId) return id;
+    const id = `post-${this.nextId++}`;
+    this.posts.set(id, { ...post, id });
+    return id;
+  }
+
+  async link(productId: string, postId: string, label: PostLabel): Promise<void> {
+    if (this.links.some((l) => l.productId === productId && l.postId === postId)) return;
+    this.links.push({ productId, postId, ...label });
+  }
+
+  async recordTermStats(jobId: string, day: string, source: string, stats: TermStat[]) {
+    if (this.termStats.some((t) => t.jobId === jobId)) return;
+    this.termStats.push({ jobId, day, source, stats });
   }
 }

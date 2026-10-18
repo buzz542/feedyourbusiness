@@ -708,6 +708,10 @@ export type Database = {
         Args: { p_now: string }
         Returns: Json
       }
+      record_term_stats: {
+        Args: { p_day: string; p_job_id: string; p_source: string; p_stats: Json }
+        Returns: boolean
+      }
       reserve_job_budget: {
         Args: { p_day: string; p_job_id: string; p_limit: number; p_month_start?: string; p_monthly_cap?: number; p_product_id: string; p_source: string; p_units: number }
         Returns: string
