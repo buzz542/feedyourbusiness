@@ -1,0 +1,39 @@
+{
+  "results": [
+    {
+      "id": "0",
+      "relevance": 86,
+      "category": "looking_for_tool",
+      "reason": "Asks for a tool that sends invoice reminders automatically.",
+      "highlight": "sends invoice reminders automatically",
+      "tool_mentioned": null,
+      "competitor_key": null,
+      "rival": null
+    },
+    {
+      "id": "1",
+      "relevance": 74,
+      "category": "mentions_competitor",
+      "reason": "Unhappy with a competitor's new pricing and looking for another option.",
+      "highlight": "raised its price again",
+      "tool_mentioned": "Ledgerly",
+      "competitor_key": "c1",
+      "rival": {
+        "issue": "pricing",
+        "sentiment": "negative",
+        "switching": true,
+        "summary": "Finds the competitor too expensive after a price rise and is looking elsewhere."
+      }
+    },
+    {
+      "id": "2",
+      "relevance": 12,
+      "category": "not_relevant",
+      "reason": "A post about an office view, unrelated to invoicing.",
+      "highlight": "",
+      "tool_mentioned": null,
+      "competitor_key": null,
+      "rival": null
+    }
+  ]
+}

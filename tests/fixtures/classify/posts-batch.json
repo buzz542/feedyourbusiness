@@ -1,0 +1,20 @@
+[
+  {
+    "id": "0",
+    "source": "reddit",
+    "community": "r/freelance",
+    "excerpt": "Is there an app that sends invoice reminders automatically? Tired of chasing clients."
+  },
+  {
+    "id": "1",
+    "source": "hackernews",
+    "community": "Hacker News",
+    "excerpt": "Ledgerly raised its price again, looking at other options for a two person shop."
+  },
+  {
+    "id": "2",
+    "source": "bluesky",
+    "community": "Bluesky",
+    "excerpt": "Look at the sunset from my office window today."
+  }
+]
