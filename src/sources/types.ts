@@ -101,6 +101,12 @@ export interface CollectSource extends SourceBase {
     readonly name: string;
     readonly dpaUrl: string;
     readonly dpaSignedOnEnv: string;
+    /**
+     * How long the vendor keeps the snapshots it delivers ("30 days"), as the privacy notice states
+     * it (docs/PLAN.md 2.3.12). Null until confirmed in writing, and a deployment keeps the source
+     * off while it is null, so the notice's promise to state it first holds.
+     */
+    readonly snapshotRetention: string | null;
   };
   /** D4: 7 for reddit and x, 30 for the rest. */
   readonly retentionDays: 7 | 30;

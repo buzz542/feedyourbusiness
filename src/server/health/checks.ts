@@ -4,7 +4,13 @@ import type { BillingStripe, WebhookEndpointInfo } from "@/server/billing/ports"
 import { isCronAuthorized } from "@/server/http/cron";
 import { json } from "@/server/http/respond";
 import { PROCESSOR_HOSTS } from "@/server/net/hosts";
-import { collectSources, isEnabled, killSwitchName, sources } from "@/sources/registry";
+import {
+  collectSources,
+  isEnabled,
+  killSwitchName,
+  sources,
+  vendorClearance,
+} from "@/sources/registry";
 
 /**
  * Deployment health check. One authenticated request tells the founder whether this deployment
@@ -299,7 +305,9 @@ function checkSources(env: Env): CheckResult {
     if (s.mode !== "collect" || env[killSwitchName(s)] !== "true") continue;
     if (!isEnabled(s, env)) {
       missing.push(
-        `${s.id} stays off until ${s.vendor?.dpaSignedOnEnv} holds the date (docs/PLAN.md 2.1.7)`,
+        vendorClearance(s, env) === "notice_missing"
+          ? `${s.id} stays off until the privacy notice states how long ${s.vendor?.name} keeps snapshots (docs/PLAN.md 2.3.12)`
+          : `${s.id} stays off until ${s.vendor?.dpaSignedOnEnv} holds the DPA date, YYYY-MM-DD and not in the future (docs/PLAN.md 2.1.7)`,
       );
       continue;
     }

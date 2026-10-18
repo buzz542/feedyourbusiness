@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   allowedHosts,
   declaredHosts,
+  dpaSignedOn,
   enabledSources,
   isEnabled,
   killSwitchName,
   sources,
   vendorClearance,
 } from "./registry";
+import type { CollectSource } from "./types";
 import { BRIGHTDATA_API_HOST } from "./reddit-vendor";
 
 /**
@@ -122,8 +124,13 @@ describe("kill switches", () => {
 });
 
 describe("vendor clearance (docs/PLAN.md 2.1.7)", () => {
-  const reddit = sources.find((s) => s.id === "reddit")!;
+  const reddit = sources.find((s) => s.id === "reddit")! as CollectSource;
   const ON = { SOURCE_REDDIT_ENABLED: "true" };
+  /** Reddit as it will be once the notice states Bright Data's snapshot retention (F8). */
+  const stated: CollectSource = {
+    ...reddit,
+    vendor: { ...reddit.vendor!, snapshotRetention: "30 days" },
+  };
 
   it("names the env var that holds the vendor's DPA date", () => {
     expect(reddit).toMatchObject({ vendor: { dpaSignedOnEnv: "BRIGHTDATA_DPA_SIGNED_ON" } });
@@ -140,17 +147,47 @@ describe("vendor clearance (docs/PLAN.md 2.1.7)", () => {
         "2026-13-01",
         "2026-02-30",
         "02/11/2026",
-        "2026-11-02T00:00:00Z",
+        "2026-10-02T00:00:00Z",
       ])
         expect(
           isEnabled(reddit, { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: bad }),
           `${VERCEL_ENV} ${bad}`,
         ).toBe(false);
-      const signed = { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02" };
-      expect(isEnabled(reddit, signed)).toBe(true);
-      expect(vendorClearance(reddit, signed)).toBe("cleared");
-      expect(allowedHosts(signed)).toEqual([BRIGHTDATA_API_HOST]);
+      const signed = { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" };
+      expect(isEnabled(stated, signed)).toBe(true);
+      expect(vendorClearance(stated, signed)).toBe("cleared");
     }
+  });
+
+  it("keeps it off, DPA or not, until the notice states how long the vendor keeps snapshots", () => {
+    expect(reddit).toMatchObject({ vendor: { snapshotRetention: null } });
+    for (const VERCEL_ENV of ["production", "preview"]) {
+      const signed = { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" };
+      expect(vendorClearance(reddit, signed)).toBe("notice_missing");
+      expect(isEnabled(reddit, signed)).toBe(false);
+      expect(allowedHosts(signed)).toEqual([]);
+    }
+  });
+
+  it("fails closed when it cannot tell it is a local run", () => {
+    const signed = { BRIGHTDATA_DPA_SIGNED_ON: "2026-10-01" };
+    expect(vendorClearance(reddit, { NODE_ENV: "production" })).toBe("dpa_missing");
+    expect(vendorClearance(stated, { NODE_ENV: "production", ...signed })).toBe("cleared");
+    expect(vendorClearance(reddit, { VERCEL_ENV: "staging" })).toBe("dpa_missing");
+    expect(vendorClearance(reddit, { VERCEL_ENV: "development" })).toBe("cleared");
+    expect(vendorClearance(reddit, { NODE_ENV: "test" })).toBe("cleared");
+  });
+
+  it("refuses a DPA date in the future, so a date set ahead of signing clears nothing", () => {
+    const now = new Date("2026-10-18T12:00:00Z");
+    const on = (day: string) =>
+      vendorClearance(stated, { VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: day }, now);
+    expect(on("2026-10-19")).toBe("dpa_missing");
+    expect(on("2027-10-18")).toBe("dpa_missing");
+    expect(on("2026-10-18")).toBe("cleared");
+    expect(on(" 2026-10-01")).toBe("dpa_missing");
+    expect(dpaSignedOn(reddit, { BRIGHTDATA_DPA_SIGNED_ON: "2026-10-19" }, now)).toBeNull();
+    expect(dpaSignedOn(reddit, { BRIGHTDATA_DPA_SIGNED_ON: "2026-10-01" }, now)).toBe("2026-10-01");
   });
 
   it("does not hold back local runs or official API sources", () => {
@@ -165,7 +202,7 @@ describe("vendor clearance (docs/PLAN.md 2.1.7)", () => {
 
   it("never turns on a vendor source whose kill switch is off, DPA or not", () => {
     expect(
-      isEnabled(reddit, { VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02" }),
+      isEnabled(reddit, { VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" }),
     ).toBe(false);
   });
 });

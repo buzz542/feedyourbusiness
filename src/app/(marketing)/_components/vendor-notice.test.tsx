@@ -4,6 +4,7 @@ import { sources } from "@/sources/registry";
 import PrivacyPage from "../privacy/page";
 import SourcesPage from "../sources/page";
 import { SiteFooter } from "./site-footer";
+import { VendorNotice } from "./vendor-notice";
 
 /**
  * docs/PLAN.md 2.1.7 and 9.6: the privacy notice and the sources page name the data provider, say
@@ -29,6 +30,38 @@ describe("the data provider notice", () => {
     expect(page).toContain("This is not a data license from Reddit");
     expect(page).toMatch(/How long Bright Data keeps .* snapshots/);
     expect(page).not.toMatch(/official APIs only|don't scrape|no scraping/i);
+  });
+});
+
+describe("the data provider notice before and after the DPA", () => {
+  const notice = (props: Parameters<typeof VendorNotice>[0]) =>
+    text(renderToStaticMarkup(<VendorNotice {...props} />));
+  const UNDER_DPA = "Bright Data works for us as a processor under a data processing agreement";
+
+  it("says Reddit stays off, not that a DPA exists, until the DPA date is set", () => {
+    const page = notice({ dpaSignedOn: null, snapshotRetention: null });
+    expect(page).not.toContain(UNDER_DPA);
+    expect(page).toContain(
+      "Reddit collection stays switched off until Bright Data has signed a data processing agreement with us",
+    );
+  });
+
+  it("states the DPA once its date is set", () => {
+    expect(notice({ dpaSignedOn: "2026-10-02", snapshotRetention: null })).toContain(UNDER_DPA);
+  });
+
+  it("states the snapshot retention once it is confirmed", () => {
+    const page = notice({ dpaSignedOn: "2026-10-02", snapshotRetention: "30 days" });
+    expect(page).toContain("Bright Data keeps the snapshots it delivers to us for 30 days");
+    expect(page).not.toContain("being confirmed");
+  });
+
+  it("is in the DPA-pending state on these pages, where no DPA date is set", () => {
+    for (const page of [
+      renderToStaticMarkup(<PrivacyPage />),
+      renderToStaticMarkup(<SourcesPage />),
+    ])
+      expect(text(page)).not.toContain(UNDER_DPA);
   });
 });
 
@@ -63,6 +96,14 @@ describe("the sources page", () => {
     for (const source of sources)
       if (source.mode === "link") expect(page).toContain(source.displayName);
     expect(page).toMatch(/searches you open yourself/i);
+  });
+
+  it("never names a collected platform in the sentence that says nothing is collected", () => {
+    const sentence = /AskedFor collects nothing\.[^.]*\./.exec(page)?.[0] ?? "";
+    expect(sentence).toContain("LinkedIn");
+    for (const source of sources)
+      if (source.mode === "collect") expect(sentence).not.toContain(source.displayName);
+    expect(page).toContain("You also get search links for Reddit and X");
   });
 
   it("says AskedFor never acts on a platform or writes replies", () => {

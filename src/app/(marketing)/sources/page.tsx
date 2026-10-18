@@ -14,6 +14,10 @@ const HOW: Readonly<Record<string, string>> = {
   x: "The official X API, only when it is switched on.",
 };
 
+/** "Reddit and X", "A, B and C". */
+const listOf = (names: readonly string[]) =>
+  names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+
 const access = (source: CollectSource) =>
   source.access === "vendor_api"
     ? `Through a data provider: ${source.vendor?.name}.`
@@ -25,7 +29,11 @@ const access = (source: CollectSource) =>
  */
 export default function Page() {
   const collected = sources.filter((s): s is CollectSource => s.mode === "collect");
+  const collectedNames = new Set(collected.map((s) => s.displayName));
   const linked = sources.filter((s) => s.mode === "link").map((s) => s.displayName);
+  // A platform we also collect is never listed where the page says nothing is collected.
+  const linkOnly = linked.filter((name) => !collectedNames.has(name));
+  const alsoLinked = linked.filter((name) => collectedNames.has(name));
   return (
     <article>
       <h1 className="font-serif text-3xl tracking-tight">Where posts come from</h1>
@@ -58,8 +66,14 @@ export default function Page() {
       <h2 className="mt-10 font-serif text-xl tracking-tight">Searches you open yourself</h2>
       <p className="mt-4">
         For these, AskedFor collects nothing. It builds a search link from your terms and you open
-        it in your own browser: {linked.join(", ")}.
+        it in your own browser: {linkOnly.join(", ")}.
       </p>
+      {alsoLinked.length > 0 ? (
+        <p className="mt-2">
+          You also get search links for {listOf(alsoLinked)}, to open yourself next to what is
+          collected above.
+        </p>
+      ) : null}
 
       <VendorNotice />
     </article>

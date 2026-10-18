@@ -401,10 +401,12 @@ describe("runHealthChecks", () => {
     });
 
     it("reports a source that would refuse to start: an unpinned dataset, or X before deletion compliance", async () => {
+      // A local run: deployments hold Reddit back until the notice states snapshot retention.
       const reddit = withEnv({
         ...PEPPER,
+        VERCEL_ENV: "development",
         SOURCE_REDDIT_ENABLED: "true",
-        BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02",
+        BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02",
         BRIGHTDATA_API_TOKEN: "bd-token-value",
         BRIGHTDATA_REDDIT_DATASET_ID: "gd_l1viktl72bvl7bjuj0",
       });
@@ -427,18 +429,19 @@ describe("runHealthChecks", () => {
       expect(held.checks.sources).toEqual({
         status: "missing",
         detail:
-          "reddit stays off until BRIGHTDATA_DPA_SIGNED_ON holds the date (docs/PLAN.md 2.1.7)",
+          "reddit stays off until BRIGHTDATA_DPA_SIGNED_ON holds the DPA date, YYYY-MM-DD and not in the future (docs/PLAN.md 2.1.7)",
       });
       const signed = withEnv({
         SOURCE_REDDIT_ENABLED: "true",
-        BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02",
+        BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02",
         BRIGHTDATA_API_TOKEN: "bd-token-value",
         BRIGHTDATA_REDDIT_DATASET_ID: "gd_lvz8ah06191smkebj4",
         AUTHOR_HASH_PEPPER: "a-long-random-pepper-of-32-characters-plus",
       });
       expect((await runHealthChecks(deps({ env: signed }))).checks.sources).toEqual({
-        status: "ok",
-        detail: "on: reddit",
+        status: "missing",
+        detail:
+          "reddit stays off until the privacy notice states how long Bright Data keeps snapshots (docs/PLAN.md 2.3.12)",
       });
     });
   });

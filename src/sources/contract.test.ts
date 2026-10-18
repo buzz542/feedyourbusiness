@@ -35,6 +35,7 @@ const vendorReddit = (over: Partial<CollectSource> = {}) =>
       name: "Data vendor",
       dpaUrl: "https://vendor.example/dpa",
       dpaSignedOnEnv: "VENDOR_DPA_SIGNED_ON",
+      snapshotRetention: null,
     },
     allowedHosts: [BRIGHTDATA_API_HOST],
     linkHosts: ["www.reddit.com"],
@@ -67,6 +68,7 @@ describe("registryProblems", () => {
             name: "V",
             dpaUrl: "http://vendor.example/dpa",
             dpaSignedOnEnv: "V_DPA_SIGNED_ON",
+            snapshotRetention: null,
           },
         }),
       ],
@@ -76,7 +78,12 @@ describe("registryProblems", () => {
       "a vendor without a DPA date variable",
       [
         vendorReddit({
-          vendor: { name: "V", dpaUrl: "https://vendor.example/dpa", dpaSignedOnEnv: "dpa date" },
+          vendor: {
+            name: "V",
+            dpaUrl: "https://vendor.example/dpa",
+            dpaSignedOnEnv: "dpa date",
+            snapshotRetention: null,
+          },
         }),
       ],
       /reddit: the vendor's DPA date must live in an env var named <NAME>_DPA_SIGNED_ON/,
@@ -86,7 +93,12 @@ describe("registryProblems", () => {
       [
         collect({
           access: "vendor_api",
-          vendor: { name: "V", dpaUrl: "https://v.example", dpaSignedOnEnv: "V_DPA_SIGNED_ON" },
+          vendor: {
+            name: "V",
+            dpaUrl: "https://v.example",
+            dpaSignedOnEnv: "V_DPA_SIGNED_ON",
+            snapshotRetention: null,
+          },
         }),
       ],
       /hackernews: only reddit may use a vendor/,

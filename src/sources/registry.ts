@@ -36,36 +36,63 @@ export function killSwitchName(source: Pick<Source, "id">): string {
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** A real calendar day as YYYY-MM-DD (2026-02-30 and 2026-13-01 are not). */
-function isIsoDay(value: string | undefined): boolean {
+function isIsoDay(value: string | undefined): value is string {
   if (!value || !ISO_DAY.test(value)) return false;
   const day = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
 }
 
 /**
- * docs/PLAN.md 2.1.7: on a deployment (production or preview), a vendor source stays off until the
- * env var its vendor names holds the date the DPA, transfer mechanism and DPIA were done. Local runs
- * (development, and the founder's capture script) are not held back.
+ * docs/PLAN.md 2.1.7: on a deployment (anything but a local run), a vendor source stays off until the
+ * env var its vendor names holds the date the DPA, transfer mechanism and DPIA were done, and until
+ * the module states how long the vendor keeps snapshots (2.3.12), which the notice then shows. Local
+ * runs (development, and the founder's capture script) are not held back.
  */
 export function vendorClearance(
   source: Source,
   env: Env = process.env,
-): "not_vendor" | "cleared" | "dpa_missing" {
+  now: Date = new Date(),
+): "not_vendor" | "cleared" | "dpa_missing" | "notice_missing" {
   if (source.mode !== "collect" || source.access !== "vendor_api") return "not_vendor";
-  const deployed = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
-  if (!deployed) return "cleared";
-  return source.vendor && isIsoDay(env[source.vendor.dpaSignedOnEnv]) ? "cleared" : "dpa_missing";
+  if (isLocalRun(env)) return "cleared";
+  if (!dpaSignedOn(source, env, now)) return "dpa_missing";
+  return source.vendor?.snapshotRetention ? "cleared" : "notice_missing";
+}
+
+/**
+ * Only a run that says it is local skips the DPA gate: Vercel's development env, or no Vercel env
+ * at all outside a production build. Anything else (a production server off Vercel, an unknown
+ * VERCEL_ENV) is held back like a deployment.
+ */
+function isLocalRun(env: Env): boolean {
+  if (env.VERCEL_ENV !== undefined) return env.VERCEL_ENV === "development";
+  return env.NODE_ENV !== "production";
+}
+
+/**
+ * The vendor's DPA date when it is a valid day no later than today (UTC), for the gate and the
+ * notice; null otherwise, so a date set ahead of signing clears nothing.
+ */
+export function dpaSignedOn(
+  source: Source,
+  env: Env = process.env,
+  now: Date = new Date(),
+): string | null {
+  if (source.mode !== "collect" || !source.vendor) return null;
+  const value = env[source.vendor.dpaSignedOnEnv];
+  return isIsoDay(value) && value <= now.toISOString().slice(0, 10) ? value : null;
 }
 
 /**
  * Kill switch. Collect sources are off unless SOURCE_<ID>_ENABLED is exactly "true" (and, for a
- * vendor source on a deployment, its DPA date is set). Link sources are on unless it is exactly
+ * vendor source on a deployment, it is cleared by vendorClearance). Link sources are on unless it is exactly
  * "false". A source can be paused in minutes by changing an env var if its terms change.
  */
 export function isEnabled(source: Source, env: Env = process.env): boolean {
   const value = env[killSwitchName(source)];
   if (source.mode === "link") return value !== "false";
-  return value === "true" && vendorClearance(source, env) !== "dpa_missing";
+  const clearance = vendorClearance(source, env);
+  return value === "true" && (clearance === "cleared" || clearance === "not_vendor");
 }
 
 export function enabledSources(env: Env = process.env): Source[] {

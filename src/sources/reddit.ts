@@ -199,6 +199,8 @@ export const reddit: CollectSource = {
     name: "Bright Data",
     dpaUrl: "https://brightdata.com/legal",
     dpaSignedOnEnv: "BRIGHTDATA_DPA_SIGNED_ON",
+    // F8: set from Bright Data's written answer, then the notice states it and Reddit may run.
+    snapshotRetention: null,
   },
   termsUrl: "https://brightdata.com/legal",
   allowedHosts: [BRIGHTDATA_API_HOST],
