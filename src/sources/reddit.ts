@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { brightdataProvider } from "./reddit-brightdata";
+import { brightdataProvider, PINNED_DATASET_IDS } from "./reddit-brightdata";
 import type { RedditProvider, RedditRecord } from "./reddit-provider";
 import { BRIGHTDATA_API_HOST } from "./reddit-vendor";
 import { isProfileCommunity, isSensitiveCommunity } from "./sensitive-communities";
@@ -213,6 +213,16 @@ export const reddit: CollectSource = {
     "BRIGHTDATA_API_TOKEN",
     "BRIGHTDATA_REDDIT_DATASET_ID",
   ],
+  requiredCredentials: ["BRIGHTDATA_API_TOKEN", "BRIGHTDATA_REDDIT_DATASET_ID"],
+  configProblems: (read) => {
+    const problems: string[] = [];
+    if (!PROVIDERS[read("REDDIT_PROVIDER") || "brightdata"])
+      problems.push("REDDIT_PROVIDER names no known provider");
+    const dataset = read("BRIGHTDATA_REDDIT_DATASET_ID");
+    if (dataset && !PINNED_DATASET_IDS.includes(dataset))
+      problems.push("BRIGHTDATA_REDDIT_DATASET_ID is not a pinned dataset id");
+    return problems;
+  },
   start,
   poll,
   recheck,

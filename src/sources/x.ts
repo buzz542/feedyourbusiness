@@ -132,5 +132,10 @@ export const x: CollectSource = {
   // About $0.005 per post read (pay-per-use); the founder confirms it in the developer console.
   costPerUnitUsd: 0.005,
   credentials: ["X_BEARER_TOKEN"],
+  requiredCredentials: ["X_BEARER_TOKEN"],
+  configProblems: () =>
+    DELETION_COMPLIANCE_READY
+      ? []
+      : ["refuses to start until deletion compliance is built (docs/PLAN.md 7.6)"],
   start,
 };

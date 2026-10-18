@@ -281,6 +281,7 @@ export const bluesky: CollectSource = {
   retentionDays: 30,
   costPerUnitUsd: 0,
   credentials: ["BLUESKY_IDENTIFIER", "BLUESKY_APP_PASSWORD"],
+  requiredCredentials: ["BLUESKY_IDENTIFIER", "BLUESKY_APP_PASSWORD"],
   start,
   checkDeleted,
 };

@@ -357,15 +357,67 @@ describe("runHealthChecks", () => {
   });
 
   describe("sources", () => {
+    const PEPPER = { AUTHOR_HASH_PEPPER: "a-long-random-pepper-of-32-characters-plus" };
+    const BLUESKY = {
+      SOURCE_BLUESKY_ENABLED: "true",
+      BLUESKY_IDENTIFIER: "askedfor.example.test",
+      BLUESKY_APP_PASSWORD: "app-password-value",
+    };
+
     it("is ok with no collect source on, and lists the ones that are", async () => {
       expect((await runHealthChecks(deps())).checks.sources).toEqual({
         status: "ok",
         detail: "no collect source is on",
       });
-      const on = withEnv({ SOURCE_HACKERNEWS_ENABLED: "true", SOURCE_BLUESKY_ENABLED: "true" });
+      const on = withEnv({ SOURCE_HACKERNEWS_ENABLED: "true", ...BLUESKY, ...PEPPER });
       expect((await runHealthChecks(deps({ env: on }))).checks.sources).toEqual({
         status: "ok",
         detail: "on: hackernews, bluesky",
+      });
+    });
+
+    it("names missing credentials of a source that is on, never their values", async () => {
+      const env = withEnv({ SOURCE_BLUESKY_ENABLED: "true", BLUESKY_IDENTIFIER: "a", ...PEPPER });
+      expect((await runHealthChecks(deps({ env }))).checks.sources).toEqual({
+        status: "missing",
+        detail: "bluesky: BLUESKY_APP_PASSWORD is not set",
+      });
+    });
+
+    it("needs a real author-hash pepper once any collect source is on", async () => {
+      const missing = withEnv({ SOURCE_HACKERNEWS_ENABLED: "true" });
+      expect((await runHealthChecks(deps({ env: missing }))).checks.sources).toEqual({
+        status: "missing",
+        detail: "AUTHOR_HASH_PEPPER is not set (32 or more random characters, never rotated)",
+      });
+      const placeholder = withEnv({
+        SOURCE_HACKERNEWS_ENABLED: "true",
+        AUTHOR_HASH_PEPPER: "replace_me_with_a_long_random_string",
+      });
+      expect((await runHealthChecks(deps({ env: placeholder }))).checks.sources).toMatchObject({
+        status: "invalid",
+        detail: expect.stringMatching(/AUTHOR_HASH_PEPPER/),
+      });
+    });
+
+    it("reports a source that would refuse to start: an unpinned dataset, or X before deletion compliance", async () => {
+      const reddit = withEnv({
+        ...PEPPER,
+        SOURCE_REDDIT_ENABLED: "true",
+        BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02",
+        BRIGHTDATA_API_TOKEN: "bd-token-value",
+        BRIGHTDATA_REDDIT_DATASET_ID: "gd_l1viktl72bvl7bjuj0",
+      });
+      const redditReport = await runHealthChecks(deps({ env: reddit }));
+      expect(redditReport.checks.sources).toEqual({
+        status: "invalid",
+        detail: "reddit: BRIGHTDATA_REDDIT_DATASET_ID is not a pinned dataset id",
+      });
+      expect(JSON.stringify(redditReport)).not.toContain("bd-token-value");
+      const x = withEnv({ ...PEPPER, SOURCE_X_ENABLED: "true", X_BEARER_TOKEN: "x-token" });
+      expect((await runHealthChecks(deps({ env: x }))).checks.sources).toEqual({
+        status: "invalid",
+        detail: "x: refuses to start until deletion compliance is built (docs/PLAN.md 7.6)",
       });
     });
 
@@ -380,6 +432,9 @@ describe("runHealthChecks", () => {
       const signed = withEnv({
         SOURCE_REDDIT_ENABLED: "true",
         BRIGHTDATA_DPA_SIGNED_ON: "2026-11-02",
+        BRIGHTDATA_API_TOKEN: "bd-token-value",
+        BRIGHTDATA_REDDIT_DATASET_ID: "gd_lvz8ah06191smkebj4",
+        AUTHOR_HASH_PEPPER: "a-long-random-pepper-of-32-characters-plus",
       });
       expect((await runHealthChecks(deps({ env: signed }))).checks.sources).toEqual({
         status: "ok",

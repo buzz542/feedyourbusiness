@@ -168,6 +168,11 @@ describe("registryProblems", () => {
       /x: credential XSUPABASE_SECRET_KEY is not its own/,
     ],
     [
+      "a required credential it may not read",
+      [collect({ requiredCredentials: ["HACKERNEWS_TOKEN"] })],
+      /hackernews: required credential HACKERNEWS_TOKEN is not in its credentials/,
+    ],
+    [
       "a cost that is not a finite number",
       [collect({ costPerUnitUsd: Number.NaN })],
       /hackernews: cost and budget must be finite and not negative/,

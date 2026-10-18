@@ -178,6 +178,9 @@ export function registryProblems(list: readonly Source[]): string[] {
     for (const name of source.credentials)
       if (!/^[A-Z][A-Z0-9_]*$/.test(name) || !prefixes.some((p) => name.startsWith(p)))
         problems.push(`${id}: credential ${name} is not its own`);
+    for (const name of source.requiredCredentials ?? [])
+      if (!source.credentials.includes(name))
+        problems.push(`${id}: required credential ${name} is not in its credentials`);
     const finite = (n: number) => Number.isFinite(n) && n >= 0;
     if (!finite(source.costPerUnitUsd) || !finite(source.dailyBudget))
       problems.push(`${id}: cost and budget must be finite and not negative`);

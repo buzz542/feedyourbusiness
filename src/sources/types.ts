@@ -111,6 +111,10 @@ export interface CollectSource extends SourceBase {
    * its vendor's name ("BLUESKY_", "BRIGHTDATA_"). Any other name reads as unset.
    */
   readonly credentials: readonly string[];
+  /** The credentials it cannot run without (a subset of `credentials`), for /api/health. */
+  readonly requiredCredentials?: readonly string[];
+  /** What would stop it starting with this configuration, by env name only (never a value). */
+  configProblems?(read: (name: string) => string | undefined): string[];
   /** Free APIs finish at once; vendors return a handle to poll. */
   start(ctx: CollectContext): Promise<RunState>;
   poll?(ctx: CollectContext, handle: string): Promise<RunState>;

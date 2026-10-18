@@ -5,7 +5,6 @@ import { isCronAuthorized } from "@/server/http/cron";
 import { json } from "@/server/http/respond";
 import { PROCESSOR_HOSTS } from "@/server/net/hosts";
 import { collectSources, isEnabled, killSwitchName, sources } from "@/sources/registry";
-import type { CollectSource } from "@/sources/types";
 
 /**
  * Deployment health check. One authenticated request tells the founder whether this deployment
@@ -288,23 +287,42 @@ function checkEmail(env: Env): CheckResult {
   return { status: "ok" };
 }
 
-/** Which collect sources are on, and any held back for a missing vendor DPA date (2.1.7). */
+/**
+ * Which collect sources are on, and what would stop them: a vendor held back for its DPA date
+ * (2.1.7), a missing credential, a configuration the source refuses, or no usable author-hash
+ * pepper. Env names only, never a value.
+ */
 function checkSources(env: Env): CheckResult {
-  const held = sources.filter(
-    (s): s is CollectSource =>
-      s.mode === "collect" && env[killSwitchName(s)] === "true" && !isEnabled(s, env),
-  );
-  if (held.length > 0)
-    return {
-      status: "missing",
-      detail: held
-        .map(
-          (s) =>
-            `${s.id} stays off until ${s.vendor?.dpaSignedOnEnv} holds the date (docs/PLAN.md 2.1.7)`,
-        )
-        .join("; "),
-    };
+  const missing: string[] = [];
+  const invalid: string[] = [];
+  for (const s of sources) {
+    if (s.mode !== "collect" || env[killSwitchName(s)] !== "true") continue;
+    if (!isEnabled(s, env)) {
+      missing.push(
+        `${s.id} stays off until ${s.vendor?.dpaSignedOnEnv} holds the date (docs/PLAN.md 2.1.7)`,
+      );
+      continue;
+    }
+    const absentNames = (s.requiredCredentials ?? []).filter((name) => !env[name]);
+    if (absentNames.length > 0)
+      missing.push(
+        `${s.id}: ${absentNames.join(", ")} ${absentNames.length === 1 ? "is" : "are"} not set`,
+      );
+    const read = (name: string) => (s.credentials.includes(name) ? env[name] : undefined);
+    for (const problem of s.configProblems?.(read) ?? []) invalid.push(`${s.id}: ${problem}`);
+  }
   const on = collectSources(env).map((s) => s.id);
+  if (on.length > 0) {
+    const pepper = env.AUTHOR_HASH_PEPPER;
+    if (!pepper)
+      missing.push("AUTHOR_HASH_PEPPER is not set (32 or more random characters, never rotated)");
+    else if (pepper.length < 32 || PLACEHOLDER.test(pepper))
+      invalid.push(
+        "AUTHOR_HASH_PEPPER is shorter than 32 characters or still the .env.example placeholder",
+      );
+  }
+  if (missing.length > 0) return { status: "missing", detail: [...missing, ...invalid].join("; ") };
+  if (invalid.length > 0) return { status: "invalid", detail: invalid.join("; ") };
   return { status: "ok", detail: on.length ? `on: ${on.join(", ")}` : "no collect source is on" };
 }
 
