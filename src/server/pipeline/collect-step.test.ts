@@ -77,8 +77,15 @@ function fakeClassifier(over: (item: ClassifyItem) => Partial<Label> = () => ({}
 function setup(classifier = fakeClassifier()) {
   const store = new FakeCollectStore();
   const step = createCollectStep({ store, classifier, hash });
-  const run = (posts: CollectedPost[], source: CollectSource = hn, j: Job = job()) =>
-    step({ job: j, source, posts, now: NOW, since: SINCE });
+  const run = (
+    posts: CollectedPost[],
+    source: CollectSource = hn,
+    j: Job = job(),
+    terms = [
+      { id: "t-invoice", term: "invoice tool" },
+      { id: "t-fees", term: "late fees" },
+    ],
+  ) => step({ job: j, source, posts, now: NOW, since: SINCE, terms });
   return { store, classifier, run };
 }
 
@@ -228,6 +235,18 @@ describe("the collect step", () => {
           { termId: "t-fees", fetched: 1, relevant: 1 },
         ],
       },
+    ]);
+  });
+
+  it("counts every term the run asked about, so a term that finds nothing still rotates", async () => {
+    const { store, run } = setup();
+    await run([post("1")], hn, job(), [
+      { id: "t-invoice", term: "invoice tool" },
+      { id: "t-empty", term: "nothing matches this" },
+    ]);
+    expect(store.termStats[0]!.stats).toEqual([
+      { termId: "t-invoice", fetched: 1, relevant: 1 },
+      { termId: "t-empty", fetched: 0, relevant: 0 },
     ]);
   });
 

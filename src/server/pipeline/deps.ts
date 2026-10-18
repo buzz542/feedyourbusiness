@@ -58,7 +58,7 @@ export function createServerCronDeps(): CronDeps {
       sourceFor,
       fetchFor: (source) => createSourceFetch(source),
       budget,
-      terms: (productId) => loadCollectTerms(db, productId),
+      terms: (productId, source) => loadCollectTerms(db, productId, source.id),
       process: createCollectStep({
         store: createSupabaseCollectStore(db),
         classifier,

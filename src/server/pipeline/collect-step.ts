@@ -1,6 +1,6 @@
 import type { AuthorHasher } from "@/server/privacy/author-hash";
 import { normalizeAuthorKey } from "@/server/privacy/author-hash";
-import type { CollectedPost, CollectSource } from "@/sources/types";
+import type { CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
 import type { Job } from "./ports";
 
 /**
@@ -102,6 +102,8 @@ export function createCollectStep(deps: {
     posts: readonly CollectedPost[];
     now: Date;
     since: Date;
+    /** The terms the run asked about: each is counted, found posts or not, so rotation moves on. */
+    terms?: readonly CollectTerm[];
   }): Promise<{ stored: number }> {
     const { job, source, now, since } = input;
     const productId = job.productId;
@@ -182,6 +184,7 @@ export function createCollectStep(deps: {
     // Step 9 (the budget is settled by the handler): posts fetched and kept, per term, once per job.
     // A post found twice for the same term counts once.
     const fetched = new Map<string, Set<string>>();
+    for (const term of input.terms ?? []) fetched.set(term.id, new Set());
     for (const post of input.posts)
       if (post.termId)
         fetched.set(post.termId, (fetched.get(post.termId) ?? new Set()).add(post.externalId));

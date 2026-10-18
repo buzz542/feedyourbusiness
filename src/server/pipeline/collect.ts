@@ -26,6 +26,7 @@ export interface CollectHandlerDeps {
     posts: CollectedPost[];
     now: Date;
     since: Date;
+    terms: readonly CollectTerm[];
   }): Promise<{ stored: number }>;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
@@ -147,6 +148,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       posts: state.posts,
       now: now(),
       since: ctx.since,
+      terms: ctx.terms,
     });
     await deps.budget.settle(job.id, used, used * unitCost);
     return { status: "done", payload: { result: "ok", stored, units: used } };

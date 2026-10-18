@@ -678,6 +678,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      collect_terms: {
+        Args: { p_limit: number; p_product_id: string; p_source: string }
+        Returns: {
+          id: string
+          term: string
+        }[]
+      }
       collectable_products: {
         Args: never
         Returns: {

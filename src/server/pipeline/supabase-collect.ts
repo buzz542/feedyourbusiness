@@ -112,25 +112,28 @@ export function createSupabaseCollectStore(db: AdminClient): CollectStore {
   };
 }
 
+/** Terms per run: Reddit's 12 least recently collected (7.3 step 2), every term for free sources. */
+const TERMS_PER_RUN: Readonly<Record<string, number>> = { reddit: 12 };
+const MAX_TERMS = 40;
+
 /**
  * Step 1 of 7.3 at run time: null when the product is no longer collectable (paused, unconfirmed,
- * or its owner no longer entitled), otherwise its active, unpaused terms.
+ * or its owner no longer entitled), otherwise its active, unpaused terms for this source, least
+ * recently collected first (collect_terms).
  */
 export async function loadCollectTerms(
   db: AdminClient,
   productId: string,
+  source: string,
 ): Promise<CollectTerm[] | null> {
   const collectable = must(await db.rpc("collectable_products").eq("id", productId));
   if (!collectable?.length) return null;
   const terms = must(
-    await db
-      .from("search_terms")
-      .select("id, term")
-      .eq("product_id", productId)
-      .eq("active", true)
-      .eq("paused", false)
-      .order("created_at")
-      .order("id"),
+    await db.rpc("collect_terms", {
+      p_product_id: productId,
+      p_source: source,
+      p_limit: TERMS_PER_RUN[source] ?? MAX_TERMS,
+    }),
   );
   return (terms ?? []).map((t) => ({ id: t.id, term: t.term }));
 }
