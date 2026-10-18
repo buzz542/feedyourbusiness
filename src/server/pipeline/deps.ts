@@ -7,8 +7,13 @@ import { createCollectHandler } from "./collect";
 import { createCollectStep, type Classifier } from "./collect-step";
 import { monthlyCapFor, SOURCE_USER_AGENT } from "./config";
 import { createPurgeHandler, type CronDeps } from "./cron";
+import { createDeletionSyncHandler } from "./deletion-sync";
 import type { JobHandler, JobKind } from "./ports";
-import { createSupabaseCollectStore, loadCollectTerms } from "./supabase-collect";
+import {
+  createSupabaseCollectStore,
+  createSupabaseDeletionStore,
+  loadCollectTerms,
+} from "./supabase-collect";
 import {
   collectableProducts,
   createSupabaseBudgetStore,
@@ -31,13 +36,21 @@ function serverClassifier(): Classifier | null {
  */
 export function createServerCronDeps(): CronDeps {
   const db = createSupabaseAdminClient();
+  const sourceFor = (id: string) => collectSources().find((s) => s.id === id) ?? null;
   const handlers: Partial<Record<JobKind, JobHandler>> = {
     purge: createPurgeHandler((now) => purgeExpired(db, now)),
+    // Needs no model: it only deletes what the source no longer has.
+    deletion_sync: createDeletionSyncHandler({
+      sourceFor,
+      fetchFor: (source) => createSourceFetch(source),
+      store: createSupabaseDeletionStore(db),
+      userAgent: SOURCE_USER_AGENT,
+    }),
   };
   const classifier = serverClassifier();
   if (classifier) {
     const collect = createCollectHandler({
-      sourceFor: (id) => collectSources().find((s) => s.id === id) ?? null,
+      sourceFor,
       fetchFor: (source) => createSourceFetch(source),
       budget: createSupabaseBudgetStore(db),
       terms: (productId) => loadCollectTerms(db, productId),

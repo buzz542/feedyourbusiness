@@ -39,10 +39,26 @@ export async function runDailyCron(deps: CronDeps): Promise<CronResult> {
   return { status: statusFor(summary), body: { enqueued, ...summary } };
 }
 
-/** Every 10 minutes on Pro: advance due jobs (pending vendor runs, retries). */
+/**
+ * Every 10 minutes on Pro: purge once an hour ("every tick" in 7.2, deduped by the hour so the
+ * jobs table stays small), then advance due jobs (pending vendor runs, retries). On Hobby this route
+ * is not scheduled, and the daily cron purges.
+ */
 export async function runTickCron(deps: CronDeps): Promise<CronResult> {
+  const now = deps.clock();
+  const enqueued = kindsOf(deps).has("purge")
+    ? await deps.store.enqueue([
+        {
+          kind: "purge",
+          productId: null,
+          source: null,
+          dedupeKey: `purge:${now.toISOString().slice(0, 13)}`,
+          runAfter: now,
+        },
+      ])
+    : 0;
   const summary = await runJobs({ store: deps.store, handlers: deps.handlers, clock: deps.clock });
-  return { status: statusFor(summary), body: { ...summary } };
+  return { status: statusFor(summary), body: { enqueued, ...summary } };
 }
 
 /**

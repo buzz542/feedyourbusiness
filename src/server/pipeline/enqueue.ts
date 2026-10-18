@@ -35,6 +35,8 @@ export async function enqueueDaily(input: {
         source: source.id,
         dedupeKey: `deletion_sync:${source.id}:${day}`,
         runAfter: input.now,
+        // A job left over from an earlier day stops once today's has started.
+        payload: { day },
       });
   if (input.kinds.has("purge"))
     jobs.push({

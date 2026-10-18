@@ -405,6 +405,7 @@ describe("enqueueDaily", () => {
     expect(store.jobs).toHaveLength(6);
     // Due by the app's clock, the clock claims use, not the database's.
     for (const job of store.jobs) expect(job.runAfter).toEqual(T0);
+    expect(store.jobs.find((j) => j.kind === "deletion_sync")?.payload).toEqual({ day: DAY });
   });
 
   it("enqueues only the kinds that have a handler", async () => {

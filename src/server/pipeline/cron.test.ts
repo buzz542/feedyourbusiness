@@ -66,9 +66,20 @@ describe("runDailyCron", () => {
 });
 
 describe("runTickCron", () => {
-  it("only runs due jobs", async () => {
-    const d = deps();
-    expect((await runTickCron(d)).body).toMatchObject({ claimed: 0 });
+  it("purges once an hour (every tick on Pro) and runs the due jobs", async () => {
+    let now = NOW;
+    const d = deps({ clock: () => now });
+    expect((await runTickCron(d)).body).toMatchObject({ enqueued: 1, claimed: 1, done: 1 });
+    expect(d.store.jobs.map((j) => j.dedupeKey)).toEqual(["purge:2026-10-17T06"]);
+    now = new Date("2026-10-17T06:10:00Z");
+    expect((await runTickCron(d)).body).toMatchObject({ enqueued: 0, claimed: 0 });
+    now = new Date("2026-10-17T07:00:00Z");
+    expect((await runTickCron(d)).body).toMatchObject({ enqueued: 1 });
+  });
+
+  it("enqueues no purge without a purge handler", async () => {
+    const d = deps({ handlers: {} });
+    expect((await runTickCron(d)).body).toMatchObject({ enqueued: 0, claimed: 0 });
     expect(d.store.jobs).toHaveLength(0);
   });
 });

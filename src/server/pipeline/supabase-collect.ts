@@ -2,6 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/server/supabase/admin";
 import type { CollectTerm } from "@/sources/types";
 import type { CollectStore } from "./collect-step";
+import type { DeletionStore } from "./deletion-sync";
 
 /** Supabase implementation of the collect step's store (docs/PLAN.md 7.3). Service role only. */
 
@@ -132,4 +133,34 @@ export async function loadCollectTerms(
       .order("id"),
   );
   return (terms ?? []).map((t) => ({ id: t.id, term: t.term }));
+}
+
+/** Supabase implementation of the deletion sync's store. Service role only. */
+export function createSupabaseDeletionStore(db: AdminClient): DeletionStore {
+  return {
+    async stored(source, afterId, limit, now) {
+      let query = db
+        .from("posts")
+        .select("id, external_id")
+        .eq("source", source)
+        .gt("delete_after", now.toISOString());
+      if (afterId) query = query.gt("id", afterId);
+      const rows = must(await query.order("id").limit(limit));
+      return (rows ?? []).map((r) => ({ id: r.id, externalId: r.external_id }));
+    },
+
+    async remove(source, externalIds) {
+      let removed = 0;
+      for (const part of chunks(externalIds)) {
+        const { count, error } = await db
+          .from("posts")
+          .delete({ count: "exact" })
+          .eq("source", source)
+          .in("external_id", part);
+        if (error) throw new Error(`Supabase: ${error.message}`);
+        removed += count ?? 0;
+      }
+      return removed;
+    },
+  };
 }
