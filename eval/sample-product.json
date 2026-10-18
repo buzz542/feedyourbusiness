@@ -1,0 +1,9 @@
+{
+  "name": "Invoicer",
+  "oneLiner": "Invoices that chase themselves",
+  "description": "A small invoicing tool for freelancers that sends payment reminders on its own.",
+  "audience": "Freelancers and two-person agencies",
+  "competitors": [
+    { "key": "c1", "id": "c1", "name": "Ledgerly", "aliases": [], "domain": "ledgerly.example" }
+  ]
+}

@@ -31,3 +31,7 @@ fixtures-local/
 test-results/
 playwright-report/
 AGENTS.md
+
+# Classifier eval (docs/PLAN.md 8.6): the founder's labeled posts are real people's posts. Never commit.
+eval/labeled.jsonl
+eval/product.json

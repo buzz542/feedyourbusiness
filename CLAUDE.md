@@ -17,7 +17,7 @@ History, superseded wherever the plan disagrees: `docs/BRIEF.md` (never reformat
 - `npm run format`: Prettier
 - `npm run build`: production build; needs no secrets
 - `npm run db:migrate`, `npm run db:types`: Supabase CLI (needs `supabase login` and a linked project); the Supabase connector's `apply_migration` and `generate_typescript_types` do the same
-- `npm run test:e2e`: Playwright on localhost only (it starts `next dev`; every browser request off localhost fails the test). Sign-in E2E needs the development Supabase keys and is skipped with a message without them. `npm run db:types:local`: regenerate `src/types/database.ts` from the migrations. `npm run eval:classifier`: arrives with M4 (manual, live API)
+- `npm run test:e2e`: Playwright on localhost only (it starts `next dev`; every browser request off localhost fails the test). Sign-in E2E needs the development Supabase keys and is skipped with a message without them. `npm run db:types:local`: regenerate `src/types/database.ts` from the migrations. `npm run eval:classifier`: the classifier eval (manual, live API; reads the git-ignored `eval/labeled.jsonl` and `eval/product.json`, prints precision, recall and each batch's cache tokens)
 
 ## Stack
 

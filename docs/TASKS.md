@@ -119,8 +119,8 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 - [x] Prompt caching. Test: the cached block exceeds the model's documented minimum; a recorded pair of API responses shows `cache_read_input_tokens` above zero on the second call.
 - [x] Dedupe. Test: the same post found by two terms, two sources' URLs or two products yields one `posts` row and one `product_posts` row per product.
 - [x] Spend caps (8.1). Test: the per-product monthly cap and the global daily cap each stop classification and show in the job result.
-- [ ] Eval script `npm run eval:classifier` (8.6). Test: runs against a 5-row sample file with a fake model and prints precision and recall.
-- [ ] (you) F16: label 100 posts; precision is at least 0.8 at the default threshold; then replace section 18's model estimates with measured numbers from `llm_usage`.
+- [x] Eval script `npm run eval:classifier` (8.6). Test: runs against a 5-row sample file with a fake model and prints precision and recall.
+- [ ] (you) F16: label 100 posts; precision is at least 0.8 at the default threshold; then replace section 18's model estimates with measured numbers from `llm_usage`. The labeled file is `eval/labeled.jsonl` (git-ignored: real posts), one row per line shaped like `eval/sample.jsonl`, with the product in `eval/product.json` shaped like `eval/sample-product.json`. Run `npm run eval:classifier` with `ANTHROPIC_API_KEY` in the shell; it prints precision, recall, the ids it got wrong, and each batch's tokens. Check that batch 2 shows a cache read above zero (the live half of the prompt caching test).
 
 ## M5 Reply tab
 

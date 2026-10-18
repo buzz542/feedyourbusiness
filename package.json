@@ -24,6 +24,7 @@
     "db:migrate": "supabase db push --linked",
     "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
     "capture:brightdata": "vitest run --config scripts/capture.vitest.config.mts",
+    "eval:classifier": "vitest run --config scripts/eval.vitest.config.mts",
     "db:types:local": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/db-types.ts",
     "test:e2e": "playwright test"
   },
