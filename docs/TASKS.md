@@ -128,7 +128,8 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M5 in docs/TASKS.md is complete: every M5 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M5's scope changed. Or stop after 40 turns and list what is left.
 ```
 
-- [ ] Feed queries for Today, All, Saved and Replied with filters in the URL (4.4). Test: PGlite with 200 seeded rows: the right rows for each view and filter; another user's rows never returned.
+- [x] Feed queries for Today, All, Saved and Replied with filters in the URL (4.4). Test: PGlite with 200 seeded rows: the right rows for each view and filter; another user's rows never returned. Built as migration `reply_feed`: two read-only, security-invoker functions (`reply_feed`, `reply_counts`) over the existing tables, so RLS decides what comes back; no new table, column or table grant.
+- [ ] (you) Apply `reply_feed` to the development project with the advisors clean, then approve it for production (it only adds four read-only functions; nothing is changed or deleted), and run `npm run db:types`.
 - [ ] `PostCard` and `FilterBar`. Test: render shows source and community, age, category, match, excerpt with highlight, the reason, an Open post link with `rel="noopener noreferrer"`, the reply tip and "Say you built it.".
 - [ ] Save, Mark replied, Hide and Undo as server actions. Test: Mark replied removes the post from Today; only `state` changes.
 - [ ] Reply tips are fixed copy (D8). Test: the list of modules that call the model is exactly draft, classify, synthesize and preview, and none of their prompts asks for reply text.

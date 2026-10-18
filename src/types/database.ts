@@ -777,6 +777,67 @@ export type Database = {
           id: string
         }[]
       }
+      reply_counts: {
+        Args: { p_category?: string; p_competitor?: string; p_min_relevance?: number; p_now?: string; p_product: string; p_query?: string; p_source?: string }
+        Returns: {
+          today: number
+          all_posts: number
+          saved: number
+          replied: number
+        }[]
+      }
+      reply_feed: {
+        Args: { p_category?: string; p_competitor?: string; p_limit?: number; p_min_relevance?: number; p_now?: string; p_offset?: number; p_product: string; p_query?: string; p_source?: string; p_view: string }
+        Returns: {
+          id: string
+          relevance: number
+          category: string
+          reason: string
+          state: string
+          created_at: string
+          highlight_start: number
+          highlight_end: number
+          tool_mentioned: string
+          competitor_id: string
+          competitor_name: string
+          rival_issue: string
+          rival_sentiment: string
+          switching: boolean
+          source: string
+          community: string
+          url: string
+          excerpt: string
+          posted_at: string
+        }[]
+      }
+      reply_feed_rows: {
+        Args: { p_category: string; p_competitor: string; p_min_relevance: number; p_product: string; p_query: string; p_source: string }
+        Returns: {
+          id: string
+          relevance: number
+          category: string
+          reason: string
+          state: string
+          created_at: string
+          highlight_start: number
+          highlight_end: number
+          tool_mentioned: string
+          competitor_id: string
+          competitor_name: string
+          rival_issue: string
+          rival_sentiment: string
+          switching: boolean
+          source: string
+          community: string
+          url: string
+          excerpt: string
+          posted_at: string
+        }[]
+      }
+      reply_in_view: {
+        Args: { p_created_at: string; p_now: string; p_state: string; p_view: string }
+        Returns: boolean
+      }
       reserve_job_budget: {
         Args: { p_day: string; p_job_id: string; p_limit: number; p_month_start?: string; p_monthly_cap?: number; p_product_id: string; p_source: string; p_units: number }
         Returns: string
