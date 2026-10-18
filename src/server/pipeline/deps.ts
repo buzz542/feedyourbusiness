@@ -5,7 +5,7 @@ import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { collectSources } from "@/sources/registry";
 import { createCollectHandler } from "./collect";
 import { createCollectStep, type Classifier } from "./collect-step";
-import { monthlyCapFor, SOURCE_USER_AGENT } from "./config";
+import { costPerUnitFor, dailyBudgetFor, monthlyCapFor, SOURCE_USER_AGENT } from "./config";
 import { createPurgeHandler, type CronDeps } from "./cron";
 import { createDeletionSyncHandler } from "./deletion-sync";
 import type { JobHandler, JobKind } from "./ports";
@@ -48,6 +48,7 @@ export function createServerCronDeps(): CronDeps {
       store: createSupabaseDeletionStore(db),
       budget,
       recheckCap: (source) => monthlyCapFor(source, process.env, "recheck"),
+      costFor: (source) => costPerUnitFor(source),
       userAgent: SOURCE_USER_AGENT,
     }),
   };
@@ -64,6 +65,8 @@ export function createServerCronDeps(): CronDeps {
         hash: authorHasher(),
       }),
       monthlyCap: (source) => monthlyCapFor(source),
+      budgetFor: (source) => dailyBudgetFor(source),
+      costFor: (source) => costPerUnitFor(source),
       userAgent: SOURCE_USER_AGENT,
     });
     handlers.collect = collect;

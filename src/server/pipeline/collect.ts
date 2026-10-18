@@ -29,6 +29,10 @@ export interface CollectHandlerDeps {
   }): Promise<{ stored: number }>;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
+  /** Units per product per day (dailyBudgetFor); the module's dailyBudget when unset. */
+  budgetFor?(source: CollectSource): number;
+  /** Price per unit (costPerUnitFor); the module's costPerUnitUsd when unset. */
+  costFor?(source: CollectSource): number;
   userAgent: string;
   sleep?: (ms: number) => Promise<void>;
   /** Defaults to the server's environment. */
@@ -87,7 +91,8 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       return { status: "done", payload: { result: "not_collectable" } };
 
     const firstRun = job.kind === "first_run";
-    const units = source.dailyBudget * (firstRun ? 2 : 1);
+    const unitCost = deps.costFor?.(source) ?? source.costPerUnitUsd;
+    const units = (deps.budgetFor?.(source) ?? source.dailyBudget) * (firstRun ? 2 : 1);
     const cap = deps.monthlyCap(source);
     const reserved = await deps.budget.reserve({
       jobId: job.id,
@@ -125,7 +130,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       return {
         status: "waiting",
         runAfter: new Date(now().getTime() + POLL_DELAY_MS),
-        payload: { handle: state.handle, startedAt, unitCost: source.costPerUnitUsd },
+        payload: { handle: state.handle, startedAt, unitCost },
       };
     }
     if (state.kind === "failed") throw new SourceError(state.errorClass);
@@ -133,7 +138,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     // Every unit the source reports, beyond the reservation too: the monthly cap must see them.
     const used = Math.max(0, state.units);
     if (!collectable) {
-      await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
+      await deps.budget.settle(job.id, used, used * unitCost);
       return { status: "done", payload: { result: "not_collectable", units: used } };
     }
     const { stored } = await deps.process({
@@ -143,7 +148,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       now: now(),
       since: ctx.since,
     });
-    await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
+    await deps.budget.settle(job.id, used, used * unitCost);
     return { status: "done", payload: { result: "ok", stored, units: used } };
   };
   handler.onFailed = abandon;

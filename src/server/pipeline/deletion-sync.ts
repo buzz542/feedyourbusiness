@@ -42,6 +42,8 @@ export interface DeletionSyncDeps {
   budget: BudgetStore;
   /** The monthly cap a re-check may use: the whole vendor cap (monthlyCapFor(..., "recheck")). */
   recheckCap(source: CollectSource): number | null;
+  /** Price per unit (costPerUnitFor); the module's costPerUnitUsd when unset. */
+  costFor?(source: CollectSource): number;
   userAgent: string;
   sleep?: (ms: number) => Promise<void>;
   /** Defaults to the server's environment; a source reads only the names it declares. */
@@ -108,7 +110,7 @@ export function createDeletionSyncHandler(deps: DeletionSyncDeps): JobHandler {
         payload: {
           handle: started.handle,
           startedAt: now().toISOString(),
-          unitCost: source.costPerUnitUsd,
+          unitCost: deps.costFor?.(source) ?? source.costPerUnitUsd,
           // Only these are judged when the result comes, whatever becomes due meanwhile.
           sent: due.map((p) => p.externalId),
         },

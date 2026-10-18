@@ -349,6 +349,76 @@ describe("settling a vendor run that never finishes", () => {
   });
 });
 
+describe("kill switches and caps", () => {
+  it("a source switched off mid-run makes no further request", async () => {
+    const { createSourceFetch } = await import("@/server/net/source-fetch");
+    const { hackernews } = await import("@/sources/hackernews");
+    const env: Record<string, string | undefined> = { SOURCE_HACKERNEWS_ENABLED: "true" };
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      env.SOURCE_HACKERNEWS_ENABLED = "false"; // switched off while the first request is out
+      return new Response(JSON.stringify({ hits: [] }));
+    });
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    const handlers = {
+      collect: createCollectHandler({
+        sourceFor: () => hackernews,
+        fetchFor: (s) => createSourceFetch(s, { env, fetchImpl }),
+        budget,
+        terms: async () => [
+          { id: "t1", term: "invoice tool" },
+          { id: "t2", term: "late fees" },
+        ],
+        process: vi.fn(async () => ({ stored: 0 })),
+        monthlyCap: () => null,
+        userAgent: "AskedFor/test",
+        sleep: async () => {},
+      }),
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await enqueueCollect(store);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(store.jobs[0]!.payload.lastError).toBe("SafeFetchError");
+  });
+
+  it("sizes the reservation by the env budget and records the env price", async () => {
+    const src = source({
+      id: "reddit",
+      access: "vendor_api",
+      retentionDays: 7,
+      dailyBudget: 120,
+      costPerUnitUsd: 0.0015,
+      start: vi.fn(async (ctx): Promise<RunState> => ({
+        kind: "done",
+        posts: [],
+        units: ctx.budget,
+      })),
+    });
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    const handlers = {
+      collect: createCollectHandler({
+        sourceFor: () => src,
+        fetchFor: () => vi.fn(),
+        budget,
+        terms: async () => [{ id: "t1", term: "invoice tool" }],
+        process: vi.fn(async () => ({ stored: 0 })),
+        monthlyCap: () => null,
+        budgetFor: () => 60,
+        costFor: () => 0.0021,
+        userAgent: "AskedFor/test",
+      }),
+    };
+    await store.enqueue([
+      { kind: "collect", productId: "p1", source: "reddit", dedupeKey: `collect:p1:reddit:${DAY}` },
+    ]);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(budget.ledger.get(`p1:reddit:${DAY}`)).toBe(60);
+    expect(budget.costs.get(`p1:reddit:${DAY}`)).toBeCloseTo(0.126, 6);
+  });
+});
+
 describe("credentials", () => {
   it("gives a source only the env names it declares", async () => {
     const seen: Record<string, string | undefined> = {};
