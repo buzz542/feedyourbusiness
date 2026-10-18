@@ -155,6 +155,17 @@ describe("the collect step", () => {
     expect(store.links[0]!.highlight).toBeNull();
   });
 
+  it("bounds a highlight by characters, not UTF-16 units, so one ending an emoji excerpt stays", async () => {
+    const excerpt = "Need an invoice tool 🧾🧾";
+    const end = Array.from(excerpt).length; // 23 characters, 25 UTF-16 units
+    const { store, run } = setup(fakeClassifier(() => ({ highlight: { start: 8, end } })));
+    await run([post("1", { excerpt })]);
+    expect(store.links[0]!.highlight).toEqual({ start: 8, end });
+    const over = setup(fakeClassifier(() => ({ highlight: { start: 8, end: end + 1 } })));
+    await over.run([post("1", { excerpt })]);
+    expect(over.store.links[0]!.highlight).toBeNull();
+  });
+
   it("keeps a rival label only next to a tool or a competitor, and caps its lengths", async () => {
     const rival = {
       issue: "support" as const,

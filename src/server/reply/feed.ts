@@ -9,6 +9,7 @@ import {
   type FeedFilters,
   type FeedSource,
 } from "@/lib/reply-filters";
+import { charLength } from "@/lib/highlight-range";
 import type { Database } from "@/types/database";
 
 /**
@@ -24,7 +25,7 @@ export interface FeedCard {
   reason: string;
   state: "new" | "saved" | "replied" | "hidden";
   linkedAt: Date;
-  /** Offsets into the excerpt. */
+  /** Code-point offsets into the excerpt. */
   highlight: { start: number; end: number } | null;
   toolMentioned: string | null;
   rival: { id: string; name: string; issue: string | null; switching: boolean } | null;
@@ -87,7 +88,7 @@ export function toCard(raw: unknown): FeedCard | null {
     r.highlight_end !== null &&
     r.highlight_start >= 0 &&
     r.highlight_end > r.highlight_start &&
-    r.highlight_end <= r.excerpt.length
+    r.highlight_end <= charLength(r.excerpt)
       ? { start: r.highlight_start, end: r.highlight_end }
       : null;
   return {

@@ -5,17 +5,7 @@
  * excerpt, so an emoji before the range never shifts or splits it. Offsets that do not describe a
  * non-empty range inside the text render the text plain.
  */
-/**
- * Where `phrase` first occurs in `text`, as code-point offsets for <Highlight> and the
- * product_posts highlight columns. Exact match only (docs/PLAN.md 8.2): no match, no highlight.
- */
-export function findHighlight(text: string, phrase: string): { start: number; end: number } | null {
-  if (!phrase) return null;
-  const index = text.indexOf(phrase);
-  if (index < 0) return null;
-  const start = Array.from(text.slice(0, index)).length;
-  return { start, end: start + Array.from(phrase).length };
-}
+export { findHighlight } from "@/lib/highlight-range";
 
 export function Highlight({
   text,

@@ -142,6 +142,13 @@ describe("the classifier", () => {
     expect(labels.map((l) => l.highlight)).toEqual([{ start: 27, end: 44 }, null, null]);
   });
 
+  it("counts highlight offsets in characters, as Postgres and the card do, so emoji never shift it", async () => {
+    const items = [{ ...ITEMS[0]!, excerpt: "🧾🧾 Is there an app that sends invoice reminders?" }];
+    const labels = await classify([result({ id: "0", highlight: "invoice reminders" })], items);
+    // Two emoji are two characters but four UTF-16 units: "invoice" starts at character 30.
+    expect(labels[0]!.highlight).toEqual({ start: 30, end: 47 });
+  });
+
   it.each([
     "@ledgerly_app",
     "u/someone",

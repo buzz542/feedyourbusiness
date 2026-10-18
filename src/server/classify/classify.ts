@@ -1,3 +1,4 @@
+import { findHighlight } from "@/lib/highlight-range";
 import type { Llm } from "@/server/llm/llm";
 import type { Classifier, ClassifyItem, Label } from "@/server/pipeline/collect-step";
 import { classificationSystem, type ProductContext } from "./prompt";
@@ -32,12 +33,6 @@ function toolName(raw: string | null): string | null {
   return name;
 }
 
-function offsets(excerpt: string, highlight: string) {
-  if (!highlight) return null;
-  const start = excerpt.indexOf(highlight);
-  return start < 0 ? null : { start, end: start + highlight.length };
-}
-
 function toLabel(
   result: ClassificationResult,
   item: ClassifyItem,
@@ -61,7 +56,7 @@ function toLabel(
     relevance: result.relevance,
     category: result.category,
     reason: result.reason,
-    highlight: offsets(item.excerpt, result.highlight),
+    highlight: findHighlight(item.excerpt, result.highlight),
     toolMentioned,
     competitorId,
     rival,

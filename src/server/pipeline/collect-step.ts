@@ -1,3 +1,4 @@
+import { charLength } from "@/lib/highlight-range";
 import type { Issue } from "@/server/classify/schema";
 import { LlmCapError, LlmRefusalError, type SpendCap } from "@/server/llm/llm";
 import type { AuthorHasher } from "@/server/privacy/author-hash";
@@ -32,7 +33,7 @@ export interface RivalLabel {
   summary: string;
 }
 
-/** Offsets into the excerpt, from an exact match only. */
+/** Code-point offsets into the excerpt, from an exact match only. */
 export interface Highlight {
   start: number;
   end: number;
@@ -117,7 +118,7 @@ function toPostLabel(label: Label, category: Category, post: Hashed): PostLabel 
     Number.isInteger(h.end) &&
     h.start >= 0 &&
     h.end > h.start &&
-    h.end <= post.excerpt.length
+    h.end <= charLength(post.excerpt)
       ? { start: h.start, end: h.end }
       : null;
   const toolMentioned = label.toolMentioned?.slice(0, MAX_TOOL) || null;
