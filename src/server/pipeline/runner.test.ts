@@ -600,6 +600,73 @@ describe("a vendor run in flight when the product stops being collectable", () =
   });
 });
 
+describe("model spend caps in the collect job (docs/PLAN.md 8.1)", () => {
+  function capSetup(over: Partial<CollectHandlerDeps> = {}) {
+    const start = vi.fn(async (): Promise<RunState> => ({
+      kind: "done",
+      posts: [post("1")],
+      units: 1,
+    }));
+    const src = source({ start });
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    const handlers = {
+      collect: createCollectHandler({
+        sourceFor: () => src,
+        fetchFor: () => vi.fn(),
+        budget,
+        terms: async () => [{ id: "t1", term: "invoice tool" }],
+        process: vi.fn(async () => ({ stored: 3, refused: 0, capped: "global_daily" as const })),
+        monthlyCap: () => null,
+        userAgent: "AskedFor/test",
+        ...over,
+      }),
+    };
+    return { start, store, budget, handlers };
+  }
+
+  it("shows a cap reached during classification in the job result", async () => {
+    const { store, handlers } = capSetup();
+    await store.enqueue([
+      {
+        kind: "collect",
+        productId: "p1",
+        source: "hackernews",
+        dedupeKey: `collect:p1:hackernews:${DAY}`,
+      },
+    ]);
+    await runJobs({ store, handlers, clock: () => T0 });
+    expect(store.jobs[0]).toMatchObject({
+      status: "done",
+      payload: { result: "ok", stored: 3, refused: 0, capped: "global_daily" },
+    });
+  });
+
+  it.each(["product_monthly", "global_daily"] as const)(
+    "starts no fetch and reserves nothing once the %s cap is reached",
+    async (cap) => {
+      const spendCap = vi.fn(async () => cap);
+      const { start, store, budget, handlers } = capSetup({ spendCap });
+      await store.enqueue([
+        {
+          kind: "collect",
+          productId: "p1",
+          source: "hackernews",
+          dedupeKey: `collect:p1:hackernews:${DAY}`,
+        },
+      ]);
+      await runJobs({ store, handlers, clock: () => T0 });
+      expect(spendCap).toHaveBeenCalledWith("p1");
+      expect(start).not.toHaveBeenCalled();
+      expect(budget.ledger.size).toBe(0);
+      expect(store.jobs[0]).toMatchObject({
+        status: "done",
+        payload: { result: "spend_cap", cap },
+      });
+    },
+  );
+});
+
 describe("collecting Reddit through the vendor (the real module, a fake vendor)", () => {
   const fixture = (name: string) => readFileSync(`tests/fixtures/reddit/${name}`, "utf8");
   const CONFIG: Record<string, string> = {

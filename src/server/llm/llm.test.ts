@@ -235,6 +235,15 @@ describe("callStructured", () => {
     expect(usage.spendSince).toHaveBeenCalledTimes(1);
   });
 
+  it("says which cap a product has reached, without calling the model", async () => {
+    expect(await setup([], {}).llm.capReached("p1")).toBeNull();
+    expect(await setup([], { product: 3 }).llm.capReached("p1")).toBe("product_monthly");
+    expect(await setup([], { global: 25 }).llm.capReached("p1")).toBe("global_daily");
+    const { llm, client } = setup([], { product: 2.5, global: 30 });
+    expect(await llm.capReached("p1")).toBe("global_daily");
+    expect(client.create).not.toHaveBeenCalled();
+  });
+
   it("does not retry the second attempt once the cap is reached", async () => {
     const spent = { product: 2.99 };
     const { llm, client, usage } = setup(

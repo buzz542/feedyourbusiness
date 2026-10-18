@@ -1,5 +1,5 @@
 import type { Issue } from "@/server/classify/schema";
-import { LlmRefusalError } from "@/server/llm/llm";
+import { LlmCapError, LlmRefusalError, type SpendCap } from "@/server/llm/llm";
 import type { AuthorHasher } from "@/server/privacy/author-hash";
 import { normalizeAuthorKey } from "@/server/privacy/author-hash";
 import type { CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
@@ -161,7 +161,7 @@ export function createCollectStep(deps: {
     since: Date;
     /** The terms the run asked about: each is counted, found posts or not, so rotation moves on. */
     terms?: readonly CollectTerm[];
-  }): Promise<{ stored: number; refused: number }> {
+  }): Promise<{ stored: number; refused: number; capped?: SpendCap }> {
     const { job, source, now, since } = input;
     const productId = job.productId;
     if (!productId) throw new Error("A collect job needs a product");
@@ -197,6 +197,7 @@ export function createCollectStep(deps: {
     const kept = new Map<string, number>();
     let stored = 0;
     let refused = 0;
+    let capped: SpendCap | undefined;
     for (let start = 0; start < todo.length; start += BATCH_SIZE) {
       const batch = todo.slice(start, start + BATCH_SIZE);
       const items: ClassifyItem[] = batch.map((p, i) => ({
@@ -209,6 +210,11 @@ export function createCollectStep(deps: {
       try {
         labels = await classifier.classify(productId, items);
       } catch (error) {
+        // A spend cap stops classification: what is stored stays, the rest waits for a later run.
+        if (error instanceof LlmCapError) {
+          capped = error.cap;
+          break;
+        }
         // A refusal skips this batch: nothing is linked, so the next run sends it again.
         if (!(error instanceof LlmRefusalError)) throw error;
         refused++;
@@ -256,6 +262,6 @@ export function createCollectStep(deps: {
       relevant: kept.get(termId) ?? 0,
     }));
     if (stats.length > 0) await store.recordTermStats(job.id, day, source.id, stats);
-    return { stored, refused };
+    return { stored, refused, ...(capped ? { capped } : {}) };
   };
 }

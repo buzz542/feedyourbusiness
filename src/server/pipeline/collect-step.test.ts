@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { LlmRefusalError } from "@/server/llm/llm";
+import { LlmCapError, LlmRefusalError } from "@/server/llm/llm";
 import { sources } from "@/sources/registry";
 import type { CollectedPost, CollectSource } from "@/sources/types";
 import {
@@ -193,6 +193,30 @@ describe("the collect step", () => {
       { termId: "t-fees", fetched: 0, relevant: 0 },
     ]);
   });
+
+  it.each(["product_monthly", "global_daily"] as const)(
+    "stops classifying at the %s spend cap, keeps what it stored, and says so in the result",
+    async (cap) => {
+      let call = 0;
+      const labels = fakeClassifier();
+      const classifier = {
+        classify: vi.fn<Classifier["classify"]>(async (productId, items) => {
+          if (call++ === 1) throw new LlmCapError(cap);
+          return labels.classify(productId, items);
+        }),
+      };
+      const { store, run } = setup(classifier);
+      const result = await run(Array.from({ length: 45 }, (_, i) => post(String(i + 1))));
+      expect(result).toEqual({ stored: 20, refused: 0, capped: cap });
+      expect(classifier.classify).toHaveBeenCalledTimes(2);
+      expect(store.links).toHaveLength(20);
+      expect(store.termStats[0]!.stats[0]).toEqual({
+        termId: "t-invoice",
+        fetched: 45,
+        relevant: 20,
+      });
+    },
+  );
 
   it("lets any other classifier error fail the job, so it is retried", async () => {
     const classifier = {

@@ -87,6 +87,11 @@ export interface LlmDeps {
 
 export interface Llm {
   callStructured<T>(call: StructuredCall<T>): Promise<T>;
+  /**
+   * The cap a call for this product would hit right now, or null: lets a job skip paid work (a
+   * vendor fetch) whose results could not be classified. The global cap is checked first.
+   */
+  capReached(productId: string | null): Promise<SpendCap | null>;
 }
 
 const MAX_ATTEMPTS = 2;
@@ -167,6 +172,17 @@ export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps
   }
 
   return {
+    async capReached(productId) {
+      try {
+        await checkCaps(null);
+        if (productId) await checkCaps(productId);
+        return null;
+      } catch (error) {
+        if (error instanceof LlmCapError) return error.cap;
+        throw error;
+      }
+    },
+
     async callStructured<T>(call: StructuredCall<T>): Promise<T> {
       // Only the preview belongs to no product; everything else counts against a product's cap.
       if (call.productId === null && call.task !== "preview")

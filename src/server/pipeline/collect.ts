@@ -1,4 +1,5 @@
 import "server-only";
+import type { SpendCap } from "@/server/llm/llm";
 import type { CollectContext, CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
 import type { BudgetStore, Job, JobHandler } from "./ports";
 
@@ -27,7 +28,12 @@ export interface CollectHandlerDeps {
     now: Date;
     since: Date;
     terms: readonly CollectTerm[];
-  }): Promise<{ stored: number; refused?: number }>;
+  }): Promise<{ stored: number; refused?: number; capped?: SpendCap }>;
+  /**
+   * The model spend cap this product has reached (Llm.capReached), or null. Checked before a new
+   * run reserves budget, so no paid fetch starts whose posts could not be classified (8.1).
+   */
+  spendCap?(productId: string): Promise<SpendCap | null>;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
   /** Units per product per day (dailyBudgetFor); the module's dailyBudget when unset. */
@@ -91,6 +97,11 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     if (!collectable && !("reserved" in job.payload))
       return { status: "done", payload: { result: "not_collectable" } };
 
+    if (!("reserved" in job.payload)) {
+      const cap = await deps.spendCap?.(job.productId);
+      if (cap) return { status: "done", payload: { result: "spend_cap", cap } };
+    }
+
     const firstRun = job.kind === "first_run";
     const unitCost = deps.costFor?.(source) ?? source.costPerUnitUsd;
     const units = (deps.budgetFor?.(source) ?? source.dailyBudget) * (firstRun ? 2 : 1);
@@ -142,7 +153,11 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       await deps.budget.settle(job.id, used, used * unitCost);
       return { status: "done", payload: { result: "not_collectable", units: used } };
     }
-    const { stored, refused = 0 } = await deps.process({
+    const {
+      stored,
+      refused = 0,
+      capped,
+    } = await deps.process({
       job,
       source,
       posts: state.posts,
@@ -151,7 +166,10 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       terms: ctx.terms,
     });
     await deps.budget.settle(job.id, used, used * unitCost);
-    return { status: "done", payload: { result: "ok", stored, refused, units: used } };
+    return {
+      status: "done",
+      payload: { result: "ok", stored, refused, units: used, ...(capped ? { capped } : {}) },
+    };
   };
   handler.onFailed = abandon;
   return handler;

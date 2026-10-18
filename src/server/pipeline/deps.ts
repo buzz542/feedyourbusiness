@@ -2,7 +2,7 @@ import "server-only";
 import { createClassifier } from "@/server/classify/classify";
 import { createSupabaseProductLoader } from "@/server/classify/supabase-product";
 import { createServerLlm } from "@/server/llm/deps";
-import type { Llm } from "@/server/llm/llm";
+import type { Llm, SpendCap } from "@/server/llm/llm";
 import { createSourceFetch } from "@/server/net/source-fetch";
 import { authorHasher } from "@/server/privacy/author-hash";
 import { createSupabaseAdminClient, type AdminClient } from "@/server/supabase/admin";
@@ -32,14 +32,19 @@ import {
  * collect job is enqueued and nothing is fetched or stored, since a post cannot be stored without
  * its relevance, category and reason.
  */
-function serverClassifier(db: AdminClient): Classifier | null {
+function serverClassifier(
+  db: AdminClient,
+): { classifier: Classifier; spendCap: (productId: string) => Promise<SpendCap | null> } | null {
   let llm: Llm;
   try {
     llm = createServerLlm();
   } catch {
     return null;
   }
-  return createClassifier({ llm, product: createSupabaseProductLoader(db) });
+  return {
+    classifier: createClassifier({ llm, product: createSupabaseProductLoader(db) }),
+    spendCap: (productId) => llm.capReached(productId),
+  };
 }
 
 /**
@@ -63,8 +68,8 @@ export function createServerCronDeps(): CronDeps {
       userAgent: SOURCE_USER_AGENT,
     }),
   };
-  const classifier = serverClassifier(db);
-  if (classifier) {
+  const model = serverClassifier(db);
+  if (model) {
     const collect = createCollectHandler({
       sourceFor,
       fetchFor: (source) => createSourceFetch(source),
@@ -72,9 +77,10 @@ export function createServerCronDeps(): CronDeps {
       terms: (productId, source) => loadCollectTerms(db, productId, source.id),
       process: createCollectStep({
         store: createSupabaseCollectStore(db),
-        classifier,
+        classifier: model.classifier,
         hash: authorHasher(),
       }),
+      spendCap: model.spendCap,
       monthlyCap: (source) => monthlyCapFor(source),
       budgetFor: (source) => dailyBudgetFor(source),
       costFor: (source) => costPerUnitFor(source),

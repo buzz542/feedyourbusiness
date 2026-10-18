@@ -34,6 +34,7 @@ const product: ProductLoader = async () => ({
 function fakeLlm(reply: Classification | Error) {
   const calls: StructuredCall<unknown>[] = [];
   const llm: Llm = {
+    capReached: async () => null,
     async callStructured<T>(call: StructuredCall<T>): Promise<T> {
       calls.push(call as StructuredCall<unknown>);
       if (reply instanceof Error) throw reply;
