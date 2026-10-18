@@ -1,7 +1,11 @@
 import "server-only";
+import { createClassifier } from "@/server/classify/classify";
+import { createSupabaseProductLoader } from "@/server/classify/supabase-product";
+import { createServerLlm } from "@/server/llm/deps";
+import type { Llm } from "@/server/llm/llm";
 import { createSourceFetch } from "@/server/net/source-fetch";
 import { authorHasher } from "@/server/privacy/author-hash";
-import { createSupabaseAdminClient } from "@/server/supabase/admin";
+import { createSupabaseAdminClient, type AdminClient } from "@/server/supabase/admin";
 import { collectSources } from "@/sources/registry";
 import { createCollectHandler } from "./collect";
 import { createCollectStep, type Classifier } from "./collect-step";
@@ -23,12 +27,19 @@ import {
 } from "./supabase-jobs";
 
 /**
- * The classifier arrives with M4 (docs/PLAN.md 8.2). Until it does, the collect handler is not
- * registered, so no collect job is enqueued and nothing is fetched or stored: a post cannot be
- * stored without its relevance, category and reason.
+ * The Haiku classifier (docs/PLAN.md 8.2), one per cron run so each product's context is read once.
+ * Null when no model key is configured (F13): the collect handler is then not registered, so no
+ * collect job is enqueued and nothing is fetched or stored, since a post cannot be stored without
+ * its relevance, category and reason.
  */
-function serverClassifier(): Classifier | null {
-  return null;
+function serverClassifier(db: AdminClient): Classifier | null {
+  let llm: Llm;
+  try {
+    llm = createServerLlm();
+  } catch {
+    return null;
+  }
+  return createClassifier({ llm, product: createSupabaseProductLoader(db) });
 }
 
 /**
@@ -52,7 +63,7 @@ export function createServerCronDeps(): CronDeps {
       userAgent: SOURCE_USER_AGENT,
     }),
   };
-  const classifier = serverClassifier();
+  const classifier = serverClassifier(db);
   if (classifier) {
     const collect = createCollectHandler({
       sourceFor,

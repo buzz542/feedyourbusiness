@@ -53,7 +53,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 /** The files that call the model, each with its schema and prompt above. */
-const CALL_SITES = ["src/server/onboarding/draft.ts"];
+const CALL_SITES = ["src/server/classify/classify.ts", "src/server/onboarding/draft.ts"];
 
 /** Every property name in a JSON schema, at any depth. */
 function propertyNames(schema: unknown, out = new Set<string>()): Set<string> {

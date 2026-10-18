@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { LlmRefusalError } from "@/server/llm/llm";
 import { sources } from "@/sources/registry";
 import type { CollectedPost, CollectSource } from "@/sources/types";
 import {
@@ -56,6 +57,8 @@ const job = (over: Partial<Job> = {}): Job => ({
   ...over,
 });
 
+const NO_LABELS = { highlight: null, toolMentioned: null, competitorId: null, rival: null };
+
 /** Labels every item with the relevance its excerpt asks for ("rel=NN"), 70 by default. */
 function fakeClassifier(over: (item: ClassifyItem) => Partial<Label> = () => ({})) {
   return {
@@ -67,6 +70,7 @@ function fakeClassifier(over: (item: ClassifyItem) => Partial<Label> = () => ({}
           relevance: asked ? Number(asked[1]) : 70,
           category: "looking_for_tool" as const,
           reason: "Asks for a tool that chases invoices.",
+          ...NO_LABELS,
           ...over(item),
         };
       }),
@@ -93,7 +97,7 @@ describe("the collect step", () => {
   it("classifies new posts, stores the relevant ones and links them to the product", async () => {
     const { store, classifier, run } = setup();
     const result = await run([post("1"), post("2", { excerpt: "Nothing to do with it rel=10" })]);
-    expect(result).toEqual({ stored: 1 });
+    expect(result).toEqual({ stored: 1, refused: 0 });
     expect(classifier.classify).toHaveBeenCalledTimes(1);
     expect([...store.posts.values()].map((p) => p.externalId)).toEqual(["1"]);
     const stored = [...store.posts.values()][0]!;
@@ -106,8 +110,98 @@ describe("the collect step", () => {
         relevance: 70,
         category: "looking_for_tool",
         reason: "Asks for a tool that chases invoices.",
+        ...NO_LABELS,
+        termId: "t-invoice",
       },
     ]);
+  });
+
+  it("stores every label the classifier gives, with the term that found the post", async () => {
+    const rival = {
+      issue: "pricing" as const,
+      sentiment: "negative" as const,
+      switching: true,
+      summary: "Finds the competitor too expensive.",
+    };
+    const { store, run } = setup(
+      fakeClassifier(() => ({
+        category: "mentions_competitor",
+        highlight: { start: 0, end: 12 },
+        toolMentioned: "Ledgerly",
+        competitorId: "comp-ledgerly",
+        rival,
+      })),
+    );
+    await run([post("1", { termId: "t-fees" })]);
+    expect(store.links[0]).toMatchObject({
+      category: "mentions_competitor",
+      highlight: { start: 0, end: 12 },
+      toolMentioned: "Ledgerly",
+      competitorId: "comp-ledgerly",
+      rival,
+      termId: "t-fees",
+    });
+  });
+
+  it.each([
+    ["past the excerpt", { start: 30, end: 300 }],
+    ["empty", { start: 4, end: 4 }],
+    ["backwards", { start: 9, end: 3 }],
+    ["negative", { start: -1, end: 3 }],
+    ["fractional", { start: 0.5, end: 3 }],
+  ])("drops a highlight that is %s, and keeps the post", async (_label, highlight) => {
+    const { store, run } = setup(fakeClassifier(() => ({ highlight })));
+    expect(await run([post("1")])).toEqual({ stored: 1, refused: 0 });
+    expect(store.links[0]!.highlight).toBeNull();
+  });
+
+  it("keeps a rival label only next to a tool or a competitor, and caps its lengths", async () => {
+    const rival = {
+      issue: "support" as const,
+      sentiment: "mixed" as const,
+      switching: false,
+      summary: "s".repeat(250),
+    };
+    const { store, run } = setup(
+      fakeClassifier((item) =>
+        item.excerpt.includes("(1)") ? { rival } : { rival, toolMentioned: "T".repeat(80) },
+      ),
+    );
+    await run([post("1"), post("2")]);
+    const [first, second] = store.links;
+    expect(first!.rival).toBeNull();
+    expect(second!.toolMentioned).toHaveLength(60);
+    expect(second!.rival!.summary).toHaveLength(200);
+  });
+
+  it("skips a batch the model refuses, counts it, and carries on with the next", async () => {
+    let call = 0;
+    const labels = fakeClassifier();
+    const classifier = {
+      classify: vi.fn<Classifier["classify"]>(async (productId, items) => {
+        if (call++ === 0) throw new LlmRefusalError();
+        return labels.classify(productId, items);
+      }),
+    };
+    const { store, run } = setup(classifier);
+    const result = await run(Array.from({ length: 25 }, (_, i) => post(String(i + 1))));
+    expect(result).toEqual({ stored: 5, refused: 1 });
+    expect(store.links).toHaveLength(5);
+    // The refused posts are not linked, so the next run classifies them again.
+    expect(store.termStats[0]!.stats).toEqual([
+      { termId: "t-invoice", fetched: 25, relevant: 5 },
+      { termId: "t-fees", fetched: 0, relevant: 0 },
+    ]);
+  });
+
+  it("lets any other classifier error fail the job, so it is retried", async () => {
+    const classifier = {
+      classify: vi.fn<Classifier["classify"]>(async () => {
+        throw new TypeError("boom");
+      }),
+    };
+    const { run } = setup(classifier);
+    await expect(run([post("1")])).rejects.toBeInstanceOf(TypeError);
   });
 
   it("discards not_relevant and anything under 40", async () => {
@@ -141,7 +235,7 @@ describe("the collect step", () => {
   it("refuses a suppressed author even when the pre-check misses it (ingest_post decides)", async () => {
     const { store, run } = setup();
     store.suppressedAtIngest.add(hash("hackernews", "example_author_1"));
-    expect(await run([post("1")])).toEqual({ stored: 0 });
+    expect(await run([post("1")])).toEqual({ stored: 0, refused: 0 });
     expect(store.links).toEqual([]);
   });
 
@@ -149,7 +243,7 @@ describe("the collect step", () => {
     const { store, classifier, run } = setup();
     await run([post("1")]);
     classifier.classify.mockClear();
-    expect(await run([post("1"), post("2")])).toEqual({ stored: 1 });
+    expect(await run([post("1"), post("2")])).toEqual({ stored: 1, refused: 0 });
     expect(classifier.classify.mock.calls[0]![1].map((i) => i.excerpt)).toEqual([
       expect.stringContaining("(2)"),
     ]);
@@ -160,7 +254,7 @@ describe("the collect step", () => {
     const { store, classifier, run } = setup();
     await run([post("1")], hn, job({ productId: "p-other" }));
     classifier.classify.mockClear();
-    expect(await run([post("1")])).toEqual({ stored: 1 });
+    expect(await run([post("1")])).toEqual({ stored: 1, refused: 0 });
     expect(classifier.classify).toHaveBeenCalledWith("p1", [
       expect.objectContaining({ source: "hackernews" }),
     ]);
@@ -201,17 +295,18 @@ describe("the collect step", () => {
   it("ignores labels for ids it did not send", async () => {
     const classifier = {
       classify: vi.fn<Classifier["classify"]>(async (_p, items) => [
-        { id: "999", relevance: 99, category: "wish", reason: "Invented." },
+        { id: "999", relevance: 99, category: "wish", reason: "Invented.", ...NO_LABELS },
         ...items.map((i) => ({
           id: i.id,
           relevance: 80,
           category: "wish" as const,
           reason: "A wish.",
+          ...NO_LABELS,
         })),
       ]),
     };
     const { store, run } = setup(classifier);
-    expect(await run([post("1")])).toEqual({ stored: 1 });
+    expect(await run([post("1")])).toEqual({ stored: 1, refused: 0 });
     expect(store.links).toHaveLength(1);
   });
 
@@ -252,7 +347,7 @@ describe("the collect step", () => {
 
   it("makes no model call when nothing is left to classify", async () => {
     const { classifier, run } = setup();
-    expect(await run([post("1", { nsfw: true })])).toEqual({ stored: 0 });
+    expect(await run([post("1", { nsfw: true })])).toEqual({ stored: 0, refused: 0 });
     expect(classifier.classify).not.toHaveBeenCalled();
   });
 });

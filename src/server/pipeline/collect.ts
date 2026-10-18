@@ -27,7 +27,7 @@ export interface CollectHandlerDeps {
     now: Date;
     since: Date;
     terms: readonly CollectTerm[];
-  }): Promise<{ stored: number }>;
+  }): Promise<{ stored: number; refused?: number }>;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
   /** Units per product per day (dailyBudgetFor); the module's dailyBudget when unset. */
@@ -142,7 +142,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       await deps.budget.settle(job.id, used, used * unitCost);
       return { status: "done", payload: { result: "not_collectable", units: used } };
     }
-    const { stored } = await deps.process({
+    const { stored, refused = 0 } = await deps.process({
       job,
       source,
       posts: state.posts,
@@ -151,7 +151,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       terms: ctx.terms,
     });
     await deps.budget.settle(job.id, used, used * unitCost);
-    return { status: "done", payload: { result: "ok", stored, units: used } };
+    return { status: "done", payload: { result: "ok", stored, refused, units: used } };
   };
   handler.onFailed = abandon;
   return handler;

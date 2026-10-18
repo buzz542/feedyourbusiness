@@ -1,3 +1,5 @@
+import type { Issue } from "@/server/classify/schema";
+import { LlmRefusalError } from "@/server/llm/llm";
 import type { AuthorHasher } from "@/server/privacy/author-hash";
 import { normalizeAuthorKey } from "@/server/privacy/author-hash";
 import type { CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
@@ -22,11 +24,29 @@ export interface ClassifyItem {
   excerpt: string;
 }
 
+/** What a post says about a tool or competitor (docs/PLAN.md 8.2): our paraphrase, never a quote. */
+export interface RivalLabel {
+  issue: Issue;
+  sentiment: "negative" | "mixed" | "positive";
+  switching: boolean;
+  summary: string;
+}
+
+/** Offsets into the excerpt, from an exact match only. */
+export interface Highlight {
+  start: number;
+  end: number;
+}
+
 export interface Label {
   id: string;
   relevance: number;
   category: Category | "not_relevant";
   reason: string;
+  highlight: Highlight | null;
+  toolMentioned: string | null;
+  competitorId: string | null;
+  rival: RivalLabel | null;
 }
 
 /** The classification port; M4's Haiku classifier implements it (docs/PLAN.md 8.2). */
@@ -49,6 +69,12 @@ export interface PostLabel {
   relevance: number;
   category: Category;
   reason: string;
+  highlight: Highlight | null;
+  toolMentioned: string | null;
+  competitorId: string | null;
+  rival: RivalLabel | null;
+  /** The search term that found the post, for the per-term view. */
+  termId: string | null;
 }
 
 export interface TermStat {
@@ -75,10 +101,41 @@ export const BATCH_SIZE = 20;
 export const MIN_RELEVANCE = 40;
 const MAX_EXCERPT = 280;
 const MAX_REASON = 200;
+const MAX_TOOL = 60;
+const MAX_SUMMARY = 200;
 /** Author keys that name nobody: hashing them would give every such post one shared author. */
 const PLACEHOLDER_AUTHORS = new Set(["", "[deleted]", "[removed]", "deleted", "removed"]);
 
 type Hashed = Omit<CollectedPost, "authorKey"> & { authorHash: string };
+
+/** The classifier checks its labels; this keeps what reaches the database inside its constraints. */
+function toPostLabel(label: Label, category: Category, post: Hashed): PostLabel {
+  const h = label.highlight;
+  const highlight =
+    h &&
+    Number.isInteger(h.start) &&
+    Number.isInteger(h.end) &&
+    h.start >= 0 &&
+    h.end > h.start &&
+    h.end <= post.excerpt.length
+      ? { start: h.start, end: h.end }
+      : null;
+  const toolMentioned = label.toolMentioned?.slice(0, MAX_TOOL) || null;
+  const rival =
+    label.rival && (toolMentioned || label.competitorId)
+      ? { ...label.rival, summary: label.rival.summary.slice(0, MAX_SUMMARY) }
+      : null;
+  return {
+    relevance: label.relevance,
+    category,
+    reason: label.reason.slice(0, MAX_REASON),
+    highlight,
+    toolMentioned,
+    competitorId: label.competitorId,
+    rival,
+    termId: post.termId,
+  };
+}
 
 function onLinkHost(raw: string, hosts: readonly string[]): boolean {
   try {
@@ -104,7 +161,7 @@ export function createCollectStep(deps: {
     since: Date;
     /** The terms the run asked about: each is counted, found posts or not, so rotation moves on. */
     terms?: readonly CollectTerm[];
-  }): Promise<{ stored: number }> {
+  }): Promise<{ stored: number; refused: number }> {
     const { job, source, now, since } = input;
     const productId = job.productId;
     if (!productId) throw new Error("A collect job needs a product");
@@ -139,6 +196,7 @@ export function createCollectStep(deps: {
     // Steps 7 and 8: classify 20 at a time, keep relevant labels for ids we sent, store and link.
     const kept = new Map<string, number>();
     let stored = 0;
+    let refused = 0;
     for (let start = 0; start < todo.length; start += BATCH_SIZE) {
       const batch = todo.slice(start, start + BATCH_SIZE);
       const items: ClassifyItem[] = batch.map((p, i) => ({
@@ -147,7 +205,15 @@ export function createCollectStep(deps: {
         community: p.community,
         excerpt: p.excerpt,
       }));
-      const labels = await classifier.classify(productId, items);
+      let labels: Label[];
+      try {
+        labels = await classifier.classify(productId, items);
+      } catch (error) {
+        // A refusal skips this batch: nothing is linked, so the next run sends it again.
+        if (!(error instanceof LlmRefusalError)) throw error;
+        refused++;
+        continue;
+      }
       const byId = new Map<number, Label>();
       for (const label of labels) {
         const index = /^\d{1,2}$/.test(label.id) ? Number(label.id) : -1;
@@ -171,11 +237,7 @@ export function createCollectStep(deps: {
           now,
         );
         if (!postId) continue; // suppressed after the pre-check: ingest_post refused it
-        await store.link(productId, postId, {
-          relevance: label.relevance,
-          category: label.category,
-          reason: label.reason.slice(0, MAX_REASON),
-        });
+        await store.link(productId, postId, toPostLabel(label, label.category, post));
         stored++;
         if (post.termId) kept.set(post.termId, (kept.get(post.termId) ?? 0) + 1);
       }
@@ -194,6 +256,6 @@ export function createCollectStep(deps: {
       relevant: kept.get(termId) ?? 0,
     }));
     if (stats.length > 0) await store.recordTermStats(job.id, day, source.id, stats);
-    return { stored };
+    return { stored, refused };
   };
 }

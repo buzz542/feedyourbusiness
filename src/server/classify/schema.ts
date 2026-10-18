@@ -23,6 +23,7 @@ export const CATEGORIES = [
 ] as const;
 
 export const Issue = z.enum(ISSUES);
+export type Issue = z.infer<typeof Issue>;
 
 export const ClassificationSchema = z.object({
   results: z
