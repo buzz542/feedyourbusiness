@@ -5,3 +5,6 @@
  */
 export const BRIGHTDATA_DOMAIN = "brightdata.com";
 export const BRIGHTDATA_API_HOST = "api.brightdata.com";
+
+/** Every domain a data vendor serves from. Only the reddit source may list a host under one. */
+export const VENDOR_DOMAINS: readonly string[] = [BRIGHTDATA_DOMAIN];

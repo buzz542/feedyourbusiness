@@ -32,6 +32,9 @@ describe("authorHasher", () => {
     ["missing", {}],
     ["empty", { AUTHOR_HASH_PEPPER: "" }],
     ["too short", { AUTHOR_HASH_PEPPER: "short" }],
+    // The exact .env.example value: published in the repo, and the pepper can never rotate.
+    ["the placeholder", { AUTHOR_HASH_PEPPER: "replace_me_with_a_long_random_string" }],
+    ["any placeholder", { AUTHOR_HASH_PEPPER: "REPLACE_ME".padEnd(40, "x") }],
   ])("throws when the pepper is %s", (_label, env) => {
     expect(() => authorHasher(env)).toThrow(/AUTHOR_HASH_PEPPER/);
   });

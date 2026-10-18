@@ -24,6 +24,9 @@ export function authorHasher(env: Env = process.env): AuthorHasher {
   const pepper = env.AUTHOR_HASH_PEPPER;
   if (!pepper || pepper.length < 32)
     throw new Error("AUTHOR_HASH_PEPPER is missing or shorter than 32 characters");
+  // The .env.example value is public, and the pepper can never rotate: refuse it outright.
+  if (/replace_me/i.test(pepper))
+    throw new Error("AUTHOR_HASH_PEPPER is still the .env.example placeholder");
   return (source, authorKey) =>
     createHmac("sha256", pepper)
       .update(`${source}:${normalizeAuthorKey(authorKey)}`)

@@ -4,6 +4,7 @@ import { bluesky } from "./bluesky";
 import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import { reddit } from "./reddit";
+import { VENDOR_DOMAINS } from "./reddit-vendor";
 import { x } from "./x";
 import type { CollectSource, LinkSource, Source } from "./types";
 
@@ -115,6 +116,11 @@ const isHttps = (raw: string) => {
   }
 };
 
+const isVendorHost = (host: string) => {
+  const h = host.toLowerCase().replace(/\.$/, "");
+  return VENDOR_DOMAINS.some((domain) => h === domain || h.endsWith(`.${domain}`));
+};
+
 /** D4: Reddit and X posts are kept 7 days, the rest 30. */
 const SEVEN_DAY_SOURCES = new Set(["reddit", "x"]);
 
@@ -131,11 +137,24 @@ export function registryProblems(list: readonly Source[]): string[] {
   for (const source of list) {
     if (seen.has(source.id)) problems.push(`duplicate id ${source.id}`);
     seen.add(source.id);
+    // safeFetch's own host check: a link host must be refused for every source's fetch.
+    for (const host of source.linkHosts)
+      if (isHostAllowed(host, fetchable))
+        problems.push(`${source.id}: link host ${host} is fetchable`);
   }
   for (const source of collect) {
     const id = source.id;
-    if ((NEVER_COLLECTED as readonly string[]).includes(id))
+    // By the platform name inside the id too: "linkedin_jobs" is LinkedIn.
+    if (NEVER_COLLECTED.some((platform) => id.replaceAll("_", "").includes(platform)))
       problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);
+    // D1 and 2.1.9 by what a source calls, not by the label it gives itself.
+    const vendorHosts = source.allowedHosts.filter(isVendorHost);
+    if (vendorHosts.length > 0 && (id !== "reddit" || source.access !== "vendor_api"))
+      problems.push(`${id}: only reddit, with access vendor_api, may call the vendor`);
+    if (id === "reddit" && (source.access !== "vendor_api" || !source.vendor))
+      problems.push(`reddit: must declare access vendor_api and its vendor (D1, D12)`);
+    if (source.access === "vendor_api" && vendorHosts.length !== source.allowedHosts.length)
+      problems.push(`${id}: a vendor source may call only the vendor's hosts`);
     if (source.access === "vendor_api") {
       if (id !== "reddit") problems.push(`${id}: only reddit may use a vendor (D1)`);
       if (!source.vendor) problems.push(`${id}: vendor_api needs a vendor`);
@@ -152,11 +171,9 @@ export function registryProblems(list: readonly Source[]): string[] {
     if (source.retentionDays !== days) problems.push(`${id}: retention must be ${days} days (D4)`);
     for (const host of source.allowedHosts)
       if (isPlatformWebHost(host)) problems.push(`${id}: ${host} is a platform's own site`);
-    // safeFetch's own host check: a link host must be refused for every source's fetch.
-    for (const host of source.linkHosts)
-      if (isHostAllowed(host, fetchable)) problems.push(`${id}: link host ${host} is fetchable`);
-    if (source.costPerUnitUsd < 0 || source.dailyBudget < 0)
-      problems.push(`${id}: cost and budget must not be negative`);
+    const finite = (n: number) => Number.isFinite(n) && n >= 0;
+    if (!finite(source.costPerUnitUsd) || !finite(source.dailyBudget))
+      problems.push(`${id}: cost and budget must be finite and not negative`);
   }
   return problems;
 }

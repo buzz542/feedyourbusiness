@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BRIGHTDATA_API_HOST } from "./reddit-vendor";
 import { registryProblems, sources } from "./registry";
 import type { CollectSource, Source } from "./types";
 
@@ -34,7 +35,7 @@ const vendorReddit = (over: Partial<CollectSource> = {}) =>
       dpaUrl: "https://vendor.example/dpa",
       dpaSignedOnEnv: "VENDOR_DPA_SIGNED_ON",
     },
-    allowedHosts: ["api.vendor.example"],
+    allowedHosts: [BRIGHTDATA_API_HOST],
     linkHosts: ["www.reddit.com"],
     retentionDays: 7,
     costPerUnitUsd: 0.0015,
@@ -121,13 +122,60 @@ describe("registryProblems", () => {
     [
       "a negative cost",
       [collect({ costPerUnitUsd: -1 })],
-      /hackernews: cost and budget must not be negative/,
+      /hackernews: cost and budget must be finite and not negative/,
     ],
     ["a duplicate id", [collect(), collect()], /duplicate id hackernews/],
     [
       "a never-collected platform as a collect source",
       [collect({ id: "linkedin" })],
       /linkedin is never collected/,
+    ],
+    [
+      "a never-collected platform inside a source id",
+      [collect({ id: "linkedin_jobs" })],
+      /linkedin_jobs is never collected/,
+    ],
+    [
+      "a source that is not reddit calling the vendor's host",
+      [collect({ id: "forum", allowedHosts: [BRIGHTDATA_API_HOST] })],
+      /forum: only reddit, with access vendor_api, may call the vendor/,
+    ],
+    [
+      "the vendor's host under an official_api label",
+      [vendorReddit({ access: "official_api", vendor: undefined })],
+      /reddit: must declare access vendor_api and its vendor/,
+    ],
+    [
+      "a vendor source calling a host outside the vendor",
+      [vendorReddit({ allowedHosts: [BRIGHTDATA_API_HOST, "api.other.example"] })],
+      /reddit: a vendor source may call only the vendor's hosts/,
+    ],
+    [
+      "a cost that is not a finite number",
+      [collect({ costPerUnitUsd: Number.NaN })],
+      /hackernews: cost and budget must be finite and not negative/,
+    ],
+    [
+      "an infinite budget",
+      [collect({ dailyBudget: Number.POSITIVE_INFINITY })],
+      /hackernews: cost and budget must be finite and not negative/,
+    ],
+    [
+      "a link source's host that a collect source may fetch",
+      [
+        collect(),
+        {
+          id: "forum_links",
+          displayName: "Forum",
+          mode: "link",
+          termsUrl: "https://terms.example/forum",
+          allowedHosts: [],
+          linkHosts: ["api.hn.example"],
+          dailyBudget: 0,
+          searchLinks: () => [],
+        },
+      ],
+      /forum_links: link host api\.hn\.example is fetchable/,
     ],
   ])("catches %s (planted)", (_label, list, problem) => {
     expect(registryProblems(list).join("\n")).toMatch(problem);
