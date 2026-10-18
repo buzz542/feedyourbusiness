@@ -33,6 +33,8 @@ const SKIPPED = new Set([
 ]);
 /** Elements whose next sibling of the same name closes them (HTML's optional end tags). */
 const SIBLING_CLOSES = new Set(["li", "dt", "dd", "tr", "td", "th", "option"]);
+/** The end of a comment: "-->" or "--!>" (the HTML tokenizer accepts both). */
+const COMMENT_END = /--!?>/g;
 const MAX_HEADINGS = 40;
 /** The only elements where a self-closing slash means anything (foreign content). */
 const FOREIGN = new Set(["svg", "math"]);
@@ -296,14 +298,10 @@ export function pageText(input: string, contentType: "text/html" | "text/plain")
 
     if (html.startsWith("<!--", lt)) {
       // From "<!" + 2 so that "<!-->" and "<!--->" end where they start; "--!>" ends one too.
-      const dash = html.indexOf("-->", lt + 2);
-      const bang = html.indexOf("--!>", lt + 2);
-      i =
-        dash < 0 && bang < 0
-          ? html.length
-          : bang < 0 || (dash >= 0 && dash < bang)
-            ? dash + 3
-            : bang + 4;
+      // One forward search for whichever ending comes first keeps many comments linear.
+      COMMENT_END.lastIndex = lt + 2;
+      const end = COMMENT_END.exec(html);
+      i = end ? end.index + end[0].length : html.length;
       continue;
     }
     if (html[lt + 1] === "!" || html[lt + 1] === "?") {

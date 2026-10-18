@@ -256,6 +256,8 @@ describe("pageText edge cases", () => {
     ["deep nesting", "<div>".repeat(400_000)],
     ["deeply nested skipped elements", "<nav>".repeat(400_000)],
     ["many unquoted attributes", `<p ${"a=b ".repeat(500_000)}>x</p>`],
+    ["many comments", "<!---->".repeat(299_000)],
+    ["many comments between words", "a<!-- -->".repeat(230_000)],
   ])("stays linear on 2 MB of %s", (_label, input) => {
     expect(input.length).toBeLessThanOrEqual(2 * 1024 * 1024);
     const started = performance.now();

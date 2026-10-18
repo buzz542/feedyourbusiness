@@ -62,6 +62,14 @@ function isTypeOnlyImport(node: ts.ImportDeclaration): boolean {
 }
 
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self", "global"]);
+/** Element-access names that load a module or native binding by another name. */
+const LOADER_NAMES = new Set(["getBuiltinModule", "binding", "_linkedBinding"]);
+
+/** `process`, `globalThis.process`, `global.process`... */
+function endsWithProcess(expr: ts.Expression): boolean {
+  if (ts.isIdentifier(expr)) return expr.text === "process";
+  return ts.isPropertyAccessExpression(expr) && expr.name.text === "process";
+}
 const NETWORK_CONSTRUCTORS = new Set([
   "XMLHttpRequest",
   "WebSocket",
@@ -83,7 +91,11 @@ export function moduleName(specifier: string): string {
 
 /** True if this identifier names the global `fetch` rather than a property, parameter or type. */
 function isGlobalFetchReference(node: ts.Identifier): boolean {
-  if (node.text !== "fetch") return false;
+  return node.text === "fetch" && isFreeReference(node);
+}
+
+/** True if this identifier is a value reference, not a property name, declaration or type. */
+function isFreeReference(node: ts.Identifier): boolean {
   const parent = node.parent;
   if (!parent) return true;
   if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
@@ -159,7 +171,60 @@ export function findNetworkPrimitives(
     }
   };
 
+  // Local names bound to fetchOwnSite() (or its module), so exporting them onward is caught too.
+  const ownSiteLocals = new Set<string>();
+  for (const statement of sf.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
+      continue;
+    if (resolveSpecifier(file, statement.moduleSpecifier.text) !== OWN_SITE_MODULE) continue;
+    const clause = statement.importClause;
+    if (!clause || clause.isTypeOnly) continue;
+    if (clause.name) ownSiteLocals.add(clause.name.text);
+    const bindings = clause.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) ownSiteLocals.add(bindings.name.text);
+    if (bindings && ts.isNamedImports(bindings))
+      for (const element of bindings.elements)
+        if (!element.isTypeOnly) ownSiteLocals.add(element.name.text);
+  }
+  const isOwnSiteValue = (expr: ts.Expression | undefined): boolean => {
+    if (!expr) return false;
+    if (ts.isIdentifier(expr)) return ownSiteLocals.has(expr.text);
+    if (ts.isPropertyAccessExpression(expr)) return isOwnSiteValue(expr.expression);
+    if (ts.isParenthesizedExpression(expr) || ts.isAsExpression(expr))
+      return isOwnSiteValue(expr.expression);
+    if (ts.isObjectLiteralExpression(expr))
+      return expr.properties.some((p) =>
+        ts.isShorthandPropertyAssignment(p)
+          ? ownSiteLocals.has(p.name.text)
+          : ts.isPropertyAssignment(p) && isOwnSiteValue(p.initializer),
+      );
+    return false;
+  };
+  const onward = (node: ts.Node) =>
+    add(node, "own-site-importer", "exports fetchOwnSite() onward; import it where it is used");
+  const isExported = (node: ts.Node) =>
+    ts.canHaveModifiers(node) &&
+    (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+
   const visit = (node: ts.Node) => {
+    if (ownSiteLocals.size > 0 && file !== OWN_SITE_FILE) {
+      if (ts.isExportDeclaration(node) && !node.moduleSpecifier && !node.isTypeOnly) {
+        const clause = node.exportClause;
+        if (clause && ts.isNamedExports(clause))
+          for (const element of clause.elements)
+            if (
+              !element.isTypeOnly &&
+              ownSiteLocals.has((element.propertyName ?? element.name).text)
+            )
+              onward(element);
+      } else if (ts.isExportAssignment(node) && isOwnSiteValue(node.expression)) {
+        onward(node);
+      } else if (ts.isVariableStatement(node) && isExported(node)) {
+        for (const declaration of node.declarationList.declarations)
+          if (isOwnSiteValue(declaration.initializer)) onward(declaration);
+      }
+    }
+
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       checkModule(node, node.moduleSpecifier.text, {
         staticImport: true,
@@ -187,9 +252,53 @@ export function findNetworkPrimitives(
       const first = node.arguments[0];
       const isRequire = ts.isIdentifier(callee) && callee.text === "require";
       const isDynamicImport = callee.kind === ts.SyntaxKind.ImportKeyword;
-      if ((isRequire || isDynamicImport) && first && ts.isStringLiteralLike(first)) {
-        checkModule(node, first.text);
+      if (isRequire || isDynamicImport) {
+        if (first && ts.isStringLiteralLike(first)) checkModule(node, first.text);
+        else
+          add(
+            node,
+            "dynamic-module-specifier",
+            "loads a module named at runtime; name it with a string literal",
+          );
       }
+      if (ts.isIdentifier(callee) && (callee.text === "eval" || callee.text === "Function"))
+        add(node, "dynamic-code", `${callee.text}() runs code the gate cannot read`);
+    }
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === "Function")
+        add(node, "dynamic-code", "new Function() runs code the gate cannot read");
+    }
+
+    // Ways to reach a module or a socket without an import the gate can read.
+    if (ts.isIdentifier(node) && node.text === "getBuiltinModule") {
+      add(node, "builtin-module-loader", "getBuiltinModule() loads a module the gate cannot read");
+    } else if (
+      ts.isStringLiteralLike(node) &&
+      LOADER_NAMES.has(node.text) &&
+      ts.isElementAccessExpression(node.parent) &&
+      node.parent.argumentExpression === node
+    ) {
+      add(node, "builtin-module-loader", `${node.text} loads a module the gate cannot read`);
+    } else if (
+      ts.isPropertyAccessExpression(node) &&
+      (node.name.text === "binding" || node.name.text === "_linkedBinding") &&
+      endsWithProcess(node.expression)
+    ) {
+      add(node, "builtin-module-loader", `process.${node.name.text}() opens native bindings`);
+    } else if (
+      ts.isIdentifier(node) &&
+      node.text === "require" &&
+      isFreeReference(node) &&
+      !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+    ) {
+      add(node, "dynamic-module-specifier", "uses require as a value; call it with a literal");
+    } else if (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === "require" &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "module"
+    ) {
+      add(node, "dynamic-module-specifier", "module.require() loads a module by another name");
     }
 
     if (
@@ -206,6 +315,20 @@ export function findNetworkPrimitives(
           node,
           "global-fetch",
           "references the global fetch. Use safeFetch() from src/server/net.",
+        );
+      } else if (
+        ts.isElementAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        GLOBAL_OBJECTS.has(node.expression.text) &&
+        !(
+          ts.isStringLiteralLike(node.argumentExpression) &&
+          node.argumentExpression.text !== "fetch"
+        )
+      ) {
+        add(
+          node,
+          "global-fetch",
+          `indexes ${node.expression.text} with "fetch" or a runtime key. Use safeFetch().`,
         );
       } else if (
         ts.isPropertyAccessExpression(node) &&

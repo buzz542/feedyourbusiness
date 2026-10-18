@@ -92,10 +92,20 @@ describe("llm_spend_since plans", () => {
        from generate_series(1, 5000) g`,
     );
     await db.query("analyze public.llm_usage");
+    // Explain the per-product query exactly as the function's body has it, not a copy.
+    const { prosrc } = (
+      await db.query<{ prosrc: string }>(
+        "select prosrc from pg_proc where proname = 'llm_spend_since'",
+      )
+    ).rows[0]!;
+    const perProduct =
+      /select\s+coalesce\(sum\(cost_usd\), 0\)\s+from public\.llm_usage\s+where product_id = p_product_id[^)]*/i.exec(
+        prosrc,
+      )?.[0];
+    expect(perProduct).toBeDefined();
     const plan = (
       await db.query<{ "QUERY PLAN": string }>(
-        `explain select coalesce(sum(cost_usd), 0) from public.llm_usage
-         where product_id = $1 and created_at >= $2`,
+        `explain ${perProduct!.replace(/p_product_id/g, "$1::uuid").replace(/p_since/g, "$2::timestamptz")}`,
         [alice, "2026-10-01T00:00:00Z"],
       )
     ).rows

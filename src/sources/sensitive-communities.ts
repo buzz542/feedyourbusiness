@@ -19,8 +19,7 @@ const NAMES = new Set([
   "ttc",
   "leaves",
   "stds",
-  "herpes",
-  "lupus",
+
   "hiv",
   "std",
   "deaf",
@@ -28,6 +27,7 @@ const NAMES = new Set([
   "trees",
   "drugs",
   "lsd",
+  "weed",
   // sex life, sexual orientation, gender identity
   "sex",
   "gay",
@@ -40,13 +40,13 @@ const NAMES = new Set([
   "lds",
   "exjw",
   "quran",
-  "bible",
   "church",
   // racial or ethnic origin
   "desis",
   "abcdesis",
   // politics
   "maga",
+  "gop",
   "labour",
   "tories",
   "brexit",
@@ -130,6 +130,14 @@ const PATTERNS: readonly string[] = [
   "ostomy",
   "cocaine",
   "psychonaut",
+  "herpes",
+  "lupus",
+  "ocdrecover",
+  "bpdloved",
+  "thyroid",
+  "cannabis",
+  "marijuana",
+  "microdos",
   // sex life, sexual orientation, gender identity
   "lgbt",
   "lesbian",
@@ -151,6 +159,8 @@ const PATTERNS: readonly string[] = [
   "nofap",
   "sexover",
   "sexwork",
+  "gender",
+  "eggirl",
   // religion and belief
   "christ",
   "catholic",
@@ -182,6 +192,9 @@ const PATTERNS: readonly string[] = [
   "presbyterian",
   "anglican",
   "episcopal",
+  "bible",
+  "jesus",
+  "torah",
   // political opinion
   "politic",
   "conservative",
@@ -204,6 +217,8 @@ const PATTERNS: readonly string[] = [
   "trumpsupport",
   "asktrump",
   "greenparty",
+  "biden",
+  "kamala",
   // racial or ethnic origin, migration
   "blackpeople",
   "blackladies",

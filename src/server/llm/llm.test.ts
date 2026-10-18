@@ -158,6 +158,27 @@ describe("callStructured", () => {
     log.mockRestore();
   });
 
+  it.each([
+    ["product_monthly", { product: 2.998 }],
+    ["global_daily", { global: 24.998 }],
+  ] as const)(
+    "counts spend it could not record against the %s cap, so a lost row cannot open the cap",
+    async (cap, spend) => {
+      const { llm, usage, client } = setup(
+        [reply('{"name":"Invoicer","terms":[]}'), reply('{"name":"Invoicer","terms":[]}')],
+        spend,
+      );
+      vi.mocked(usage.record).mockRejectedValue(new Error("db down"));
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      await llm.callStructured(call); // $0.004, not recorded: now over the cap
+      const error = await llm.callStructured(call).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(LlmCapError);
+      expect((error as LlmCapError).cap).toBe(cap);
+      expect(client.create).toHaveBeenCalledTimes(1);
+      log.mockRestore();
+    },
+  );
+
   it("refuses a product-less call for anything but the preview", async () => {
     const { llm, client } = setup([reply("{}")]);
     await expect(llm.callStructured({ ...call, productId: null })).rejects.toThrow(

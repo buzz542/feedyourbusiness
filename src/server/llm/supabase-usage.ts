@@ -7,7 +7,9 @@ export function createSupabaseUsageStore(db: AdminClient): UsageStore {
   return {
     async record(row) {
       const { error } = await db.from("llm_usage").insert(row);
-      if (error) throw new Error(`Supabase: ${error.message}`);
+      // Named, so the wrapper's log line says what failed (never the message: it can echo values).
+      if (error)
+        throw Object.assign(new Error("Supabase insert failed"), { name: "UsageWriteError" });
     },
 
     async spendSince({ productId, since }) {

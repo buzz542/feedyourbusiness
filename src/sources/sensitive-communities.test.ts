@@ -100,6 +100,26 @@ describe("isSensitiveCommunity", () => {
     "ABCDesis",
     "trees",
     "Drugs",
+    // gaps a second review found: compound names and missing topics
+    "Jesus",
+    "BibleStudy",
+    "Torah",
+    "egg_irl",
+    "GenderCritical",
+    "genderfluid",
+    "JoeBiden",
+    "Kamala",
+    "GOP",
+    "weed",
+    "cannabis",
+    "marijuana",
+    "microdosing",
+    "HerpesCureResearch",
+    "OCDRecovery",
+    "BPDlovedones",
+    "lupus_support",
+    "thyroid",
+    "Hypothyroidism",
     // as given with a prefix
     "r/depression",
     "/r/politics",
@@ -139,6 +159,10 @@ describe("isSensitiveCommunity", () => {
     "blinds",
     "trees_and_shrubs",
     "drugstore",
+    "tumbleweed",
+    "weeding",
+    "gopro",
+    "eggs",
   ])("keeps %s", (name) => {
     expect(isSensitiveCommunity(name)).toBe(false);
   });

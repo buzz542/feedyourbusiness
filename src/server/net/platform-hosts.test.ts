@@ -129,6 +129,24 @@ describe("embedsPlatformUrl", () => {
     "https://reader.example/https:/www.reddit.com/r/x",
     "https://reader.example/www.reddit.com/r/x",
     "https://reader.example/https://www.reddit.com.suffix-proxy.example/r/x",
+    // What a WHATWG URL parser (the one readers and CORS proxies run) reads as a platform host.
+    "https://reader.example/https:www.reddit.com/r/x",
+    "https://reader.example/https:www.reddit.com",
+    "https://reader.example/https://www.%EF%BD%92eddit.com/r/x",
+    "https://reader.example/https://www.red%C2%ADdit.com/r/x",
+    "https://reader.example/https://www.red%09dit.com/r/x",
+    "https://proxy.example/?u=https%3A%2F%2Fa%26b%40www.reddit.com%2Fr%2Fx",
+    "https://proxy.example/?u=https%3A%2F%2Fa%3Bb%40www.reddit.com%2Fr%2Fx",
+    "https://proxy.example/?u=https:www.reddit.com/r/x",
+    // A bare platform host as the only segment, or with a subdomain label as the last one.
+    "https://reader.example/www.reddit.com",
+    "https://reader.example/news.ycombinator.com",
+    "https://reader.example/old.reddit.com",
+    "https://reader.example/x.com",
+    "https://reader.example/bsky.app",
+    "https://reader.example/fetch/www.reddit.com",
+    "https://reader.example/fetch/mobile.x.com",
+    "https://proxy.example/?url=www.reddit.com",
   ])("refuses %s", (url) => {
     expect(embedsPlatformUrl(new URL(url))).toBe(true);
   });

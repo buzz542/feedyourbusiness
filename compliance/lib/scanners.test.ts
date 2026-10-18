@@ -130,6 +130,27 @@ describe("network scanner", () => {
       expect(rules(scan(code, "src/server/onboarding/index.ts")), code).toContain(
         "own-site-importer",
       );
+    // A two-step barrel: import it, then export the local name onward.
+    for (const code of [
+      `import { fetchOwnSite } from "@/server/net/own-site"; export { fetchOwnSite };`,
+      `import { fetchOwnSite as f } from "@/server/net/own-site"; export { f as fetchPage };`,
+      `import { fetchOwnSite } from "@/server/net/own-site"; export const fetchPage = fetchOwnSite;`,
+      `import { fetchOwnSite } from "@/server/net/own-site"; export const net = { fetchOwnSite };`,
+      `import { fetchOwnSite } from "@/server/net/own-site"; export default fetchOwnSite;`,
+      `import * as own from "@/server/net/own-site"; export { own };`,
+    ])
+      expect(rules(scan(code, "src/server/onboarding/index.ts")), code).toContain(
+        "own-site-importer",
+      );
+    // Using it inside the allowed directory, and exporting functions that use it, is fine.
+    expect(
+      scan(
+        `import { fetchOwnSite } from "@/server/net/own-site";
+         export function deps() { return { fetchSite: fetchOwnSite }; }
+         export const draft = (u: string) => fetchOwnSite(u);`,
+        "src/server/onboarding/deps.ts",
+      ),
+    ).toEqual([]);
     // Types only, inline or not, carry nothing at runtime.
     expect(
       scan(`import { type OwnSitePage } from "@/server/net/own-site";`, "src/app/page.tsx"),
@@ -148,6 +169,39 @@ describe("network scanner", () => {
     expect(rules(scan(`import { createRequire } from "node:module";`))).toContain(
       "banned-network-module",
     );
+  });
+
+  it.each([
+    [`const https = process.getBuiltinModule("node:https");`, "builtin-module-loader"],
+    [`const https = process["getBuiltinModule"]("https");`, "builtin-module-loader"],
+    [`const { getBuiltinModule } = process; getBuiltinModule("net");`, "builtin-module-loader"],
+    [`globalThis.process.getBuiltinModule("tls");`, "builtin-module-loader"],
+    [`const tcp = process.binding("tcp_wrap");`, "builtin-module-loader"],
+    [`const tcp = process._linkedBinding("x");`, "builtin-module-loader"],
+    [`const m = await import("node:" + "https");`, "dynamic-module-specifier"],
+    [`const m = await import(name);`, "dynamic-module-specifier"],
+    ["const m = await import(`node:${name}`);", "dynamic-module-specifier"],
+    [`const m = require(name);`, "dynamic-module-specifier"],
+    [`const r = require; r("https");`, "dynamic-module-specifier"],
+    [`const m = module.require("https");`, "dynamic-module-specifier"],
+    [`eval("require('https')");`, "dynamic-code"],
+    [`new Function("return require('https')")();`, "dynamic-code"],
+    [`Function("return this")();`, "dynamic-code"],
+    [`globalThis["fetch"]("https://evil.example");`, "global-fetch"],
+    [`window[key]("https://evil.example");`, "global-fetch"],
+  ])("refuses a module or the network reached another way: %s", (code, rule) => {
+    expect(rules(scan(code, "src/sources/forum.ts"))).toContain(rule);
+  });
+
+  it("allows literal dynamic imports and reading process.env", () => {
+    expect(
+      scan(
+        `const m = await import("./review-form");
+         const t = \`./x\`; const n = await import(\`./static\`);
+         const v = process.env.NODE_ENV; const k = obj["key"];`,
+        "src/x.test.tsx",
+      ),
+    ).toEqual([]);
   });
 
   it.each(["WebSocket", "XMLHttpRequest", "EventSource"])("flags new %s()", (ctor) => {

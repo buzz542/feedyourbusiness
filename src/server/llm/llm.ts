@@ -120,20 +120,33 @@ function parse<T>(response: LlmResponse, schema: z.ZodType<T>): T | undefined {
   return result.success ? result.data : undefined;
 }
 
+/** A class name for logs: the error's own name when it has one, else its constructor's. */
+function errorClass(error: unknown): string {
+  if (!(error instanceof Error)) return "UnknownError";
+  return error.name && error.name !== "Error" ? error.name : error.constructor.name;
+}
+
 export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps): Llm {
+  /** Spend whose usage row could not be written, still counted against both caps. */
+  const unrecorded = { global: 0, byProduct: new Map<string, number>() };
+
   async function checkCaps(productId: string | null): Promise<void> {
     const now = clock();
     if (productId) {
-      const spent = await usage.spendSince({ productId, since: startOfUtcMonth(now) });
+      const spent =
+        (await usage.spendSince({ productId, since: startOfUtcMonth(now) })) +
+        (unrecorded.byProduct.get(productId) ?? 0);
       if (spent >= caps.monthlyUsdPerProduct) throw new LlmCapError("product_monthly");
     }
-    const spent = await usage.spendSince({ productId: null, since: startOfUtcDay(now) });
+    const spent =
+      (await usage.spendSince({ productId: null, since: startOfUtcDay(now) })) + unrecorded.global;
     if (spent >= caps.dailyUsdGlobal) throw new LlmCapError("global_daily");
   }
 
   /**
    * One llm_usage row per request. A failed write is retried once; if it still fails, the paid
-   * reply is not thrown away (the row is lost, which the global cap tolerates).
+   * reply is not thrown away, and its cost keeps counting against the caps for the rest of this
+   * run, so a lost row can never open a cap.
    */
   async function record(row: Parameters<UsageStore["record"]>[0]): Promise<void> {
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -141,8 +154,14 @@ export function createLlm({ client, usage, clock, caps = DEFAULT_CAPS }: LlmDeps
         await usage.record(row);
         return;
       } catch (error) {
-        if (attempt === 2)
-          console.error(`[llm] usage row not written: ${(error as Error).name ?? "Error"}`);
+        if (attempt < 2) continue;
+        unrecorded.global += row.cost_usd;
+        if (row.product_id)
+          unrecorded.byProduct.set(
+            row.product_id,
+            (unrecorded.byProduct.get(row.product_id) ?? 0) + row.cost_usd,
+          );
+        console.error(`[llm] usage row not written: ${errorClass(error)}`);
       }
     }
   }

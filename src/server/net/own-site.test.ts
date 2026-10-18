@@ -255,6 +255,12 @@ describe("fetchOwnSite", () => {
     "https://www.reddit.com.suffix-proxy.example/r/x",
     "https://hn-algolia-com.proxy.example/api/v1/search",
     "https://hacker--news-firebaseio-com.proxy.example/v0/item/1.json",
+    "https://reader.example/https:www.reddit.com/r/x",
+    "https://reader.example/https://www.%EF%BD%92eddit.com/r/x",
+    "https://reader.example/https://www.red%C2%ADdit.com/r/x",
+    "https://reader.example/www.reddit.com",
+    "https://reader.example/news.ycombinator.com",
+    "https://reader.example/old.reddit.com",
   ];
 
   it.each(PLANTED)("refuses the platform URL %s as the first URL", async (url) => {
@@ -267,6 +273,16 @@ describe("fetchOwnSite", () => {
     // The platform check runs before the same-site rule, so the refusal names the platform.
     const d = deps({
       "https://invoicer.example/": { status: 302, headers: { location: url } },
+    });
+    expect(await code(fetchOwnSite("https://invoicer.example/", d))).toBe("platform_host");
+  });
+
+  it("refuses a same-site redirect whose query carries a platform URL in userinfo form", async () => {
+    const d = deps({
+      "https://invoicer.example/": {
+        status: 302,
+        headers: { location: "/?u=https%3A%2F%2Fa%26b%40www.reddit.com%2Fr%2Fx" },
+      },
     });
     expect(await code(fetchOwnSite("https://invoicer.example/", d))).toBe("platform_host");
   });
@@ -370,7 +386,8 @@ describe("the 10 second budget", () => {
   });
 });
 
-describe("fetchOwnSite with the real resolver", () => {
+// It sends a real DNS query, which CI never does: run it with LIVE_DNS_TESTS=1 on your machine.
+describe.runIf(process.env.LIVE_DNS_TESTS === "1")("fetchOwnSite with the real resolver", () => {
   it("fails a name that cannot resolve, inside the budget", async () => {
     // .invalid never resolves (RFC 2606). Without DNS in the sandbox, the budget ends it instead.
     const started = Date.now();
