@@ -112,7 +112,8 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M4 in docs/TASKS.md is complete: every M4 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M4's scope changed. Or stop after 40 turns and list what is left.
 ```
 
-- [ ] Migration `classification` (6.4). Test: `tests/db/classification.test.ts`: highlight range constraint; the user can still update only `state` on `product_posts`; `compliance:schema` passes.
+- [x] Migration `classification` (6.4). Test: `tests/db/classification.test.ts`: highlight range constraint; the user can still update only `state` on `product_posts`; `compliance:schema` passes.
+- [ ] (you) Apply `classification` to the development project with the advisors clean, then approve it for production (it adds nullable label columns and four indexes to `product_posts`; nothing is deleted), and run `npm run db:types`.
 - [ ] Classification schema and the sensitive-trait guard (8.2). Test: no property name matches the banned list; every system prompt contains the never-infer rule; the schema validates the fixtures.
 - [ ] Haiku classification in batches of 20 with post-processing (8.2). Test (fake model): unknown ids dropped; relevance below 40 and `not_relevant` discarded; highlight offsets from exact matches only; `tool_mentioned` with `@`, `u/`, an email or a URL rejected; unknown `competitor_key` dropped; a refusal skips the batch and is counted.
 - [ ] Prompt caching. Test: the cached block exceeds the model's documented minimum; a recorded pair of API responses shows `cache_read_input_tokens` above zero on the second call.

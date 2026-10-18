@@ -272,38 +272,72 @@ export type Database = {
       product_posts: {
         Row: {
           category: string
+          competitor_id: string | null
           created_at: string
+          highlight_end: number | null
+          highlight_start: number | null
           id: string
           post_id: string
           product_id: string
           reason: string
           relevance: number
+          rival_issue: string | null
+          rival_sentiment: string | null
+          rival_summary: string | null
           state: string
+          switching: boolean
+          term_id: string | null
+          tool_mentioned: string | null
           updated_at: string
         }
         Insert: {
           category: string
+          competitor_id?: string | null
           created_at?: string
+          highlight_end?: number | null
+          highlight_start?: number | null
           id?: string
           post_id: string
           product_id: string
           reason: string
           relevance: number
+          rival_issue?: string | null
+          rival_sentiment?: string | null
+          rival_summary?: string | null
           state?: string
+          switching?: boolean
+          term_id?: string | null
+          tool_mentioned?: string | null
           updated_at?: string
         }
         Update: {
           category?: string
+          competitor_id?: string | null
           created_at?: string
+          highlight_end?: number | null
+          highlight_start?: number | null
           id?: string
           post_id?: string
           product_id?: string
           reason?: string
           relevance?: number
+          rival_issue?: string | null
+          rival_sentiment?: string | null
+          rival_summary?: string | null
           state?: string
+          switching?: boolean
+          term_id?: string | null
+          tool_mentioned?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "product_posts_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_posts_post_id_fkey"
             columns: ["post_id"]
@@ -316,6 +350,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_posts_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "search_terms"
             referencedColumns: ["id"]
           },
         ]
