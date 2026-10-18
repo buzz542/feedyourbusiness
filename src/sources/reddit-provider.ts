@@ -43,5 +43,7 @@ export interface RedditProvider {
   readonly id: string;
   /** Starts an asynchronous search and returns a handle to collect it with. */
   start(ctx: CollectContext, queries: readonly RedditQuery[]): Promise<string>;
+  /** Starts re-collecting stored post links (the deletion re-check); collect() reads the result. */
+  startByUrl(ctx: CollectContext, urls: readonly string[]): Promise<string>;
   collect(ctx: CollectContext, handle: string): Promise<RedditRun>;
 }

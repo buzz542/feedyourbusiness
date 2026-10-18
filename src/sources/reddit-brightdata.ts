@@ -90,13 +90,16 @@ export function assertPinnedRequest(raw: string, method: string): void {
     const datasetId = url.searchParams.get("dataset_id") ?? "";
     if (!PINNED_DATASET_IDS.includes(datasetId))
       throw new VendorRequestRefused("the dataset id is not pinned");
-    const expected = {
+    const discovery = {
       dataset_id: datasetId,
       type: "discover_new",
       discover_by: "keyword",
       include_errors: "true",
     };
-    if (!exactly(expected)) throw new VendorRequestRefused("unexpected trigger parameters");
+    // Collection by URL, for the deletion re-check: the same dataset, nothing else.
+    const byUrl = { dataset_id: datasetId, include_errors: "true" };
+    if (!exactly(discovery) && !exactly(byUrl))
+      throw new VendorRequestRefused("unexpected trigger parameters");
     return;
   }
   if (PROGRESS_PATH.test(url.pathname)) {
@@ -217,8 +220,27 @@ function toRecord(raw: unknown): RedditRecord | "error" | null {
   };
 }
 
+/** A stored post link exactly as the Reddit source writes it: the only input a re-check sends. */
+const STORED_POST_LINK =
+  /^https:\/\/www\.reddit\.com\/r\/[A-Za-z0-9_]{2,21}\/comments\/[A-Za-z0-9]{1,12}(?:\/[^/?#\s]*)?\/?$/;
+
 export const brightdataProvider: RedditProvider = {
   id: "brightdata",
+
+  async startByUrl(ctx: CollectContext, urls: readonly string[]): Promise<string> {
+    if (urls.length === 0 || urls.some((url) => !STORED_POST_LINK.test(url)))
+      throw new VendorRequestRefused("a re-check sends only stored Reddit post links");
+    const { token, datasetId } = config(ctx);
+    const params = new URLSearchParams({ dataset_id: datasetId, include_errors: "true" });
+    const response = await pinnedFetch(ctx, token)(`${API}${TRIGGER_PATH}?${params}`, {
+      method: "POST",
+      body: JSON.stringify(urls.map((url) => ({ url }))),
+    });
+    if (!response.ok) throw httpError(response);
+    const parsed = TriggerResponse.safeParse(await response.json());
+    if (!parsed.success) throw named("InvalidResponse", "The trigger answer did not match");
+    return parsed.data.snapshot_id;
+  },
 
   async start(ctx: CollectContext, queries: readonly RedditQuery[]): Promise<string> {
     const { token, datasetId } = config(ctx);

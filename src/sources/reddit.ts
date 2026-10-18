@@ -151,6 +151,45 @@ async function poll(ctx: CollectContext, raw: string): Promise<RunState> {
   }
 }
 
+/** A post the re-check found intact: a record with its author and its text still there. */
+function isLive(record: RedditRecord): boolean {
+  const author = record.author?.trim().toLowerCase() ?? "";
+  if (!author || GONE.has(author)) return false;
+  return [record.title, record.body].some((part) => {
+    const text = part.trim().toLowerCase();
+    return text !== "" && !GONE.has(text);
+  });
+}
+
+/**
+ * The deletion re-check (docs/PLAN.md 2.3.6, 7.7): stored links re-collected once by URL through
+ * the pinned dataset. Only posts that come back intact are live; an error record (a dead page), a
+ * missing record, or a deleted author or removed text means the post is deleted here, the safe side
+ * when the vendor cannot say.
+ */
+const recheck: NonNullable<CollectSource["recheck"]> = {
+  enabled: (ctx) => ctx.credential("REDDIT_DELETION_RECHECK") !== "false",
+
+  async start(ctx, urls) {
+    try {
+      return { kind: "pending", handle: await providerFor(ctx).startByUrl(ctx, urls) };
+    } catch (error) {
+      return { kind: "failed", errorClass: error instanceof Error ? error.name : "Error" };
+    }
+  },
+
+  async poll(ctx, handle) {
+    try {
+      const run = await providerFor(ctx).collect(ctx, handle);
+      if (run.kind === "pending") return { kind: "pending" };
+      const live = [...new Set(run.records.filter(isLive).map((r) => r.postId))];
+      return { kind: "done", live, units: run.units };
+    } catch (error) {
+      return { kind: "failed", errorClass: error instanceof Error ? error.name : "Error" };
+    }
+  },
+};
+
 export const reddit: CollectSource = {
   id: "reddit",
   displayName: "Reddit",
@@ -168,7 +207,13 @@ export const reddit: CollectSource = {
   retentionDays: 7,
   // $1.50 per 1,000 records (docs/PLAN.md 7.7); the founder confirms their rate (F8).
   costPerUnitUsd: 1.5 / 1000,
-  credentials: ["REDDIT_PROVIDER", "BRIGHTDATA_API_TOKEN", "BRIGHTDATA_REDDIT_DATASET_ID"],
+  credentials: [
+    "REDDIT_PROVIDER",
+    "REDDIT_DELETION_RECHECK",
+    "BRIGHTDATA_API_TOKEN",
+    "BRIGHTDATA_REDDIT_DATASET_ID",
+  ],
   start,
   poll,
+  recheck,
 };

@@ -69,6 +69,26 @@ export type RunState =
   | { kind: "pending"; handle: string }
   | { kind: "failed"; errorClass: string };
 
+/**
+ * A vendor source's one-time deletion re-check (docs/PLAN.md 2.3.6, 7.7): stored links re-collected
+ * through the same pinned dataset; anything not reported live is deleted here.
+ */
+export interface Recheck {
+  enabled(ctx: CollectContext): boolean;
+  start(
+    ctx: CollectContext,
+    urls: readonly string[],
+  ): Promise<{ kind: "pending"; handle: string } | { kind: "failed"; errorClass: string }>;
+  poll(
+    ctx: CollectContext,
+    handle: string,
+  ): Promise<
+    | { kind: "pending" }
+    | { kind: "done"; live: string[]; units: number }
+    | { kind: "failed"; errorClass: string }
+  >;
+}
+
 export interface CollectSource extends SourceBase {
   readonly mode: "collect";
   readonly access: "official_api" | "vendor_api";
@@ -96,6 +116,8 @@ export interface CollectSource extends SourceBase {
   poll?(ctx: CollectContext, handle: string): Promise<RunState>;
   /** Deletion sync: the external ids that no longer exist at the source. */
   checkDeleted?(ctx: CollectContext, externalIds: readonly string[]): Promise<string[]>;
+  /** Deletion re-check for a vendor source that cannot answer checkDeleted at once. */
+  readonly recheck?: Recheck;
 }
 
 export interface SearchLink {

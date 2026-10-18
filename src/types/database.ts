@@ -696,6 +696,10 @@ export type Database = {
         Args: { p_error_class?: string; p_id: string; p_payload?: Json; p_run_after?: string; p_status: string }
         Returns: undefined
       }
+      first_linked_product: {
+        Args: { p_post_id: string }
+        Returns: string
+      }
       ingest_post: {
         Args: { p_author_hash: string; p_community: string; p_excerpt: string; p_external_id: string; p_now: string; p_posted_at: string; p_source: string; p_url: string }
         Returns: string
@@ -711,6 +715,19 @@ export type Database = {
       record_term_stats: {
         Args: { p_day: string; p_job_id: string; p_source: string; p_stats: Json }
         Returns: boolean
+      }
+      reddit_recheck_posts: {
+        Args: { p_from: string; p_limit: number; p_product_id: string; p_to: string }
+        Returns: {
+          external_id: string
+          url: string
+        }[]
+      }
+      reddit_recheck_products: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          id: string
+        }[]
       }
       reserve_job_budget: {
         Args: { p_day: string; p_job_id: string; p_limit: number; p_month_start?: string; p_monthly_cap?: number; p_product_id: string; p_source: string; p_units: number }

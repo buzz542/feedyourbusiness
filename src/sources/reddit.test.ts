@@ -300,12 +300,83 @@ describe("reddit source", () => {
   });
 });
 
+describe("the deletion re-check (docs/PLAN.md 2.3.6, 7.7)", () => {
+  const STORED = [
+    "https://www.reddit.com/r/freelance/comments/1exa001/example_post_1exa001/",
+    "https://www.reddit.com/r/smallbusiness/comments/1exa002/late_fees_on_invoices/",
+    "https://www.reddit.com/r/SaaS/comments/1exa099/gone_post/",
+  ];
+
+  it("re-collects the stored links by URL on the pinned dataset, and nothing else", async () => {
+    const http = fakeHttp([[/\/trigger\?/, fixture("trigger.json")]]);
+    const state = await reddit.recheck!.start(ctx(http), STORED);
+    expect(state).toEqual({ kind: "pending", handle: "s_example0001" });
+    const [input, init] = http.mock.calls[0]!;
+    const url = new URL(String(input));
+    expect(url.origin + url.pathname).toBe("https://api.brightdata.com/datasets/v3/trigger");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      dataset_id: DATASET,
+      include_errors: "true",
+    });
+    expect(init!.method).toBe("POST");
+    expect(JSON.parse(String(init!.body))).toEqual(STORED.map((u) => ({ url: u })));
+  });
+
+  it("refuses to send anything but stored Reddit post links", async () => {
+    for (const bad of [
+      "https://www.linkedin.com/in/someone",
+      "https://www.reddit.com/user/example_person/",
+      "https://old.reddit.com/r/SaaS/comments/1/x/",
+      "https://www.reddit.com/r/SaaS/",
+    ]) {
+      const http = fakeHttp([[/\/trigger\?/, fixture("trigger.json")]]);
+      expect(await reddit.recheck!.start(ctx(http), [STORED[0]!, bad]), bad).toEqual({
+        kind: "failed",
+        errorClass: "VendorRequestRefused",
+      });
+      expect(http).not.toHaveBeenCalled();
+    }
+  });
+
+  it("reports live only the posts that came back intact; gone, deleted, removed or missing are not", async () => {
+    const snapshot = JSON.stringify([
+      JSON.parse(fixture("snapshot.json"))[0], // 1exa001, intact
+      {
+        ...JSON.parse(fixture("snapshot.json"))[1],
+        user_posted: "[deleted]",
+      }, // 1exa002, author deleted
+      { error: "Page not found", error_code: "dead_page", input: { url: STORED[2] } },
+    ]);
+    const http = fakeHttp([
+      [/\/progress\//, fixture("progress-ready.json")],
+      [/\/snapshot\//, snapshot],
+    ]);
+    const state = await reddit.recheck!.poll(ctx(http), "s_example0001");
+    expect(state).toEqual({ kind: "done", live: ["1exa001"], units: 3 });
+  });
+
+  it("waits while the re-check snapshot is not ready", async () => {
+    const http = fakeHttp([[/\/progress\//, fixture("progress-running.json")]]);
+    expect(await reddit.recheck!.poll(ctx(http), "s_example0001")).toEqual({ kind: "pending" });
+  });
+
+  it("is on by default and REDDIT_DELETION_RECHECK=false turns it off", () => {
+    expect(reddit.recheck!.enabled(ctx(fakeHttp([])))).toBe(true);
+    const off = (name: string) => (name === "REDDIT_DELETION_RECHECK" ? "false" : CONFIG[name]);
+    expect(reddit.recheck!.enabled(ctx(fakeHttp([]), { credential: off }))).toBe(false);
+  });
+});
+
 describe("the pinned vendor requests (2.1.9)", () => {
   const trigger = (params: string) => `${API}/datasets/v3/trigger?${params}`;
   const PINNED = `dataset_id=${DATASET}&type=discover_new&discover_by=keyword&include_errors=true`;
 
   it("allows exactly the trigger, progress and snapshot requests", () => {
     expect(() => assertPinnedRequest(trigger(PINNED), "POST")).not.toThrow();
+    // Collection by URL (the deletion re-check): the same dataset, no discovery parameters.
+    expect(() =>
+      assertPinnedRequest(trigger(`dataset_id=${DATASET}&include_errors=true`), "POST"),
+    ).not.toThrow();
     expect(() =>
       assertPinnedRequest(`${API}/datasets/v3/progress/s_example0001`, "GET"),
     ).not.toThrow();
@@ -317,6 +388,17 @@ describe("the pinned vendor requests (2.1.9)", () => {
   it.each([
     ["a LinkedIn dataset id", trigger(PINNED.replace(DATASET, LINKEDIN_DATASET)), "POST"],
     ["no dataset id", trigger("type=discover_new&discover_by=keyword&include_errors=true"), "POST"],
+    [
+      "a URL collection on another dataset",
+      trigger(`dataset_id=${LINKEDIN_DATASET}&include_errors=true`),
+      "POST",
+    ],
+    [
+      "a URL collection with extras",
+      trigger(`dataset_id=${DATASET}&include_errors=true&limit_per_input=9`),
+      "POST",
+    ],
+    ["a URL collection without errors", trigger(`dataset_id=${DATASET}`), "POST"],
     ["a second dataset id", trigger(`${PINNED}&dataset_id=${LINKEDIN_DATASET}`), "POST"],
     ["an extra parameter", trigger(`${PINNED}&notify=https://evil.example/`), "POST"],
     ["discovery by URL", trigger(PINNED.replace("keyword", "url")), "POST"],

@@ -49,31 +49,33 @@ export class SourceError extends Error {
   }
 }
 
+/**
+ * A job that ends without finishing its run. Before a vendor run is triggered nothing was used, so
+ * the reservation goes back; once it is (a handle is stored), the vendor may bill for it, so the
+ * whole reservation counts, at the cost recorded with the handle.
+ */
+export async function settleAbandoned(budget: BudgetStore, job: Job): Promise<void> {
+  if (typeof job.payload.handle !== "string") {
+    await budget.settle(job.id, 0, 0);
+    return;
+  }
+  const reserved = Number(job.payload.reserved ?? 0);
+  const unitCost = Number(job.payload.unitCost ?? 0);
+  await budget.settle(job.id, reserved, reserved * unitCost);
+}
+
 const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 const monthStart = (date: Date) => `${date.toISOString().slice(0, 7)}-01`;
 
 export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
   const readEnv = deps.credential ?? ((name: string) => process.env[name]);
 
-  /**
-   * A job that ends without finishing its run. Before a vendor run is triggered nothing was used,
-   * so the reservation goes back; once it is (a handle is stored), the vendor may bill for it, so
-   * the whole reservation counts, at the cost recorded with the handle.
-   */
-  const settleAbandoned = async (job: Job) => {
-    if (typeof job.payload.handle !== "string") {
-      await deps.budget.settle(job.id, 0, 0);
-      return;
-    }
-    const reserved = Number(job.payload.reserved ?? 0);
-    const unitCost = Number(job.payload.unitCost ?? 0);
-    await deps.budget.settle(job.id, reserved, reserved * unitCost);
-  };
+  const abandon = (job: Job) => settleAbandoned(deps.budget, job);
 
   const handler: JobHandler = async (job, { now, deadline }) => {
     const source = job.source ? deps.sourceFor(job.source) : null;
     if (!source || !job.productId) {
-      if ("reserved" in job.payload) await settleAbandoned(job);
+      if ("reserved" in job.payload) await abandon(job);
       return { status: "done", payload: { result: "source_off" } };
     }
     if (now().getTime() >= deadline) return { status: "waiting", runAfter: now() };
@@ -117,7 +119,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       const startedAt =
         typeof job.payload.startedAt === "string" ? job.payload.startedAt : now().toISOString();
       if (now().getTime() - Date.parse(startedAt) > MAX_POLL_MS) {
-        await settleAbandoned(job);
+        await abandon(job);
         return { status: "done", payload: { result: "timeout" } };
       }
       return {
@@ -144,6 +146,6 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     await deps.budget.settle(job.id, used, used * source.costPerUnitUsd);
     return { status: "done", payload: { result: "ok", stored, units: used } };
   };
-  handler.onFailed = settleAbandoned;
+  handler.onFailed = abandon;
   return handler;
 }

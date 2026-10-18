@@ -12,6 +12,8 @@ export interface CronDeps {
   store: JobStore;
   handlers: Readonly<Partial<Record<JobKind, JobHandler>>>;
   products: () => Promise<string[]>;
+  /** Products with vendor posts due for their deletion re-check (reddit_recheck_products). */
+  recheckProducts?: (from: Date, to: Date) => Promise<string[]>;
   sources: readonly CollectSource[];
   clock: () => Date;
 }
@@ -31,6 +33,7 @@ export async function runDailyCron(deps: CronDeps): Promise<CronResult> {
   const enqueued = await enqueueDaily({
     store: deps.store,
     products: deps.products,
+    ...(deps.recheckProducts ? { recheckProducts: deps.recheckProducts } : {}),
     sources: deps.sources,
     kinds: kindsOf(deps),
     now: deps.clock(),

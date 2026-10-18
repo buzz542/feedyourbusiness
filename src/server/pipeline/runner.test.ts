@@ -408,6 +408,44 @@ describe("enqueueDaily", () => {
     expect(store.jobs.find((j) => j.kind === "deletion_sync")?.payload).toEqual({ day: DAY });
   });
 
+  it("enqueues a deletion re-check per product with Reddit posts due, over the 72 to 96 hour window", async () => {
+    const store = new FakeJobStore();
+    const recheckSource = source({
+      id: "reddit",
+      access: "vendor_api",
+      retentionDays: 7,
+      recheck: {
+        enabled: () => true,
+        start: async () => ({ kind: "pending", handle: "h" }),
+        poll: async () => ({ kind: "pending" }),
+      },
+    });
+    const recheckProducts = vi.fn(async () => ["p1", "p2"]);
+    await enqueueDaily({
+      store,
+      products: async () => [],
+      recheckProducts,
+      sources: [recheckSource],
+      kinds: new Set(["deletion_sync"] as const),
+      now: T0,
+    });
+    const from = new Date(T0.getTime() - 96 * 3_600_000);
+    const to = new Date(T0.getTime() - 72 * 3_600_000);
+    expect(recheckProducts).toHaveBeenCalledWith(from, to);
+    expect(store.jobs.map((j) => [j.dedupeKey, j.productId, j.payload])).toEqual([
+      [
+        `deletion_sync:reddit:p1:${DAY}`,
+        "p1",
+        { day: DAY, from: from.toISOString(), to: to.toISOString() },
+      ],
+      [
+        `deletion_sync:reddit:p2:${DAY}`,
+        "p2",
+        { day: DAY, from: from.toISOString(), to: to.toISOString() },
+      ],
+    ]);
+  });
+
   it("enqueues only the kinds that have a handler", async () => {
     const store = new FakeJobStore();
     await enqueueDaily({

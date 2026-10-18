@@ -162,5 +162,25 @@ export function createSupabaseDeletionStore(db: AdminClient): DeletionStore {
       }
       return removed;
     },
+
+    async recheckDue(productId, from, to, limit) {
+      const rows = must(
+        await db.rpc("reddit_recheck_posts", {
+          p_product_id: productId,
+          p_from: from.toISOString(),
+          p_to: to.toISOString(),
+          p_limit: limit,
+        }),
+      );
+      return (rows ?? []).map((r) => ({ externalId: r.external_id, url: r.url }));
+    },
   };
+}
+
+/** Products with Reddit posts due for their deletion re-check (reddit_recheck_products). */
+export async function recheckProducts(db: AdminClient, from: Date, to: Date): Promise<string[]> {
+  const rows = must(
+    await db.rpc("reddit_recheck_products", { p_from: from.toISOString(), p_to: to.toISOString() }),
+  );
+  return (rows ?? []).map((r) => r.id);
 }

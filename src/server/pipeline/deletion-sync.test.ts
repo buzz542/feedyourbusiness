@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CollectContext, CollectSource } from "@/sources/types";
 import { createDeletionSyncHandler, type DeletionStore } from "./deletion-sync";
+import { FakeBudget, FakeJobStore } from "./fakes";
 import type { Job, JobContext } from "./ports";
+import { runJobs } from "./runner";
 
 /**
  * Deletion sync (docs/PLAN.md 2.3.6, 7.2): Hacker News and Bluesky posts deleted at the source are
@@ -29,6 +31,7 @@ function store(externalIds: string[]) {
       removed.push(...ids);
       return ids.length;
     }),
+    recheckDue: vi.fn(async () => []),
   };
   return s;
 }
@@ -75,6 +78,8 @@ function handlerFor(src: CollectSource | null, s: DeletionStore, batchSize = 2) 
     sourceFor: () => src,
     fetchFor: () => vi.fn(),
     store: s,
+    budget: new FakeBudget(new FakeJobStore()),
+    recheckCap: () => null,
     userAgent: "AskedFor/test",
     sleep: async () => {},
     batchSize,
@@ -155,11 +160,155 @@ describe("deletion sync", () => {
       sourceFor: () => src,
       fetchFor: () => vi.fn(),
       store: s,
+      budget: new FakeBudget(new FakeJobStore()),
+      recheckCap: () => null,
       userAgent: "AskedFor/test",
       sleep: async () => {},
       credential: (name) => env[name],
     });
     await run(handler, job());
     expect(seen).toEqual(["t", undefined]);
+  });
+});
+
+describe("the Reddit deletion re-check", () => {
+  const DUE = [
+    { externalId: "a", url: "https://www.reddit.com/r/SaaS/comments/a/x/" },
+    { externalId: "b", url: "https://www.reddit.com/r/SaaS/comments/b/x/" },
+    { externalId: "c", url: "https://www.reddit.com/r/SaaS/comments/c/x/" },
+  ];
+  const FROM = "2026-10-13T06:00:00.000Z";
+  const TO = "2026-10-14T06:00:00.000Z";
+
+  function vendor(over: Partial<NonNullable<CollectSource["recheck"]>> = {}) {
+    const recheck = {
+      enabled: vi.fn(() => true),
+      start: vi.fn(async () => ({ kind: "pending" as const, handle: "snap-r" })),
+      poll: vi.fn(async () => ({ kind: "done" as const, live: ["a"], units: 3 })),
+      ...over,
+    };
+    return {
+      ...source(() => [], {
+        id: "reddit",
+        access: "vendor_api",
+        retentionDays: 7,
+        costPerUnitUsd: 0.0015,
+        recheck,
+      }),
+      checkDeleted: undefined,
+    } as CollectSource & { recheck: typeof recheck };
+  }
+
+  function setup(src: CollectSource, cap: number | null = 20_000) {
+    const jobs = new FakeJobStore();
+    const budget = new FakeBudget(jobs);
+    const s = store([]);
+    vi.mocked(s.recheckDue).mockResolvedValue(DUE);
+    const handlers = {
+      deletion_sync: createDeletionSyncHandler({
+        sourceFor: () => src,
+        fetchFor: () => vi.fn(),
+        store: s,
+        budget,
+        recheckCap: () => cap,
+        userAgent: "AskedFor/test",
+        sleep: async () => {},
+      }),
+    };
+    const enqueue = () =>
+      jobs.enqueue([
+        {
+          kind: "deletion_sync",
+          productId: "p1",
+          source: "reddit",
+          dedupeKey: `deletion_sync:reddit:p1:${DAY}`,
+          payload: { day: DAY, from: FROM, to: TO },
+        },
+      ]);
+    let clock = NOW.getTime();
+    const tick = async (minutes = 3) => {
+      await runJobs({ store: jobs, handlers, clock: () => new Date(clock) });
+      clock += minutes * 60_000;
+    };
+    return { jobs, budget, s, enqueue, tick };
+  }
+
+  it("re-collects the product's due posts, then deletes every one not reported live", async () => {
+    const src = vendor();
+    const { jobs, budget, s, enqueue, tick } = setup(src);
+    await enqueue();
+    await tick();
+    expect(s.recheckDue).toHaveBeenCalledWith("p1", new Date(FROM), new Date(TO), 200);
+    expect(src.recheck.start).toHaveBeenCalledWith(
+      expect.anything(),
+      DUE.map((p) => p.url),
+    );
+    expect(jobs.jobs[0]!.status).toBe("waiting");
+    await tick();
+    expect(s.removed).toEqual(["b", "c"]);
+    expect(jobs.jobs[0]).toMatchObject({
+      status: "done",
+      payload: { result: "ok", checked: 3, removed: 2 },
+    });
+    // Outside the product's daily budget, inside the monthly cap: 3 records at $1.50 per 1,000.
+    expect(budget.ledger.get(`p1:reddit:${DAY}`)).toBe(3);
+    expect(budget.costs.get(`p1:reddit:${DAY}`)).toBeCloseTo(0.0045, 6);
+  });
+
+  it("removes only posts it sent, even if more become due meanwhile", async () => {
+    const src = vendor({
+      poll: vi.fn(async () => ({ kind: "done" as const, live: [], units: 3 })),
+    });
+    const { s, enqueue, tick } = setup(src);
+    await enqueue();
+    await tick();
+    vi.mocked(s.recheckDue).mockResolvedValue([
+      ...DUE,
+      { externalId: "late", url: "https://www.reddit.com/r/SaaS/comments/late/x/" },
+    ]);
+    await tick();
+    expect(s.removed).toEqual(["a", "b", "c"]);
+  });
+
+  it("does nothing when REDDIT_DELETION_RECHECK is false", async () => {
+    const src = vendor({ enabled: vi.fn(() => false) });
+    const { jobs, budget, s, enqueue, tick } = setup(src);
+    await enqueue();
+    await tick();
+    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "off" } });
+    expect(s.recheckDue).not.toHaveBeenCalled();
+    expect(budget.reserveCalls).toBe(0);
+  });
+
+  it("stops at the monthly cap without calling the vendor", async () => {
+    const src = vendor();
+    const { jobs, budget, enqueue, tick } = setup(src);
+    budget.ledger.set(`p9:reddit:2026-10-02`, 19_999);
+    await enqueue();
+    await tick();
+    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "monthly_cap" } });
+    expect(src.recheck.start).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when no post is due", async () => {
+    const src = vendor();
+    const { jobs, budget, s, enqueue, tick } = setup(src);
+    vi.mocked(s.recheckDue).mockResolvedValue([]);
+    await enqueue();
+    await tick();
+    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "nothing_due" } });
+    expect(budget.reserveCalls).toBe(0);
+  });
+
+  it("counts the whole reservation when the vendor run fails for good after the trigger", async () => {
+    const src = vendor({
+      poll: vi.fn(async () => ({ kind: "failed" as const, errorClass: "VendorRunFailed" })),
+    });
+    const { jobs, budget, s, enqueue, tick } = setup(src);
+    await enqueue();
+    for (let i = 0; i < 6 && jobs.jobs[0]!.status !== "failed"; i++) await tick(60);
+    expect(jobs.jobs[0]!.status).toBe("failed");
+    expect(s.removed).toEqual([]);
+    expect(budget.ledger.get(`p1:reddit:${DAY}`)).toBe(3);
   });
 });
