@@ -428,6 +428,25 @@ describe("copy scanner", () => {
   });
 });
 
+describe("copy scanner for app UI", () => {
+  // App screens show live numbers (counts, scores, dates), so the claims-number rule is off there.
+  const scanApp = (code: string) =>
+    checkCopy(extractCopy(code, "src/app/(app)/app/page.tsx"), "page.tsx", deny, null);
+
+  it.each([
+    ["em-dash", `export const A = () => <p>Saved \u2014 nice</p>;`],
+    ["banned-phrase", `export const A = () => <p>Supercharge your replies</p>;`],
+    ["competitor-name", `export const A = () => <p>Import from GummySearch</p>;`],
+    ["uk-spelling", `export const A = () => <p>Your favourite posts</p>;`],
+  ])("flags %s in app copy", (rule, code) => {
+    expect(rules(scanApp(code))).toContain(rule);
+  });
+
+  it("does not flag numbers in app copy", () => {
+    expect(scanApp(`export const A = () => <p>Showing 50 of 200 posts, match 87</p>;`)).toEqual([]);
+  });
+});
+
 describe("logo scanner", () => {
   it("flags platform logo files by name, case-insensitively, and ignores other files", () => {
     const findings = findLogoFiles(

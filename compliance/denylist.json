@@ -103,6 +103,7 @@
 
   "copy": {
     "scanRoots": ["src/app/(marketing)", "emails"],
+    "appScanRoots": ["src/app/(app)", "src/app/(admin)", "src/components"],
     "bannedPhrases": [
       "revolutionary",
       "game-changing",

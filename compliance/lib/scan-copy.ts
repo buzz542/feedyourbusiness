@@ -1,11 +1,14 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import ts from "typescript";
 import type { Denylist } from "./denylist.mjs";
-import type { Finding } from "./finding";
+import { isTestFile, walk, type Finding } from "./finding";
 
 /**
- * `compliance:copy`: scans marketing pages and emails for what the brief forbids.
+ * `compliance:copy`: scans marketing pages, emails and app UI for what the plan forbids.
  *   * em dashes, hype words, competitor names, UK spellings (US English is the standard)
- *   * any number that is not in docs/claims.md (every public number must be provable)
+ *   * on public pages and emails only: any number that is not in docs/claims.md (every public
+ *     number must be provable). App screens show live counts, which are not claims.
  *   * third-party logo files in public/
  *
  * Copy is extracted from the TypeScript AST: JSX text plus user-facing string literals. Class
@@ -190,11 +193,12 @@ const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$
 const wordRegex = (phrase: string): RegExp =>
   new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(phrase)}`, "iu");
 
+/** `allowedNumbers` null turns the claims-number rule off (app UI). */
 export function checkCopy(
   items: readonly CopyItem[],
   file: string,
   deny: Denylist,
-  allowedNumbers: ReadonlySet<string>,
+  allowedNumbers: ReadonlySet<string> | null,
 ): Finding[] {
   const findings: Finding[] = [];
   const add = (item: CopyItem, rule: string, detail: string) =>
@@ -221,6 +225,7 @@ export function checkCopy(
     for (const [word, re] of spellings)
       if (re.test(text))
         add(item, "uk-spelling", `uses the UK spelling "${word}". Use US English.`);
+    if (allowedNumbers === null) continue;
     for (const m of text.matchAll(NUMBER)) {
       const n = m[0].replace(/,$/, "");
       if (!allowedNumbers.has(n))
@@ -228,6 +233,25 @@ export function checkCopy(
     }
   }
   return findings;
+}
+
+/** Scan every copy file under `roots` (relative to `cwd`). */
+export function scanCopyRoots(
+  roots: readonly string[],
+  deny: Denylist,
+  allowedNumbers: ReadonlySet<string> | null,
+  cwd: string = process.cwd(),
+): Finding[] {
+  const files = roots
+    .flatMap((root) => walk(root, cwd))
+    .filter((f) => !isTestFile(f) && /\.(tsx?|mdx?)$/.test(f));
+  return files.flatMap((file) => {
+    const source = readFileSync(path.join(cwd, file), "utf8");
+    const items = /\.mdx?$/.test(file)
+      ? source.split("\n").map((text, i) => ({ text, line: i + 1 }))
+      : extractCopy(source, file);
+    return checkCopy(items, file, deny, allowedNumbers);
+  });
 }
 
 /** Flag logo files named after a platform. Platform names appear in text only. */
