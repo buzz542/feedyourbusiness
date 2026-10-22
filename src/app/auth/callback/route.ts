@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { track } from "@/server/analytics/supabase-store";
 import { getAuthDeps } from "@/server/auth/deps";
 import { handleAuthCallback } from "@/server/auth/sign-in";
 
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
       next: p.get("next"),
     });
     location = result.location;
+    if (result.newUserId) await track("signed_up", result.newUserId);
   } catch (error) {
     console.error(
       `[auth] callback route failed: ${error instanceof Error ? error.name : "Unknown"}`,
