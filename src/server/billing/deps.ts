@@ -1,4 +1,5 @@
 import "server-only";
+import { isAllowedEmail, parseAllowlist } from "@/server/auth/allowlist";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { loadBillingConfig } from "./config";
@@ -29,6 +30,19 @@ export function getBillingDeps(): BillingDeps {
       const { data, error } = await supabase.auth.getUser();
       if (error || !data.user) return null;
       return { id: data.user.id, email: data.user.email ?? null };
+    },
+    async checkoutBlocker(user) {
+      if (!isAllowedEmail(user.email, parseAllowlist(process.env.SIGNUP_ALLOWLIST))) {
+        return "private_beta";
+      }
+      const supabase = await createSupabaseServerClient();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("terms_accepted_at")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (error) throw new Error("Supabase: could not load profile");
+      return data?.terms_accepted_at ? null : "terms";
     },
   };
 }

@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../src/types/database";
 import { E2E_EMAIL } from "./constants";
+import { assertSafeE2ETarget } from "./safety";
 
 /**
  * Sign-in for E2E without an inbox: create a confirmed user with the admin API, then follow a
@@ -16,6 +17,7 @@ export const SKIP_REASON =
   "E2E sign-in needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY for the development project (docs/PLAN.md F12).";
 
 function admin(): SupabaseClient<Database> {
+  assertSafeE2ETarget(process.env.NEXT_PUBLIC_SUPABASE_URL, E2E_EMAIL);
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SECRET_KEY!,

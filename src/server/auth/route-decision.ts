@@ -1,3 +1,5 @@
+import { safeNextPath } from "./safe-next";
+
 /**
  * What `src/proxy.ts` does with a request (docs/PLAN.md 12.1). Pure, so it is unit tested.
  * `/app` needs a session; `/admin` needs an admin and is a 404 for everyone else, so it does not
@@ -17,14 +19,19 @@ const SKIP = [/^\/api\/billing\/webhook$/, /^\/api\/cron(\/|$)/, /^\/api\/health
 /** False for paths the proxy must pass untouched: no session refresh, no cookies written. */
 export function needsSession(pathname: string): boolean {
   if (SKIP.some((re) => re.test(pathname))) return false;
-  // Static files in public/ (anything with an extension in its last segment).
-  if (/\/[^/]+\.[A-Za-z0-9]+$/.test(pathname)) return false;
+  // Static files in public/ (an extension in the last segment), but never inside /app or /admin.
+  if (
+    !under(pathname, "/app") &&
+    !under(pathname, "/admin") &&
+    /\/[^/]+\.[A-Za-z0-9]+$/.test(pathname)
+  )
+    return false;
   return true;
 }
 
-const under = (pathname: string, root: string) =>
-  pathname === root || pathname.startsWith(`${root}/`);
-
+function under(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`);
+}
 export function decideRoute(
   pathname: string,
   search: string,
@@ -35,6 +42,8 @@ export function decideRoute(
     if (user) return { kind: "next" };
     return { kind: "redirect", location: `/login?next=${encodeURIComponent(pathname + search)}` };
   }
-  if (pathname === "/login" && user) return { kind: "redirect", location: "/app" };
+  if (pathname === "/login" && user) {
+    return { kind: "redirect", location: safeNextPath(new URLSearchParams(search).get("next")) };
+  }
   return { kind: "next" };
 }

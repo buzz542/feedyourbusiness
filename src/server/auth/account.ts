@@ -1,5 +1,8 @@
 import "server-only";
+import { redirect } from "next/navigation";
+import { cache } from "react";
 import { createSupabaseServerClient } from "@/server/supabase/server";
+import { isAllowedEmail, parseAllowlist } from "./allowlist";
 import type { AccountState } from "./next-step";
 import { getSessionUser } from "./supabase-auth";
 
@@ -11,7 +14,7 @@ export interface Account extends AccountState {
 }
 
 /** The signed-in user's account, read with the user-scoped client (RLS applies). Null when signed out. */
-export async function loadAccount(): Promise<Account | null> {
+export const loadAccount = cache(async (): Promise<Account | null> => {
   const user = await getSessionUser();
   if (!user) return null;
   const supabase = await createSupabaseServerClient();
@@ -41,4 +44,17 @@ export async function loadAccount(): Promise<Account | null> {
     product: product.data ? { status: product.data.status } : null,
     productName: product.data?.name ?? null,
   };
+});
+
+/**
+ * The signed-in, allowlisted account, or a redirect: to sign-in when signed out, and to the
+ * private-beta exit when the session belongs to someone off SIGNUP_ALLOWLIST (docs/PLAN.md 12.10).
+ */
+export async function requireAccount(next: string): Promise<Account> {
+  const account = await loadAccount();
+  if (!account) redirect(`/login?next=${encodeURIComponent(next)}`);
+  if (!isAllowedEmail(account.email, parseAllowlist(process.env.SIGNUP_ALLOWLIST))) {
+    redirect("/auth/private-beta");
+  }
+  return account;
 }

@@ -9,7 +9,10 @@ export function createSupabaseEventStore(): EventStore {
       const { error } = await createSupabaseAdminClient()
         .from("events")
         .insert({ user_id: userId, name, props });
-      if (error) throw new Error("Supabase: event not recorded");
+      // signed_up is once per user (unique index); a repeat is not an error.
+      if (error && !(name === "signed_up" && error.code === "23505")) {
+        throw new Error("Supabase: event not recorded");
+      }
     },
   };
 }

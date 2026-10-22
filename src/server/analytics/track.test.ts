@@ -68,23 +68,23 @@ describe("track", () => {
   });
 
   it.each([
-    ["an email", { ref: "someone@example.test" }],
-    ["an obfuscated email", { ref: "someone at example dot test@x" }],
-    ["a URL", { ref: "https://example.test/a" }],
-    ["a scheme-less URL", { ref: "www.example.test" }],
-    ["a bare domain", { ref: "example.test/path" }],
-    ["long text", { ref: "x".repeat(41) }],
-    ["a sentence", { note: "I need a tool that does invoices" }],
-    ["a nested object", { nested: { a: 1 } }],
-    ["an array", { list: ["a"] }],
-    ["a bad key", { "Bad Key": "x" }],
+    ["an email", { source: "someone@example.test" }],
+    ["an obfuscated email", { source: "someone at example dot test@x" }],
+    ["a URL", { source: "https://example.test/a" }],
+    ["a scheme-less URL", { source: "www.example.test" }],
+    ["a bare domain", { source: "example.test/path" }],
+    ["long text", { source: "x".repeat(41) }],
+    ["a sentence", { category: "I need a tool that does invoices" }],
+    ["a nested object", { count: { a: 1 } }],
+    ["an array", { first: ["a"] }],
+    ["a bad key", { "Bad Key": 1 }],
     [
       "too many keys",
       Object.fromEntries(
         Array.from({ length: 9 }, (_, i) => [`k${String.fromCharCode(97 + i)}`, 1]),
       ),
     ],
-    ["a non-finite number", { n: Number.POSITIVE_INFINITY }],
+    ["a non-finite number", { count: Number.POSITIVE_INFINITY }],
   ])("refuses props with %s", async (_label, props) => {
     const { store, rows } = fakeStore();
     expect(await createTracker(store)("feed_opened", "u1", props as Record<string, never>)).toBe(

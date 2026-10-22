@@ -28,7 +28,8 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npx next start -p ${port}`,
     url: `${baseURL}/api/health`,
-    reuseExistingServer: !process.env.CI,
+    // Always a fresh server with the E2E env (allowlist, site URL); never a dev server already running.
+    reuseExistingServer: false,
     timeout: 240_000,
     env: {
       NEXT_PUBLIC_SITE_URL: baseURL,

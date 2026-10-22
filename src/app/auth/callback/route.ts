@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       next: p.get("next"),
     });
     location = result.location;
-    if (result.newUserId) await track("signed_up", result.newUserId);
+    if (result.userId) await track("signed_up", result.userId);
   } catch (error) {
     console.error(
       `[auth] callback route failed: ${error instanceof Error ? error.name : "Unknown"}`,

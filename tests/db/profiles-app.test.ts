@@ -1,15 +1,18 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EVENT_NAMES } from "../../src/server/analytics/track";
 import { createDb, withRole } from "./harness";
 
 /** M1 migration `profiles_app` (docs/PLAN.md 6.1): profile preferences, admin flag, events. */
 
 const ALICE = "00000000-0000-4000-8000-0000000000a1";
 const BOB = "00000000-0000-4000-8000-0000000000b2";
+const CAROL = "00000000-0000-4000-8000-0000000000c3";
 
 let db: PGlite;
 
 const asAlice = <T>(fn: () => Promise<T>) => withRole(db, "authenticated", ALICE, fn);
+const asCarol = <T>(fn: () => Promise<T>) => withRole(db, "authenticated", CAROL, fn);
 const asAnon = <T>(fn: () => Promise<T>) => withRole(db, "anon", null, fn);
 
 async function profile(id: string) {
@@ -61,6 +64,31 @@ describe("profiles additions", () => {
     expect(row.email_daily).toBe(false);
     expect(row.email_weekly).toBe(false);
     expect(row.terms_accepted_at).toBeInstanceOf(Date);
+  });
+
+  it("terms acceptance is written once with the database clock: never moved or cleared after", async () => {
+    const first = (await profile(ALICE)).terms_accepted_at;
+    expect(first).toBeInstanceOf(Date);
+    await asAlice(() =>
+      db.query("update public.profiles set terms_accepted_at = '1970-01-01' where id = $1", [
+        ALICE,
+      ]),
+    );
+    await asAlice(() =>
+      db.query("update public.profiles set terms_accepted_at = null where id = $1", [ALICE]),
+    );
+    expect((await profile(ALICE)).terms_accepted_at).toEqual(first);
+  });
+
+  it("a backdated first acceptance is stored as the real time", async () => {
+    await db.query("insert into auth.users (id, email) values ($1, 'carol@example.test')", [CAROL]);
+    const before = Date.now() - 60_000;
+    await asCarol(() =>
+      db.query("update public.profiles set terms_accepted_at = '2001-01-01' where id = $1", [
+        CAROL,
+      ]),
+    );
+    expect((await profile(CAROL)).terms_accepted_at!.getTime()).toBeGreaterThan(before);
   });
 
   it("a user cannot make themselves an admin", async () => {
@@ -120,6 +148,18 @@ describe("events", () => {
     ).rejects.toThrow(/check constraint/i);
   });
 
+  it("accepts every event name track() can send", async () => {
+    for (const name of EVENT_NAMES.filter((n) => n !== "signed_up")) {
+      await db.query("insert into public.events (name) values ($1)", [name]);
+    }
+  });
+
+  it("keeps one signed_up per user", async () => {
+    await expect(
+      db.query("insert into public.events (user_id, name) values ($1, 'signed_up')", [ALICE]),
+    ).rejects.toThrow(/duplicate key/i);
+  });
+
   it("caps props at 1 KB", async () => {
     await expect(
       db.query("insert into public.events (name, props) values ('feed_opened', $1)", [
@@ -129,10 +169,14 @@ describe("events", () => {
   });
 
   it("keeps the event, without the user, when the user is deleted", async () => {
-    await db.query("insert into public.events (user_id, name) values ($1, 'feed_opened')", [BOB]);
+    const { rows: ins } = await db.query<{ id: number }>(
+      "insert into public.events (user_id, name) values ($1, 'feed_opened') returning id",
+      [BOB],
+    );
     await db.query("delete from auth.users where id = $1", [BOB]);
     const { rows } = await db.query<{ user_id: string | null }>(
-      "select user_id from public.events where name = 'feed_opened'",
+      "select user_id from public.events where id = $1",
+      [ins[0]!.id],
     );
     expect(rows).toEqual([{ user_id: null }]);
   });

@@ -56,6 +56,7 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 - [x] Server-side `track(name, userId, props)` for `events` (12.6). Test: unknown event names and props that look like emails, URLs or long text are refused; nothing is sent to a third party.
 - [x] Playwright E2E harness: `@playwright/test` (dev), `npm run test:e2e`, base URL guard (localhost only), sign-in helper that creates a confirmed user with the admin API and follows a generated magic link, cleanup. Test: the guard refuses any non-localhost URL (unit test); the sign-in E2E lands on `/app/onboarding` when `SUPABASE_SECRET_KEY` is present and is skipped with a clear message when it is not.
 - [ ] (you) F12: session secrets and allowed hosts, so E2E runs in the session.
+- [ ] (you) F5 email templates and signup lock (`docs/PLAN.md` F5): then request a magic link on one device and open it on another; it signs in. A Google sign-in with an email off `SIGNUP_ALLOWLIST` ends on "AskedFor is in private beta" with no account left in Supabase.
 
 ## M2 Onboarding
 

@@ -18,12 +18,14 @@ import {
 let store: FakeProfileStore;
 let stripe: FakeStripe;
 let currentUser: AuthedUser | null;
+let blocker: "private_beta" | "terms" | null;
 
 const deps = (): BillingDeps => ({
   config: TEST_CONFIG,
   stripe,
   store,
   getUser: async () => currentUser,
+  checkoutBlocker: async () => blocker,
 });
 
 const post = (path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -38,6 +40,7 @@ beforeEach(() => {
   store.addUser("user-1");
   stripe = new FakeStripe();
   currentUser = { id: "user-1", email: "maker@example.test" };
+  blocker = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -70,6 +73,17 @@ describe.each([
 });
 
 describe("checkout", () => {
+  it.each(["private_beta", "terms"] as const)(
+    "refuses a user blocked by %s, without calling Stripe",
+    async (reason) => {
+      blocker = reason;
+      const response = await createCheckoutHandler(deps())(post("/api/billing/checkout"));
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: reason });
+      expect(stripe.checkoutCalls).toHaveLength(0);
+    },
+  );
+
   it("returns the Stripe URL for a signed in user", async () => {
     const response = await createCheckoutHandler(deps())(post("/api/billing/checkout"));
     expect(response.status).toBe(200);

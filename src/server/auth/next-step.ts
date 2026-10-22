@@ -22,3 +22,15 @@ export function nextStepFor(state: AccountState): AppStep {
   if (state.subscriptionStatus === "past_due") return "/app/settings";
   return "/app/billing";
 }
+
+/**
+ * The terms and 18+ confirmations come before any other app page (docs/PLAN.md 4.3). Returns where
+ * to send the user, or null to render the page. An unknown path is gated, never let through.
+ */
+export function termsGate(pathname: string | null, termsAcceptedAt: Date | null): string | null {
+  if (termsAcceptedAt) return null;
+  return pathname === "/app/terms" ? null : "/app/terms";
+}
+
+/** Request header the proxy sets so server layouts know the path they render. */
+export const PATH_HEADER = "x-askedfor-path";

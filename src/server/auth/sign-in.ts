@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isAllowedEmail, type Allowlist } from "./allowlist";
-import type { AuthPort, OtpType, TermsStore } from "./ports";
+import type { AuthPort, AuthUser, OtpType, TermsStore } from "./ports";
 import { safeNextPath } from "./safe-next";
 
 /**
@@ -64,17 +64,28 @@ export interface CallbackInput {
   next: string | null | undefined;
 }
 
-/** Where to send the browser, and the id of a just-created account (for the signed_up event). */
+/**
+ * Where to send the browser, and the signed-in user's id. The route records `signed_up` for it; the
+ * database keeps one such event per user, so repeat sign-ins add nothing.
+ */
 export interface CallbackResult {
   location: string;
-  newUserId: string | null;
+  userId: string | null;
+}
+
+async function attempt(step: string, run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    console.error(`[auth] ${step} failed: ${error instanceof Error ? error.name : "Unknown"}`);
+  }
 }
 
 export async function handleAuthCallback(
   deps: { auth: AuthPort; allowlist: Allowlist; now: () => Date },
   input: CallbackInput,
 ): Promise<CallbackResult> {
-  const failed = { location: "/login?error=link", newUserId: null };
+  const failed = { location: "/login?error=link", userId: null };
   let user;
   try {
     if (input.code) {
@@ -90,15 +101,31 @@ export async function handleAuthCallback(
 
   const isNew = deps.now().getTime() - user.createdAt.getTime() < NEW_ACCOUNT_MS;
   if (!isAllowedEmail(user.email, deps.allowlist)) {
-    await deps.auth.signOut();
     // Google creates the account before we see the email. Remove it unless it predates this sign-in.
-    if (isNew) await deps.auth.deleteUser(user.id);
-    return { location: "/login?error=private_beta", newUserId: null };
+    // Each step runs even if the other fails; the app frame signs out any session that survives.
+    await attempt("sign out", () => deps.auth.signOut());
+    if (isNew) await attempt("delete", () => deps.auth.deleteUser(user.id));
+    return { location: "/login?error=private_beta", userId: null };
   }
-  return { location: safeNextPath(input.next), newUserId: isNew ? user.id : null };
+  return { location: safeNextPath(input.next), userId: user.id };
 }
 
 /** The 18+ and terms confirmations (docs/PLAN.md 4.3). Stored once; never moved later. */
 export function acceptTerms(store: TermsStore, userId: string, now: Date): Promise<boolean> {
   return store.acceptTerms(userId, now);
+}
+
+/**
+ * Supabase's own signup endpoint is public, so a session can exist for someone who never passed our
+ * sign-in checks. The app frame sends such a user here: they are signed out. An allowlisted user is
+ * never signed out, so a forged link to this step does nothing.
+ */
+export async function leavePrivateBeta(
+  deps: { auth: AuthPort; allowlist: Allowlist },
+  user: AuthUser | null,
+): Promise<string> {
+  if (!user) return "/login";
+  if (isAllowedEmail(user.email, deps.allowlist)) return "/app";
+  await deps.auth.signOut();
+  return "/login?error=private_beta";
 }

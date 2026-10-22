@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextStepFor, type AccountState } from "./next-step";
+import { nextStepFor, termsGate, type AccountState } from "./next-step";
 
 const NOW = new Date("2026-10-22T12:00:00Z");
 const base: AccountState = {
@@ -47,5 +47,24 @@ describe("nextStepFor: where /app sends a user (docs/PLAN.md 4.2, 4.3)", () => {
 
   it("an unknown status grants nothing", () => {
     expect(nextStepFor({ ...base, subscriptionStatus: "mystery" })).toBe("/app/billing");
+  });
+});
+
+describe("termsGate: every /app page needs the confirmations first", () => {
+  it.each(["/app/onboarding", "/app/billing", "/app/reply", "/app/settings"])(
+    "sends %s to /app/terms until accepted",
+    (path) => {
+      expect(termsGate(path, null)).toBe("/app/terms");
+    },
+  );
+
+  it("lets the terms page itself through, and a missing path falls back to the gate", () => {
+    expect(termsGate("/app/terms", null)).toBeNull();
+    expect(termsGate(null, null)).toBe("/app/terms");
+  });
+
+  it("lets everything through once accepted", () => {
+    expect(termsGate("/app/reply", NOW)).toBeNull();
+    expect(termsGate(null, NOW)).toBeNull();
   });
 });

@@ -80,3 +80,22 @@ describe("decideRoute", () => {
     expect(decideRoute("/login", "", user)).toEqual({ kind: "redirect", location: "/app" });
   });
 });
+
+describe("needsSession never skips app or admin paths", () => {
+  it.each(["/admin/export.csv", "/app/export.json"])("checks %s", (path) => {
+    expect(needsSession(path)).toBe(true);
+  });
+});
+
+describe("signed-in user on /login keeps a safe next", () => {
+  it("goes to next when it is safe, /app otherwise", () => {
+    expect(decideRoute("/login", "?next=%2Fapp%2Frivals%3Fx%3D1", user)).toEqual({
+      kind: "redirect",
+      location: "/app/rivals?x=1",
+    });
+    expect(decideRoute("/login", "?next=%2F%2Fevil.example", user)).toEqual({
+      kind: "redirect",
+      location: "/app",
+    });
+  });
+});

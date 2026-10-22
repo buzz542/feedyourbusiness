@@ -12,6 +12,31 @@ alter table public.profiles
 
 grant update (email_daily, email_weekly, terms_accepted_at) on public.profiles to authenticated;
 
+-- terms_accepted_at records the 18+ and terms confirmation. It is written once, with the database's
+-- clock, and never moved or cleared afterwards by an API role.
+create function public.profiles_terms_write_once()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.terms_accepted_at is distinct from old.terms_accepted_at
+     and current_user in ('anon', 'authenticated') then
+    if old.terms_accepted_at is not null then
+      new.terms_accepted_at := old.terms_accepted_at;
+    else
+      new.terms_accepted_at := now();
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.profiles_terms_write_once() from public, anon, authenticated;
+
+create trigger profiles_terms_write_once
+  before update on public.profiles
+  for each row execute function public.profiles_terms_write_once();
+
 create table public.events (
   id bigint generated always as identity primary key,
   user_id uuid references auth.users (id) on delete set null,
@@ -30,3 +55,5 @@ create policy events_deny_all on public.events
 
 create index events_name_at_idx on public.events (name, at);
 create index events_user_id_idx on public.events (user_id);
+-- One signed_up per user, so activation counts are not inflated by repeat sign-ins.
+create unique index events_signed_up_once on public.events (user_id) where name = 'signed_up';

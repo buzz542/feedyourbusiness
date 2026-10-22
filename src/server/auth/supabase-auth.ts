@@ -41,7 +41,9 @@ export function createSupabaseAuth(): AuthPort & TermsStore {
     },
     async signOut() {
       const supabase = await createSupabaseServerClient();
-      await supabase.auth.signOut();
+      // Local: this browser only. It clears the cookies even when the Auth server is unreachable.
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw new Error("Supabase: sign out failed");
     },
     async deleteUser(userId) {
       const { error } = await createSupabaseAdminClient().auth.admin.deleteUser(userId);

@@ -17,6 +17,11 @@ export interface BillingDeps {
   stripe: BillingStripe;
   store: ProfileStore;
   getUser(): Promise<AuthedUser | null>;
+  /**
+   * Whether this user may start a checkout: on the pre-launch allowlist (docs/PLAN.md 12.10) and
+   * past the 18+ and terms confirmations (4.3). "private_beta" or "terms" when not.
+   */
+  checkoutBlocker(user: AuthedUser): Promise<"private_beta" | "terms" | null>;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -45,6 +50,8 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
   return async (request) => {
     const auth = await authenticate(deps, request);
     if ("response" in auth) return auth.response;
+    const blocker = await deps.checkoutBlocker(auth.user);
+    if (blocker) return json(403, { error: blocker });
     try {
       const profile = await deps.store.getBillingProfile(auth.user.id);
       // A second checkout while a subscription is live (even past_due) would double-bill.

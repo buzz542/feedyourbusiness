@@ -9,7 +9,10 @@ export interface AuthUser {
 export type OtpType = "magiclink" | "email" | "signup";
 
 export interface AuthPort {
-  /** Sends a magic link. Must not create the account itself; Supabase creates it on first verify. */
+  /**
+   * Sends a magic link. Supabase creates the auth user when the link is sent (shouldCreateUser), so
+   * the allowlist check must come before this call.
+   */
   sendMagicLink(email: string, redirectTo: string): Promise<void>;
   /** The provider URL to send the browser to (PKCE). */
   googleSignInUrl(redirectTo: string): Promise<string>;
