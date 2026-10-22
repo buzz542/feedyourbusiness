@@ -22,6 +22,34 @@ function findUngatedPages(files: { file: string; source: string }[]): string[] {
   });
 }
 
+/** Server actions and route handlers under /app are reachable without the page: they gate too. */
+function findUngatedHandlers(files: { file: string; source: string }[]): string[] {
+  return files
+    .filter(({ source }) => !/require(AppPage|Account)\(/.test(source))
+    .map(({ file }) => file);
+}
+
+describe("every /app server action and route handler gates itself", () => {
+  it("each one calls requireAppPage or requireAccount", () => {
+    const files = walk(ROOT)
+      .filter((f) => /\/(actions|route)\.tsx?$/.test(f))
+      .map((file) => ({ file, source: readFileSync(file, "utf8") }));
+    expect(files.length).toBeGreaterThan(0);
+    expect(findUngatedHandlers(files)).toEqual([]);
+  });
+
+  it("catches a planted action without a gate", () => {
+    expect(
+      findUngatedHandlers([
+        {
+          file: `${ROOT}/onboarding/actions.ts`,
+          source: '"use server"; export async function a() {}',
+        },
+      ]),
+    ).toEqual([`${ROOT}/onboarding/actions.ts`]);
+  });
+});
+
 describe("every /app page gates itself", () => {
   it("finds the pages", () => {
     expect(walk(ROOT).filter((f) => f.endsWith("/page.tsx")).length).toBeGreaterThan(3);
