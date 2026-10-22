@@ -29,14 +29,30 @@ export interface EventStore {
   insert(row: { userId: string | null; name: EventName; props: EventProps }): Promise<void>;
 }
 
-/** A short label: lowercase words joined by underscores or hyphens, no spaces, dots or @. */
-const Label = z.string().regex(/^[a-z0-9_-]{1,40}$/);
+/**
+ * Props are a closed vocabulary: known keys, string values from fixed lists of our own labels, and
+ * numbers or booleans. A free string could carry a handle or a community name (D5), so none is taken.
+ */
+const Value = z.union([z.number().finite(), z.boolean()]);
 const Props = z
-  .record(
-    z.string().regex(/^[a-z][a-z0-9_]{0,29}$/),
-    z.union([Label, z.number().finite(), z.boolean()]),
-  )
-  .refine((p) => Object.keys(p).length <= 8);
+  .object({
+    source: z.enum(["hackernews", "bluesky", "reddit", "x"]),
+    category: z.enum([
+      "looking_for_tool",
+      "pain_point",
+      "mentions_you",
+      "mentions_competitor",
+      "wish",
+    ]),
+    view: z.enum(["today", "all", "saved", "replied"]),
+    tab: z.enum(["reply", "rivals", "build"]),
+    method: z.enum(["magic_link", "google"]),
+    count: Value,
+    first: Value,
+    weeks: Value,
+  })
+  .partial()
+  .strict();
 const Name = z.enum(EVENT_NAMES);
 
 export type Track = (

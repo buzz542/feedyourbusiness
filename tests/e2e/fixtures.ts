@@ -14,6 +14,15 @@ export const test = base.extend<{ offHostRequests: string[] }>({
         blocked.push(url.host);
         return route.abort("blockedbyclient");
       });
+      await context.routeWebSocket(/.*/, (ws) => {
+        const url = new URL(ws.url());
+        if (["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+          ws.connectToServer();
+          return;
+        }
+        blocked.push(url.host);
+        void ws.close();
+      });
       await use(blocked);
       expect(blocked, "requests to hosts other than localhost").toEqual([]);
     },

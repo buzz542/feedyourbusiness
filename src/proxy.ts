@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { PATH_HEADER } from "@/server/auth/next-step";
 import { decideRoute, needsSession, type RouteUser } from "@/server/auth/route-decision";
 import { loadSupabasePublicConfig } from "@/server/supabase/config";
 import type { Database } from "@/types/database";
@@ -14,13 +13,7 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   if (!needsSession(pathname)) return NextResponse.next();
 
-  // Pass the path to server layouts (they gate on it). Always overwritten, never trusted from the client.
-  const forward = () => {
-    const headers = new Headers(request.headers);
-    headers.set(PATH_HEADER, pathname);
-    return NextResponse.next({ request: { headers } });
-  };
-  let response = forward();
+  let response = NextResponse.next({ request });
   let user: RouteUser | null = null;
   try {
     const { url, publishableKey } = loadSupabasePublicConfig();
@@ -29,7 +22,7 @@ export async function proxy(request: NextRequest) {
         getAll: () => request.cookies.getAll(),
         setAll: (toSet) => {
           for (const { name, value } of toSet) request.cookies.set(name, value);
-          response = forward();
+          response = NextResponse.next({ request });
           for (const { name, value, options } of toSet) response.cookies.set(name, value, options);
         },
       },

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui";
+import { requireAccount } from "@/server/auth/account";
 import { acceptTermsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Before you start" };
@@ -10,6 +12,8 @@ export default async function TermsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const account = await requireAccount("/app/terms");
+  if (account.termsAcceptedAt) redirect("/app");
   const { error } = await searchParams;
   return (
     <div className="max-w-lg">

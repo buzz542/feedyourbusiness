@@ -78,18 +78,16 @@ describe("track", () => {
     ["a nested object", { count: { a: 1 } }],
     ["an array", { first: ["a"] }],
     ["a bad key", { "Bad Key": 1 }],
-    [
-      "too many keys",
-      Object.fromEntries(
-        Array.from({ length: 9 }, (_, i) => [`k${String.fromCharCode(97 + i)}`, 1]),
-      ),
-    ],
+    ["an unknown key", { term: 1 }],
+    ["a username-shaped source", { source: "some_user" }],
+    ["a community-shaped category", { category: "u_some_user" }],
+    ["an unknown view", { view: "r_saas" }],
     ["a non-finite number", { count: Number.POSITIVE_INFINITY }],
   ])("refuses props with %s", async (_label, props) => {
     const { store, rows } = fakeStore();
-    expect(await createTracker(store)("feed_opened", "u1", props as Record<string, never>)).toBe(
-      false,
-    );
+    expect(
+      await createTracker(store)("feed_opened", "u1", props as unknown as Record<string, never>),
+    ).toBe(false);
     expect(rows).toEqual([]);
   });
 

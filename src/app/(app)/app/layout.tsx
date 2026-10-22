@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireAccount } from "@/server/auth/account";
-import { PATH_HEADER, termsGate } from "@/server/auth/next-step";
 import { isEntitled } from "@/server/billing/subscription";
 import { AccountMenu } from "./_components/account-menu";
 import { AppTabs } from "./_components/app-tabs";
@@ -14,8 +11,6 @@ export const metadata: Metadata = { title: { default: "App", template: "%s | Ask
 /** App frame (docs/PLAN.md 9.5): wordmark, product name, tabs, Settings, account menu. */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const account = await requireAccount("/app");
-  const gate = termsGate((await headers()).get(PATH_HEADER), account.termsAcceptedAt);
-  if (gate) redirect(gate);
   const showTabs =
     account.product !== null &&
     account.product.status !== "draft" &&

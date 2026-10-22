@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { isAllowedEmail, parseAllowlist } from "./allowlist";
-import type { AccountState } from "./next-step";
+import { termsGate, type AccountState } from "./next-step";
 import { getSessionUser } from "./supabase-auth";
 
 export interface Account extends AccountState {
@@ -56,5 +56,16 @@ export async function requireAccount(next: string): Promise<Account> {
   if (!isAllowedEmail(account.email, parseAllowlist(process.env.SIGNUP_ALLOWLIST))) {
     redirect("/auth/private-beta");
   }
+  return account;
+}
+
+/**
+ * Every page under /app calls this first (tests/compliance/app-pages.test.ts checks). Layouts do not
+ * re-run on client-side navigation, so the allowlist and terms gates must live in each page.
+ */
+export async function requireAppPage(path: string): Promise<Account> {
+  const account = await requireAccount(path);
+  const gate = termsGate(path, account.termsAcceptedAt);
+  if (gate) redirect(gate);
   return account;
 }

@@ -50,9 +50,9 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
   return async (request) => {
     const auth = await authenticate(deps, request);
     if ("response" in auth) return auth.response;
-    const blocker = await deps.checkoutBlocker(auth.user);
-    if (blocker) return json(403, { error: blocker });
     try {
+      const blocker = await deps.checkoutBlocker(auth.user);
+      if (blocker) return json(403, { error: blocker });
       const profile = await deps.store.getBillingProfile(auth.user.id);
       // A second checkout while a subscription is live (even past_due) would double-bill.
       if (hasLiveSubscription(profile?.subscriptionStatus)) {

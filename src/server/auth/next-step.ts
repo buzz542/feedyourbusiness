@@ -31,6 +31,3 @@ export function termsGate(pathname: string | null, termsAcceptedAt: Date | null)
   if (termsAcceptedAt) return null;
   return pathname === "/app/terms" ? null : "/app/terms";
 }
-
-/** Request header the proxy sets so server layouts know the path they render. */
-export const PATH_HEADER = "x-askedfor-path";

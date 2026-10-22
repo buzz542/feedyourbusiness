@@ -29,6 +29,23 @@ export default defineConfig([
     },
   },
   {
+    // E2E specs import test from ./fixtures, which fails any request to a host other than localhost.
+    files: ["tests/e2e/**/*.spec.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              message: "Import { test, expect } from ./fixtures (localhost-only requests).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/server/net/**"],
     rules: { "no-restricted-globals": "off" },
   },
