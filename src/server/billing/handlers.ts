@@ -17,6 +17,8 @@ export interface BillingDeps {
   stripe: BillingStripe;
   store: ProfileStore;
   getUser(): Promise<AuthedUser | null>;
+  /** The pre-launch allowlist (docs/PLAN.md 12.10): keeps test-mode Checkout away from strangers. */
+  isAllowed(email: string | null): boolean;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -45,6 +47,9 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
   return async (request) => {
     const auth = await authenticate(deps, request);
     if ("response" in auth) return auth.response;
+    // Pre-launch, only invited accounts may start test-mode Checkout. Cancel and the portal stay
+    // open to everyone who has a subscription: cancelling is as easy as signing up (2.4).
+    if (!deps.isAllowed(auth.user.email)) return json(403, { error: "private_beta" });
     try {
       const profile = await deps.store.getBillingProfile(auth.user.id);
       // A second checkout while a subscription is live (even past_due) would double-bill.

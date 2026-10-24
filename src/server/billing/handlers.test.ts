@@ -24,6 +24,7 @@ const deps = (): BillingDeps => ({
   stripe,
   store,
   getUser: async () => currentUser,
+  isAllowed: (email) => email === "maker@example.test",
 });
 
 const post = (path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -42,6 +43,33 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.restoreAllMocks());
+
+describe("pre-launch allowlist (docs/PLAN.md 12.10)", () => {
+  beforeEach(() => {
+    currentUser = { id: "user-1", email: "stranger@example.test" };
+  });
+
+  it("refuses checkout to a signed-in account off the allowlist, before touching Stripe", async () => {
+    const response = await createCheckoutHandler(deps())(post("/x"));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "private_beta" });
+    expect(stripe.checkoutCalls).toEqual([]);
+  });
+
+  it("still lets an off-list subscriber cancel and reach the portal (cancel as easily as sign up)", async () => {
+    store.addUser("user-1", {
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_1",
+      subscription_status: "trialing",
+    });
+    const cancel = await createCancelHandler(deps())(post("/x", { action: "cancel" }));
+    const portal = await createPortalHandler(deps())(post("/x"));
+    expect(cancel.status).toBe(200);
+    expect(portal.status).toBe(200);
+    expect(stripe.cancelCalls).toHaveLength(1);
+    expect(stripe.portalCalls).toHaveLength(1);
+  });
+});
 
 describe.each([
   ["checkout", createCheckoutHandler, undefined],

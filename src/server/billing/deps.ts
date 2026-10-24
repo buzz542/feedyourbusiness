@@ -1,4 +1,5 @@
 import "server-only";
+import { loadAllowlist } from "@/server/auth/allowlist";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { loadBillingConfig } from "./config";
@@ -24,6 +25,7 @@ function core() {
 export function getBillingDeps(): BillingDeps {
   return {
     ...core(),
+    isAllowed: loadAllowlist(),
     async getUser() {
       const supabase = await createSupabaseServerClient();
       const { data, error } = await supabase.auth.getUser();

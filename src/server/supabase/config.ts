@@ -28,3 +28,22 @@ export function loadSupabaseAdminConfig(env: Env = process.env) {
     secretKey: parsed.data.SUPABASE_SECRET_KEY,
   };
 }
+
+/**
+ * Options for the Supabase session cookies. No browser code reads them (there is no browser
+ * client), so they are httpOnly, and Secure whenever the site is served over https.
+ */
+export function sessionCookieOptions(env: Env = process.env) {
+  let secure = false;
+  try {
+    secure = new URL(env.NEXT_PUBLIC_SITE_URL ?? "").protocol === "https:";
+  } catch {
+    // No valid site URL: leave Secure off rather than lose the cookie on http.
+  }
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: "lax" as const,
+    path: "/",
+  };
+}

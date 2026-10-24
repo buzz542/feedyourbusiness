@@ -2,7 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
-import { loadSupabasePublicConfig } from "./config";
+import { loadSupabasePublicConfig, sessionCookieOptions } from "./config";
 
 /** User-scoped client for server components and route handlers. Row-level security applies. */
 export async function createSupabaseServerClient() {
@@ -10,6 +10,7 @@ export async function createSupabaseServerClient() {
   const { url, publishableKey } = loadSupabasePublicConfig();
 
   return createServerClient<Database>(url, publishableKey, {
+    cookieOptions: sessionCookieOptions(),
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (toSet) => {
