@@ -8,6 +8,7 @@ import {
   findUnexpectedHosts,
 } from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
+import { PLATFORM_WEB_HOSTS } from "@/server/net/platform-hosts";
 import { SafeFetchError } from "@/server/net/safe-fetch";
 import { safeFetch } from "@/server/net";
 import { allowedHosts, declaredHosts, sources } from "@/sources/registry";
@@ -107,18 +108,8 @@ describe("compliance:hosts (runtime)", () => {
     const NEVER =
       /reddit|redd\.it|linkedin|facebook|instagram|tiktok|threads|youtube|discord|producthunt/i;
     // Web hosts of platforms we collect through an API: links point there, requests never do.
-    const PLATFORM_WEB_HOSTS = new Set([
-      "x.com",
-      "www.x.com",
-      "twitter.com",
-      "www.twitter.com",
-      "mobile.twitter.com",
-      "bsky.app",
-      "news.ycombinator.com",
-      "indiehackers.com",
-      "www.indiehackers.com",
-    ]);
+    const WEB_HOSTS = new Set(PLATFORM_WEB_HOSTS);
     const hosts = [...allowedHosts(everythingOn), ...sources.flatMap((s) => s.allowedHosts)];
-    expect(hosts.filter((h) => NEVER.test(h) || PLATFORM_WEB_HOSTS.has(h))).toEqual([]);
+    expect(hosts.filter((h) => NEVER.test(h) || WEB_HOSTS.has(h))).toEqual([]);
   });
 });
