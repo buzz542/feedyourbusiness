@@ -21,7 +21,7 @@ History, superseded wherever the plan disagrees: `docs/BRIEF.md` (never reformat
 
 ## Stack
 
-Next.js 16 App Router (`src/proxy.ts`, which Next 16 uses instead of middleware), TypeScript strict, Tailwind 4, Supabase (project `askedfor`, London `eu-west-2`, ref `hoqbflkszzoojdswbrgy`, RLS on every table), Vercel (functions in `lhr1`), Vercel Cron plus a jobs table, Anthropic API, Resend, Stripe with Managed Payments as merchant of record.
+Next.js 16 App Router (`src/proxy.ts`, which Next 16 uses instead of middleware; Next 16 differs from older versions, so read the version-matched guides in `node_modules/next/dist/docs/` before using an API), TypeScript strict, Tailwind 4, Supabase (project `askedfor`, London `eu-west-2`, ref `hoqbflkszzoojdswbrgy`, RLS on every table), Vercel (functions in `lhr1`), Vercel Cron plus a jobs table, Anthropic API, Resend, Stripe with Managed Payments as merchant of record.
 
 ## Non-negotiables
 

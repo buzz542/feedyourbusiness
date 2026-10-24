@@ -26,3 +26,7 @@ supabase/.branches
 
 # Live API captures for checking fixture schemas. Real people's data: never commit.
 fixtures-local/
+
+# Playwright output
+playwright-report/
+test-results/

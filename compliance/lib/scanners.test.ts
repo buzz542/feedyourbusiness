@@ -202,6 +202,16 @@ describe("dependency scanner", () => {
     ).toContain("dev-only-package");
   });
 
+  it("reads the lockfile the way npm writes it: no dev key means production", () => {
+    const asNpmWrites = (entry: Record<string, boolean>) => ({
+      packages: { "": {}, "node_modules/playwright": entry },
+    });
+    expect(rules(findBlockedPackages(asNpmWrites({}), pkg, deny))).toContain("dev-only-package");
+    // An optional peer of a production package that only a devDependency installs.
+    expect(findBlockedPackages(asNpmWrites({ devOptional: true }), pkg, deny)).toEqual([]);
+    expect(findBlockedPackages(asNpmWrites({ dev: true }), pkg, deny)).toEqual([]);
+  });
+
   it("reads package names from lockfile keys", () => {
     expect(lockfileName("node_modules/a/node_modules/@b/c")).toBe("@b/c");
     expect(lockfileName("")).toBeNull();

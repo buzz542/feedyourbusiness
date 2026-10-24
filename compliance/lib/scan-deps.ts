@@ -2,7 +2,10 @@ import { isBlockedPackage, packageName, type Denylist } from "./denylist.mjs";
 import type { Finding } from "./finding";
 
 interface Lockfile {
-  packages?: Record<string, { dev?: boolean; optional?: boolean; peer?: boolean }>;
+  packages?: Record<
+    string,
+    { dev?: boolean; devOptional?: boolean; optional?: boolean; peer?: boolean }
+  >;
 }
 
 interface PackageJson {
@@ -67,7 +70,9 @@ export function findBlockedPackages(
       );
     }
     const normalized = packageName(name);
-    if (normalized && deny.packages.devOnly.includes(normalized) && entry.dev === false) {
+    // npm writes no dev key for a production package, so anything not marked dev is production.
+    const devInstall = entry.dev === true || entry.devOptional === true;
+    if (normalized && deny.packages.devOnly.includes(normalized) && !devInstall) {
       add(
         "package-lock.json",
         "dev-only-package",

@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // next dev writes an AGENTS.md when it detects a coding agent; CLAUDE.md already points there.
+  agentRules: false,
   async headers() {
     return [
       {
