@@ -38,13 +38,34 @@ const SUPABASE_BOOTSTRAP = `
 
 export type DbRole = "anon" | "authenticated" | "service_role";
 
-export async function createDb(): Promise<PGlite> {
+/**
+ * A database with every migration applied, or, with `before`, only the migrations that sort
+ * before the first file whose name contains it. Data migrations seed the old shape there, then
+ * call applyMigrationsFrom with the same name.
+ */
+export async function createDb(options: { before?: string } = {}): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_BOOTSTRAP);
-  for (const file of listMigrations()) {
+  const files = listMigrations();
+  const stop = options.before ? indexOfMigration(files, options.before) : files.length;
+  for (const file of files.slice(0, stop)) {
     await db.exec(readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"));
   }
   return db;
+}
+
+/** Apply the migrations from the first file whose name contains `name` to the end. */
+export async function applyMigrationsFrom(db: PGlite, name: string): Promise<void> {
+  const files = listMigrations();
+  for (const file of files.slice(indexOfMigration(files, name))) {
+    await db.exec(readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"));
+  }
+}
+
+function indexOfMigration(files: string[], name: string): number {
+  const i = files.findIndex((f) => f.includes(name));
+  if (i < 0) throw new Error(`no migration named like ${name}`);
+  return i;
 }
 
 export function listMigrations(): string[] {
