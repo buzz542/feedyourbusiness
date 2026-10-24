@@ -102,7 +102,9 @@
   },
 
   "copy": {
-    "scanRoots": ["src/app/(marketing)", "emails"],
+    "scanRoots": ["src/app/(marketing)", "src/app/layout.tsx", "emails"],
+    "_appScanRoots": "Signed-in UI and shared components: every copy rule except the numbers rule, because numbers there come from the user's own live data (docs/PLAN.md 3.2).",
+    "appScanRoots": ["src/app/(app)", "src/app/(admin)", "src/components"],
     "bannedPhrases": [
       "revolutionary",
       "game-changing",

@@ -1,6 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { installTargets, isBlockedPackage, loadDenylist, packageName } from "./denylist.mjs";
-import { claimNumbers, checkCopy, extractCopy, findLogoFiles } from "./scan-copy";
+import {
+  claimNumbers,
+  checkCopy,
+  copyGateFiles,
+  copyScanRoots,
+  copyScopeOf,
+  extractCopy,
+  findLogoFiles,
+  runCopyGate,
+  scanCopyFile,
+  unscopedUiFiles,
+} from "./scan-copy";
 import { findBlockedPackages, lockfileName } from "./scan-deps";
 import {
   FETCH_WRAPPER_FILE,
@@ -425,6 +439,134 @@ describe("copy scanner", () => {
 
   it("flags a hype word inside a template literal", () => {
     expect(rules(scan("export const t = `A ${x} revolutionary tool`;"))).toContain("banned-phrase");
+  });
+});
+
+describe("copy scanner on app UI (docs/PLAN.md 3.2)", () => {
+  const appFile = "src/app/(app)/app/reply/page.tsx";
+  const scanFile = (file: string, code: string, numbers: string[] = []) =>
+    scanCopyFile(file, code, deny, new Set(numbers));
+
+  it("knows which files are public copy, which are app UI, and which are neither", () => {
+    expect(copyScopeOf("src/app/(marketing)/pricing/page.tsx", deny)).toBe("public");
+    expect(copyScopeOf("src/app/layout.tsx", deny)).toBe("public");
+    expect(copyScopeOf("emails/daily.ts", deny)).toBe("public");
+    expect(copyScopeOf(appFile, deny)).toBe("app");
+    expect(copyScopeOf("src/app/(admin)/admin/page.tsx", deny)).toBe("app");
+    expect(copyScopeOf("src/components/ui/button.tsx", deny)).toBe("app");
+    expect(copyScopeOf("src/server/net/hosts.ts", deny)).toBeNull();
+    // A lookalike folder name is not a scan root; Windows separators do not escape one.
+    expect(copyScopeOf("src/components-old/x.tsx", deny)).toBeNull();
+    expect(copyScopeOf("src\\components\\ui\\x.tsx", deny)).toBe("app");
+    expect(copyScopeOf("./src/components/ui/x.tsx", deny)).toBe("app");
+  });
+
+  it("catches every planted violation in an app file, each on its own line", () => {
+    const code = [
+      "export default function Reply() {",
+      "  return (",
+      "    <section>",
+      "      <h1>Today \u2014 your posts</h1>",
+      "      <p>A revolutionary feed</p>",
+      "      <p>Better than GummySearch</p>",
+      "      <p>Your favourite posts</p>",
+      '      <button aria-label="Unlock more">More</button>',
+      "      <p>We don&apos;t scrape anything</p>",
+      "      <p>Posts organised by colour</p>",
+      "    </section>",
+      "  );",
+      "}",
+    ].join("\n");
+    const found = scanFile(appFile, code).map((f) => `${f.line}:${f.rule}`);
+    expect(found.sort()).toEqual(
+      [
+        "4:em-dash",
+        "5:banned-phrase",
+        "6:competitor-name",
+        "7:uk-spelling",
+        "8:banned-phrase",
+        "9:banned-phrase",
+        "10:uk-spelling",
+        "10:uk-spelling",
+      ].sort(),
+    );
+  });
+
+  it("does not flag a number in app copy, which comes from live data, not a claim", () => {
+    const code = `export const Count = () => <p>42 new posts today, 3 saved, match 87</p>;`;
+    expect(scanFile(appFile, code)).toEqual([]);
+    expect(scanFile("src/components/app/post-card.tsx", code)).toEqual([]);
+  });
+
+  it("still flags the same number on a public page", () => {
+    const code = `export const Count = () => <p>42 new posts today</p>;`;
+    expect(rules(scanFile("src/app/(marketing)/page.tsx", code))).toContain("unsourced-number");
+  });
+
+  it("reads Markdown line by line wherever it is scanned", () => {
+    const md = "# Notes\n\nA seamless export\n";
+    expect(scanFile("src/components/app/help.md", md)).toEqual([
+      expect.objectContaining({ rule: "banned-phrase", line: 3 }),
+    ]);
+  });
+
+  it("returns nothing for a file outside every scan root", () => {
+    expect(scanFile("src/server/x.ts", 'export const t = "revolutionary \u2014 42";')).toEqual([]);
+  });
+});
+
+describe("copy gate wiring, on a planted repo tree", () => {
+  let root: string;
+  const plant = (file: string, code: string) => {
+    mkdirSync(path.join(root, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(root, file), code);
+  };
+  const bad = "export const P = () => <p>A seamless feed</p>;";
+
+  beforeAll(() => {
+    root = mkdtempSync(path.join(tmpdir(), "copy-gate-"));
+    plant("src/app/(app)/app/reply/page.tsx", bad);
+    plant("src/app/(admin)/admin/page.tsx", bad);
+    plant("src/components/ui/button.tsx", bad);
+    plant("src/components/app/card.tsx", "export const C = () => <p>87 match</p>;");
+    plant("src/app/(marketing)/pricing/page.tsx", "export const P = () => <p>99 a month</p>;");
+    plant("src/app/layout.tsx", bad);
+    plant("emails/daily.ts", "export const subject = `Your favourite posts`;");
+    plant("src/components/ui/button.test.tsx", bad);
+    plant("src/app/login/page.tsx", "export const L = () => <p>Sign in</p>;");
+    plant("src/app/api/health/route.ts", "export const x = 1;");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  it("reads every app root and both public roots, and skips test files", () => {
+    const byFile = new Map<string, string[]>();
+    for (const f of runCopyGate(deny, new Set(), root))
+      byFile.set(f.file, [...(byFile.get(f.file) ?? []), f.rule]);
+    expect(Object.fromEntries(byFile)).toEqual({
+      "src/app/(app)/app/reply/page.tsx": ["banned-phrase"],
+      "src/app/(admin)/admin/page.tsx": ["banned-phrase"],
+      "src/components/ui/button.tsx": ["banned-phrase"],
+      "src/app/(marketing)/pricing/page.tsx": ["unsourced-number"],
+      "src/app/layout.tsx": ["banned-phrase"],
+      "emails/daily.ts": ["uk-spelling"],
+    });
+  });
+
+  it("scans every app root the denylist names", () => {
+    for (const r of deny.copy.appScanRoots) expect(copyScanRoots(deny)).toContain(r);
+    const files = copyGateFiles(deny, root);
+    expect(files).toEqual(
+      expect.arrayContaining([
+        "src/app/(app)/app/reply/page.tsx",
+        "src/app/(admin)/admin/page.tsx",
+        "src/components/ui/button.tsx",
+        "src/components/app/card.tsx",
+      ]),
+    );
+  });
+
+  it("reports a UI file that no scope covers, such as a page outside every route group", () => {
+    expect(unscopedUiFiles(deny, root)).toEqual(["src/app/login/page.tsx"]);
   });
 });
 

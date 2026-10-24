@@ -2,6 +2,7 @@
 paths:
   - "src/app/(marketing)/**"
   - "src/app/(app)/**"
+  - "src/app/(admin)/**"
   - "src/components/**"
   - "emails/**"
   - "docs/claims.md"
@@ -24,7 +25,8 @@ mechanical parts.
 - Show the full price up front, tax included where it applies (no drip pricing).
 - Every claim, and every number on a public page or in an email, is a row in `docs/claims.md` with its
   evidence, before it ships. Claim IDs use letters, never numbers. Numbers shown from live data inside the
-  app are not claims.
+  app are not claims. `src/components` is app scope (no numbers rule), so a shared component that a public
+  page renders takes its numbers as props from the page, or lives in `src/app/(marketing)/_components`.
 - No fake or AI-generated testimonials, reviews, user counts, badges or activity screenshots. A real
   testimonial needs the person's written permission and their exact words. No testimonials section until
   real ones exist. No Product Hunt badge until after launch.

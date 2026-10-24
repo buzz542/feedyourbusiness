@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 export interface Finding {
@@ -11,8 +11,16 @@ export interface Finding {
 export const formatFindings = (findings: Finding[]): string =>
   findings.map((f) => `${f.file}:${f.line} [${f.rule}] ${f.detail}`).join("\n");
 
-/** Recursively list files under `root` (relative to `cwd`), skipping heavy or generated folders. */
+/**
+ * Recursively list files under `root` (relative to `cwd`), skipping heavy or generated folders.
+ * A root that is a single file yields just that file; a missing root yields nothing.
+ */
 export function walk(root: string, cwd: string = process.cwd()): string[] {
+  try {
+    if (statSync(path.join(cwd, root)).isFile()) return [root];
+  } catch {
+    return [];
+  }
   const out: string[] = [];
   const skip = new Set(["node_modules", ".next", ".git", "coverage"]);
   const visit = (dir: string) => {

@@ -1,12 +1,15 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import ts from "typescript";
 import type { Denylist } from "./denylist.mjs";
-import type { Finding } from "./finding";
+import { isTestFile, walk, type Finding } from "./finding";
 
 /**
  * `compliance:copy`: scans marketing pages and emails for what the brief forbids.
  *   * em dashes, hype words, competitor names, UK spellings (US English is the standard)
  *   * any number that is not in docs/claims.md (every public number must be provable)
  *   * third-party logo files in public/
+ * App UI (`appScanRoots`) gets every rule but the numbers rule (docs/PLAN.md 3.2).
  *
  * Copy is extracted from the TypeScript AST: JSX text plus user-facing string literals. Class
  * names, URLs, imports and similar plumbing are skipped, so Tailwind classes do not trip it.
@@ -190,11 +193,15 @@ const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$
 const wordRegex = (phrase: string): RegExp =>
   new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(phrase)}`, "iu");
 
+/**
+ * `allowedNumbers` null turns the numbers rule off. App UI uses that: its numbers come from the
+ * user's own live data, which are not public claims (.claude/rules/copy.md).
+ */
 export function checkCopy(
   items: readonly CopyItem[],
   file: string,
   deny: Denylist,
-  allowedNumbers: ReadonlySet<string>,
+  allowedNumbers: ReadonlySet<string> | null,
 ): Finding[] {
   const findings: Finding[] = [];
   const add = (item: CopyItem, rule: string, detail: string) =>
@@ -221,6 +228,7 @@ export function checkCopy(
     for (const [word, re] of spellings)
       if (re.test(text))
         add(item, "uk-spelling", `uses the UK spelling "${word}". Use US English.`);
+    if (allowedNumbers === null) continue;
     for (const m of text.matchAll(NUMBER)) {
       const n = m[0].replace(/,$/, "");
       if (!allowedNumbers.has(n))
@@ -228,6 +236,76 @@ export function checkCopy(
     }
   }
   return findings;
+}
+
+/**
+ * "public": marketing pages and emails, where every rule applies, numbers included.
+ * "app": signed-in UI and shared components, where every rule but the numbers rule applies.
+ */
+export type CopyScope = "public" | "app";
+
+const underRoot = (file: string, root: string): boolean =>
+  file === root || file.startsWith(`${root.replace(/\/$/, "")}/`);
+
+/** `file` is repo-relative. Backslashes are folded so a Windows path cannot escape its scope. */
+export function copyScopeOf(file: string, deny: Denylist): CopyScope | null {
+  const f = file.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (deny.copy.scanRoots.some((root) => underRoot(f, root))) return "public";
+  if (deny.copy.appScanRoots.some((root) => underRoot(f, root))) return "app";
+  return null;
+}
+
+/** Every root the copy gate reads, from both scopes. A root may be a folder or a single file. */
+export const copyScanRoots = (deny: Denylist): string[] => [
+  ...deny.copy.scanRoots,
+  ...deny.copy.appScanRoots,
+];
+
+/** The files `compliance:copy` scans, relative to `cwd`. */
+export function copyGateFiles(deny: Denylist, cwd: string = process.cwd()): string[] {
+  return copyScanRoots(deny)
+    .flatMap((root) => walk(root, cwd))
+    .filter((f) => !isTestFile(f) && /\.(tsx?|mdx?)$/.test(f));
+}
+
+/** The whole gate: read every scanned file under `cwd` and apply its scope's rules. */
+export function runCopyGate(
+  deny: Denylist,
+  claimNumbersAllowed: ReadonlySet<string>,
+  cwd: string = process.cwd(),
+): Finding[] {
+  return copyGateFiles(deny, cwd).flatMap((file) =>
+    scanCopyFile(file, readFileSync(path.join(cwd, file), "utf8"), deny, claimNumbersAllowed),
+  );
+}
+
+/**
+ * UI files that no scope covers: any .tsx under src/app (route handlers in src/app/api aside) or
+ * src/components. A new route group or a root page such as not-found.tsx must be given a scope.
+ */
+export function unscopedUiFiles(deny: Denylist, cwd: string = process.cwd()): string[] {
+  return [...walk("src/app", cwd), ...walk("src/components", cwd)].filter(
+    (f) =>
+      f.endsWith(".tsx") &&
+      !isTestFile(f) &&
+      !f.startsWith("src/app/api/") &&
+      copyScopeOf(f, deny) === null,
+  );
+}
+
+/** Scan one file with the rules for its scope. Files outside every scan root yield nothing. */
+export function scanCopyFile(
+  file: string,
+  source: string,
+  deny: Denylist,
+  claimNumbersAllowed: ReadonlySet<string>,
+): Finding[] {
+  const scope = copyScopeOf(file, deny);
+  if (scope === null) return [];
+  const items = /\.mdx?$/.test(file)
+    ? source.split("\n").map((text, i) => ({ text, line: i + 1 }))
+    : extractCopy(source, file);
+  return checkCopy(items, file, deny, scope === "public" ? claimNumbersAllowed : null);
 }
 
 /** Flag logo files named after a platform. Platform names appear in text only. */

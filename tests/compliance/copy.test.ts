@@ -1,17 +1,20 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadDenylist } from "../../compliance/lib/denylist.mjs";
-import { formatFindings, isTestFile, walk } from "../../compliance/lib/finding";
+import { formatFindings, walk } from "../../compliance/lib/finding";
 import {
-  checkCopy,
   claimNumbers,
-  extractCopy,
+  copyGateFiles,
   findLogoFiles,
+  runCopyGate,
+  unscopedUiFiles,
 } from "../../compliance/lib/scan-copy";
 
 /**
  * CI gate `compliance:copy`: marketing pages and emails contain no em dashes, hype words,
  * competitor names or UK spellings; every number is in docs/claims.md; no platform logos.
+ * App UI (src/app/(app), src/app/(admin), src/components) gets the same rules except numbers.
+ * The gate's own wiring is tested on a planted tree in compliance/lib/scanners.test.ts.
  */
 const deny = loadDenylist();
 
@@ -20,26 +23,20 @@ describe("compliance:copy", () => {
     expect(existsSync("docs/claims.md")).toBe(true);
   });
 
-  it("marketing pages and emails pass every copy rule", () => {
+  it("marketing pages, emails and app UI pass every copy rule for their scope", () => {
     const numbers = claimNumbers(readFileSync("docs/claims.md", "utf8"));
-    const files = deny.copy.scanRoots
-      .flatMap((root) => walk(root))
-      .filter((f) => !isTestFile(f) && /\.(tsx?|mdx?)$/.test(f));
-
-    const findings = files.flatMap((file) => {
-      const source = readFileSync(file, "utf8");
-      const items = /\.mdx?$/.test(file)
-        ? source.split("\n").map((text, i) => ({ text, line: i + 1 }))
-        : extractCopy(source, file);
-      return checkCopy(items, file, deny, numbers);
-    });
-    expect(formatFindings(findings)).toBe("");
+    expect(formatFindings(runCopyGate(deny, numbers))).toBe("");
   });
 
   it("actually scans something", () => {
-    const files = deny.copy.scanRoots.flatMap((root) => walk(root)).filter((f) => !isTestFile(f));
+    const files = copyGateFiles(deny);
     expect(files.some((f) => f.endsWith("page.tsx"))).toBe(true);
     expect(files.some((f) => f.startsWith("emails/"))).toBe(true);
+    expect(files).toContain("src/app/layout.tsx");
+  });
+
+  it("every UI file in src/app and src/components is in a copy scope", () => {
+    expect(unscopedUiFiles(deny)).toEqual([]);
   });
 
   it("no third-party platform logos in public/", () => {
