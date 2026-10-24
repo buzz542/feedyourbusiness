@@ -15,6 +15,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "src/**/*.test.ts",
+      "src/**/*.test.tsx",
       "tests/**/*.test.ts",
       "compliance/**/*.test.ts",
       "emails/**/*.test.ts",

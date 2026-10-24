@@ -213,3 +213,33 @@ export function findUnexpectedHosts(
         ];
   });
 }
+
+/**
+ * Fonts are self-hosted (docs/PLAN.md 9.3): no next/font/google, which fetches from Google at
+ * build time and names a third-party host, and no remote url() or @import in a stylesheet.
+ */
+export function findRemoteFonts(code: string, file: string): Finding[] {
+  const findings: Finding[] = [];
+  code.split("\n").forEach((text, i) => {
+    const line = i + 1;
+    if (/\.(css|scss)$/.test(file)) {
+      if (/(?:url\(\s*["']?|@import\s+["'])\s*(?:https?:)?\/\//i.test(text))
+        findings.push({
+          file,
+          line,
+          rule: "remote-font-or-style",
+          detail: "stylesheet loads a remote URL; self-host fonts and styles",
+        });
+    } else if (
+      /from\s+["']next\/font\/google["']|import\(\s*["']next\/font\/google["']/.test(text)
+    ) {
+      findings.push({
+        file,
+        line,
+        rule: "remote-font-or-style",
+        detail: "next/font/google fetches from a font CDN; use a self-hosted package",
+      });
+    }
+  });
+  return findings;
+}

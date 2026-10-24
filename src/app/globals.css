@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
-  Placeholder tokens for M0. Direction from docs/BRIEF.md: warm off-white paper, near-black ink,
-  one deep ink blue accent, a real dark mode. Fonts and the highlighter mark land in M7.
-  Contrast checked against WCAG 2.2 AA for text on paper in both themes.
+  Tokens (docs/PLAN.md 9.1 to 9.3): warm paper, near-black ink, one deep ink-blue accent, a real
+  dark mode. --highlight is the highlighter mark, always with ink text. --positive and --negative
+  are for trends and are always paired with an arrow and words, never color alone.
+  src/components/ui/contrast.test.ts checks every text pair at 4.5:1 or more in both themes.
 */
 :root {
   --paper: #fbf8f1;
@@ -12,6 +13,9 @@
   --rule: #d9d2c0;
   --accent: #1b2a5c;
   --accent-ink: #fbf8f1;
+  --highlight: #f3dd6d;
+  --positive: #1e6b3c;
+  --negative: #a3301f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,6 +26,9 @@
     --rule: #34302a;
     --accent: #9db4ff;
     --accent-ink: #12110e;
+    --highlight: #6b5a12;
+    --positive: #7cc99a;
+    --negative: #f29a8a;
   }
 }
 
@@ -32,8 +39,14 @@
   --color-rule: var(--rule);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
-  --font-serif: ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-highlight: var(--highlight);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  /* Self-hosted: Fraunces from @fontsource-variable/fraunces, Geist from the geist package. */
+  --font-serif: "Fraunces Variable", ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-sans:
+    var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
 }
 
 html {
@@ -41,6 +54,20 @@ html {
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
+}
+
+/*
+  The highlighter: a plain mark, no animation. The ink underline is the non-color cue, because
+  the highlight against paper is a hue change, not a contrast change.
+*/
+mark {
+  background: var(--highlight);
+  color: var(--ink);
+  padding: 0 0.1em;
+  border-radius: 1px;
+  border-bottom: 1px solid var(--ink);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 :focus-visible {

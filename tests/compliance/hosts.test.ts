@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDenylist } from "../../compliance/lib/denylist.mjs";
 import { formatFindings, isTestFile, walk } from "../../compliance/lib/finding";
-import { findNetworkPrimitives, findUnexpectedHosts } from "../../compliance/lib/scan-network";
+import {
+  findNetworkPrimitives,
+  findRemoteFonts,
+  findUnexpectedHosts,
+} from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
 import { SafeFetchError } from "@/server/net/safe-fetch";
 import { safeFetch } from "@/server/net";
@@ -25,6 +29,15 @@ describe("compliance:hosts (static)", () => {
   it("scans real files", () => {
     expect(files.length).toBeGreaterThan(10);
     expect(files).toContain("src/server/net/safe-fetch.ts");
+  });
+
+  it("fonts and styles are self-hosted: no font CDN, no remote stylesheet URL", () => {
+    const styled = SCAN_ROOTS.flatMap((root) => walk(root)).filter((f) =>
+      /\.(ts|tsx|mts|js|mjs|css|scss)$/.test(f),
+    );
+    expect(styled).toContain("src/app/globals.css");
+    const findings = styled.flatMap((file) => findRemoteFonts(readFileSync(file, "utf8"), file));
+    expect(formatFindings(findings)).toBe("");
   });
 
   it("no code reaches the network except through safeFetch()", () => {

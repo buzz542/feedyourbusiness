@@ -19,6 +19,7 @@ import { findBlockedPackages, lockfileName } from "./scan-deps";
 import {
   FETCH_WRAPPER_FILE,
   findNetworkPrimitives,
+  findRemoteFonts,
   findUnexpectedHosts,
   moduleName,
 } from "./scan-network";
@@ -567,6 +568,28 @@ describe("copy gate wiring, on a planted repo tree", () => {
 
   it("reports a UI file that no scope covers, such as a page outside every route group", () => {
     expect(unscopedUiFiles(deny, root)).toEqual(["src/app/login/page.tsx"]);
+  });
+});
+
+describe("remote font scanner", () => {
+  it.each([
+    ['@import url("https://fonts.googleapis.com/css2?family=Inter");', "a.css"],
+    ["@import 'https://fonts.example.com/x.css';", "a.css"],
+    ["  src: url(https://fonts.gstatic.com/s/inter.woff2);", "a.css"],
+    ["  src: url('//cdn.example.com/f.woff2');", "a.scss"],
+    ['import { Inter } from "next/font/google";', "src/app/layout.tsx"],
+    ["const f = await import('next/font/google');", "src/app/x.ts"],
+  ])("flags %s", (code, file) => {
+    expect(rules(findRemoteFonts(code, file))).toEqual(["remote-font-or-style"]);
+  });
+
+  it.each([
+    ['@import "tailwindcss";', "a.css"],
+    ["  src: url(./files/fraunces.woff2);", "a.css"],
+    ['import { GeistSans } from "geist/font/sans";', "src/app/layout.tsx"],
+    ['import localFont from "next/font/local";', "src/app/layout.tsx"],
+  ])("accepts %s", (code, file) => {
+    expect(findRemoteFonts(code, file)).toEqual([]);
   });
 });
 
