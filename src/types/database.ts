@@ -59,6 +59,30 @@ export type Database = {
         }
         Relationships: []
       }
+      events: {
+        Row: {
+          at: string
+          id: number
+          name: string
+          props: Json
+          user_id: string | null
+        }
+        Insert: {
+          at?: string
+          id?: never
+          name: string
+          props?: Json
+          user_id?: string | null
+        }
+        Update: {
+          at?: string
+          id?: never
+          name?: string
+          props?: Json
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           author_handle: string | null
@@ -194,13 +218,17 @@ export type Database = {
           cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
+          email_daily: boolean
+          email_weekly: boolean
           id: string
+          is_admin: boolean
           marketing_opt_in: boolean
           marketing_opt_in_at: string | null
           plan: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string | null
+          terms_accepted_at: string | null
           trial_end: string | null
           trial_reminder_sent_at: string | null
           updated_at: string
@@ -210,13 +238,17 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          email_daily?: boolean
+          email_weekly?: boolean
           id: string
+          is_admin?: boolean
           marketing_opt_in?: boolean
           marketing_opt_in_at?: string | null
           plan?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
+          terms_accepted_at?: string | null
           trial_end?: string | null
           trial_reminder_sent_at?: string | null
           updated_at?: string
@@ -226,13 +258,17 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          email_daily?: boolean
+          email_weekly?: boolean
           id?: string
+          is_admin?: boolean
           marketing_opt_in?: boolean
           marketing_opt_in_at?: string | null
           plan?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
+          terms_accepted_at?: string | null
           trial_end?: string | null
           trial_reminder_sent_at?: string | null
           updated_at?: string
