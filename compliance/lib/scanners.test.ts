@@ -38,6 +38,35 @@ describe("network scanner", () => {
   const scan = (code: string, file = "src/x.ts") =>
     findNetworkPrimitives(code, file, deny.networkModules);
 
+  describe("fetchOwnSite exception (docs/PLAN.md 12.3)", () => {
+    it("lets src/server/net/own-site.ts import node:https and node:dns, and nothing else", () => {
+      const ownSite = "src/server/net/own-site.ts";
+      expect(scan(`import https from "node:https"; import dns from "node:dns";`, ownSite)).toEqual(
+        [],
+      );
+      expect(
+        scan(`import { lookup } from "dns"; import { request } from "https";`, ownSite),
+      ).toEqual([]);
+      for (const mod of ["node:http", "node:net", "node:tls", "undici", "node:child_process"])
+        expect(rules(scan(`import x from "${mod}"`, ownSite)), mod).toContain(
+          "banned-network-module",
+        );
+      expect(rules(scan(`await fetch("https://x.example")`, ownSite))).toContain("global-fetch");
+    });
+
+    it.each([
+      "src/server/net/own-site-helper.ts",
+      "src/server/net/safe-fetch.ts",
+      "src/server/onboarding/draft.ts",
+      "src/sources/hackernews.ts",
+    ])("still fails node:https or node:dns imported in %s", (file) => {
+      expect(rules(scan(`import https from "node:https"`, file))).toContain(
+        "banned-network-module",
+      );
+      expect(rules(scan(`import dns from "node:dns"`, file))).toContain("banned-network-module");
+    });
+  });
+
   it.each([
     ["a direct call", `await fetch("https://evil.example")`],
     ["an alias", `const f = fetch; f("https://evil.example")`],
