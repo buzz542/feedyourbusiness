@@ -35,6 +35,31 @@ describe("requestMagicLink", () => {
     expect(auth.sendMagicLink).not.toHaveBeenCalled();
   });
 
+  it("after launch, stops at the IP-hash rate limit without contacting the provider", async () => {
+    const auth = port();
+    const result = await requestMagicLink(
+      { auth, siteUrl: SITE, env: { PUBLIC_LAUNCH: "true" }, attempt: async () => false },
+      { email: "anyone@example.test", next: null },
+    );
+    expect(result).toEqual({ status: "rate_limited" });
+    expect(auth.ensureUser).not.toHaveBeenCalled();
+    expect(auth.sendMagicLink).not.toHaveBeenCalled();
+  });
+
+  it("lets the request through when the rate-limit store fails", async () => {
+    const auth = port();
+    const result = await requestMagicLink(
+      {
+        auth,
+        siteUrl: SITE,
+        env: { PUBLIC_LAUNCH: "true" },
+        attempt: async () => Promise.reject(new Error("db down")),
+      },
+      { email: "anyone@example.test", next: null },
+    );
+    expect(result).toEqual({ status: "sent" });
+  });
+
   it("rejects an invalid email without contacting the provider", async () => {
     const auth = port();
     for (const email of ["", "not-an-email", "a@b", `${"x".repeat(320)}@example.test`]) {

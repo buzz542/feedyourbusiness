@@ -7,6 +7,7 @@ import type { LoginState } from "./actions";
 const messages: Record<Exclude<LoginState["status"], "idle" | "sent">, string> = {
   invalid_email: "Enter a valid email address.",
   private_beta: "AskedFor is in private beta. Sign-in is open to invited makers for now.",
+  rate_limited: "Too many sign-in links from this network today. Try again tomorrow.",
   error: "We could not send the link just now. Try again in a minute.",
 };
 

@@ -1,4 +1,6 @@
 import "server-only";
+import { isLaunched } from "@/lib/launch";
+import { isSignInAllowed } from "@/server/auth/allowlist";
 import { createClassifier } from "@/server/classify/classify";
 import { createSupabaseProductLoader } from "@/server/classify/supabase-product";
 import { createServerLlm } from "@/server/llm/deps";
@@ -54,6 +56,22 @@ function serverClassifier(db: AdminClient): {
     spendCap: (productId) => llm.capReached(productId),
     llm,
   };
+}
+
+/** The products whose owner may sign in before launch (SIGNUP_ALLOWLIST). */
+async function allowlistedProducts(db: AdminClient, ids: readonly string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await db
+    .from("products")
+    .select("id, owner_id")
+    .in("id", [...ids]);
+  if (error) throw new Error("Supabase: could not load product owners");
+  const kept: string[] = [];
+  for (const row of data ?? []) {
+    const user = await db.auth.admin.getUserById(row.owner_id);
+    if (!user.error && isSignInAllowed(user.data.user?.email)) kept.push(row.id);
+  }
+  return kept;
 }
 
 /**
@@ -113,7 +131,11 @@ export function createServerCronDeps(): CronDeps {
   return {
     store: createSupabaseJobStore(db),
     handlers,
-    products: () => collectableProducts(db),
+    products: async () => {
+      const ids = await collectableProducts(db);
+      // Before launch, collection runs only for allowlisted accounts (docs/PLAN.md 12.10).
+      return isLaunched() ? ids : allowlistedProducts(db, ids);
+    },
     recheckProducts: (from, to) => recheckProducts(db, from, to),
     sources: collectSources(),
     clock: () => new Date(),

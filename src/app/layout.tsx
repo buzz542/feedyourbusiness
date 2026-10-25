@@ -1,14 +1,15 @@
 import "@fontsource-variable/fraunces";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
+import { siteRobots } from "@/lib/launch";
 import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "AskedFor", template: "%s | AskedFor" },
   description: "Who to reply to today. What your rivals get wrong. What to build next.",
-  // Pre-launch: keep the site out of search results. Remove with src/app/robots.ts at launch.
-  robots: { index: false, follow: false },
+  // Out of search results until the launch switch (src/lib/launch.ts).
+  robots: siteRobots(),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

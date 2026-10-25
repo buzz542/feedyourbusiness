@@ -33,7 +33,7 @@ function toolName(raw: string | null): string | null {
   return name;
 }
 
-function toLabel(
+export function toLabel(
   result: ClassificationResult,
   item: ClassifyItem,
   competitorIds: ReadonlyMap<string, string>,

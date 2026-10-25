@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
+import { robotsTxt } from "@/lib/launch";
 
-// Pre-launch: disallow everything. Replace with the real rules at launch.
+/** Everything disallowed until the launch switch (src/lib/launch.ts). */
 export default function robots(): MetadataRoute.Robots {
-  return { rules: { userAgent: "*", disallow: "/" } };
+  return robotsTxt();
 }

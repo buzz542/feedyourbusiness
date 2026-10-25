@@ -269,6 +269,33 @@ export type Database = {
         }
         Relationships: []
       }
+      preview_runs: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip_hash: string
+          result: Json
+          url_host: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_hash: string
+          result: Json
+          url_host: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_hash?: string
+          result?: Json
+          url_host?: string
+        }
+        Relationships: []
+      }
       product_posts: {
         Row: {
           category: string
@@ -479,10 +506,13 @@ export type Database = {
         Row: {
           contact_email: string
           created_at: string
+          details: string | null
           due_at: string
           handled_at: string | null
           id: string
+          ip_hash: string | null
           link_or_handle: string
+          source: string | null
           status: string
           target_at: string
           updated_at: string
@@ -490,10 +520,13 @@ export type Database = {
         Insert: {
           contact_email: string
           created_at?: string
+          details?: string | null
           due_at?: string
           handled_at?: string | null
           id?: string
+          ip_hash?: string | null
           link_or_handle: string
+          source?: string | null
           status?: string
           target_at?: string
           updated_at?: string
@@ -501,10 +534,13 @@ export type Database = {
         Update: {
           contact_email?: string
           created_at?: string
+          details?: string | null
           due_at?: string
           handled_at?: string | null
           id?: string
+          ip_hash?: string | null
           link_or_handle?: string
+          source?: string | null
           status?: string
           target_at?: string
           updated_at?: string
@@ -608,6 +644,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sign_in_attempts: {
+        Row: {
+          created_at: string
+          id: number
+          ip_hash: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          ip_hash: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          ip_hash?: string
+        }
+        Relationships: []
       }
       suppression: {
         Row: {

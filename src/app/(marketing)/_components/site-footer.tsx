@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TradingDetails } from "./trading-details";
 
 const links = [
   { href: "/privacy", label: "Privacy notice" },
@@ -7,6 +8,7 @@ const links = [
   { href: "/acceptable-use", label: "Acceptable use" },
   { href: "/cookies", label: "Cookies" },
   { href: "/sources", label: "Sources" },
+  { href: "/pricing", label: "Pricing" },
 ];
 
 export function SiteFooter() {
@@ -23,8 +25,7 @@ export function SiteFooter() {
           ))}
         </ul>
       </nav>
-      {/* UK e-commerce rules need a trading name, a geographic address and a monitored email here. */}
-      <p className="mt-4">Trading name, address and contact email are added before launch.</p>
+      <TradingDetails />
     </footer>
   );
 }

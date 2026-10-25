@@ -29,7 +29,11 @@ export type MagicLinkResult =
   | { status: "sent" }
   | { status: "private_beta" }
   | { status: "invalid_email" }
+  | { status: "rate_limited" }
   | { status: "error" };
+
+/** Magic links one client IP (a daily hash of it) may request per UTC day. */
+export const SIGN_IN_DAILY_PER_IP = 10;
 
 const emailSchema = z.email().max(254);
 
@@ -38,12 +42,23 @@ export function authCallbackUrl(siteUrl: string, next: string | null | undefined
 }
 
 export async function requestMagicLink(
-  deps: { auth: MagicLinkPort; siteUrl: string; env: Env },
+  deps: {
+    auth: MagicLinkPort;
+    siteUrl: string;
+    env: Env;
+    /**
+     * Records this attempt and says whether the client is still under the daily limit. Supabase sees
+     * our server's IP, not the visitor's, so this limit is ours. A failing store lets the request
+     * through: Supabase's own per-address limit still holds.
+     */
+    attempt?: () => Promise<boolean>;
+  },
   input: { email: string; next: string | null },
 ): Promise<MagicLinkResult> {
   const email = normalizeEmail(input.email);
   if (!emailSchema.safeParse(email).success) return { status: "invalid_email" };
   if (!isSignInAllowed(email, deps.env)) return { status: "private_beta" };
+  if (deps.attempt && !(await deps.attempt().catch(() => true))) return { status: "rate_limited" };
 
   let ensured: Awaited<ReturnType<MagicLinkPort["ensureUser"]>>;
   try {

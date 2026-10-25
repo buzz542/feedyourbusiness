@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { authCallbackUrl, requestMagicLink, type MagicLinkResult } from "@/server/auth/sign-in";
-import { createMagicLinkPort } from "@/server/auth/supabase-auth";
+import { createMagicLinkPort, signInAttempt } from "@/server/auth/supabase-auth";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 
 export type LoginState = MagicLinkResult | { status: "idle" };
@@ -24,7 +24,12 @@ export async function sendMagicLinkAction(
 ): Promise<LoginState> {
   const supabase = await createSupabaseServerClient();
   return requestMagicLink(
-    { auth: createMagicLinkPort(supabase), siteUrl: await requestOrigin(), env: process.env },
+    {
+      auth: createMagicLinkPort(supabase),
+      siteUrl: await requestOrigin(),
+      env: process.env,
+      attempt: await signInAttempt(),
+    },
     { email: String(formData.get("email") ?? ""), next: String(formData.get("next") ?? "") },
   );
 }

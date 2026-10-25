@@ -92,6 +92,12 @@ describe("the sources page", () => {
     }
   });
 
+  it("lists exactly the registry's collect sources, no more", () => {
+    const html = renderToStaticMarkup(<SourcesPage />);
+    const listed = [...html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g)].map((m) => m[1]);
+    expect(listed).toEqual(sources.filter((s) => s.mode === "collect").map((s) => s.displayName));
+  });
+
   it("lists the search-link platforms as searches the user opens", () => {
     for (const source of sources)
       if (source.mode === "link") expect(page).toContain(source.displayName);

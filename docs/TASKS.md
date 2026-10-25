@@ -208,14 +208,17 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M9 in docs/TASKS.md is complete: every M9 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M9's scope changed. Or stop after 40 turns and list what is left.
 ```
 
-- [ ] Migration `launch` (6.8). Test: `preview_runs` expiry check; both tables deny-all for API roles.
-- [ ] Landing page (9.6) with labeled example data and rows in `docs/claims.md`. Test: `compliance:copy` passes; every claim on the page has a row; example cards contain no handles.
-- [ ] Instant preview (8.5, 12.7). Test: 3 per IP hash per day and the global cap enforced; no Reddit or X call is possible from the preview; a platform URL is refused; suppressed authors are dropped; the stored result validates against a schema with no author fields; only relevance 40 or more is shown or stored; results expire within 24 hours and the purge removes them.
-- [ ] Sources page. Test: lists exactly the registry, with access method, retention and the vendor for vendor sources.
-- [ ] Remove-my-post form and admin queue (4.8). Test: rate limit; one admin click deletes matching posts, suppresses the author hash, closes the request, emails the requester and writes `audit_log`; the author is never stored again; a request by post link suppresses that post's author; a request by Bluesky handle resolves to the DID and suppresses the DID-keyed author; an X username resolves to the user id.
-- [ ] Admin pages: source health, costs, metrics (4.8). Test: a non-admin gets 404; metrics contain no post text or emails.
-- [ ] Legal drafts and `docs/legal/` (12.9). Test: every page footer links them; the privacy notice names every processor in `src/server/net/hosts.ts`, every collect source in the registry and every vendor `name` (test compares the lists), and states the vendor's snapshot retention.
-- [ ] Security headers (12.8). Test: present on `/` and `/app`.
+- [x] Migration `launch` (6.8). Test: `preview_runs` expiry check; both tables deny-all for API roles.
+- [x] Landing page (9.6) with labeled example data and rows in `docs/claims.md`. Test: `compliance:copy` passes; every claim on the page has a row; example cards contain no handles.
+- [x] Instant preview (8.5, 12.7). Test: 3 per IP hash per day and the global cap enforced; no Reddit or X call is possible from the preview; a platform URL is refused; suppressed authors are dropped; the stored result validates against a schema with no author fields; only relevance 40 or more is shown or stored; results expire within 24 hours and the purge removes them.
+- [x] Sources page. Test: lists exactly the registry, with access method, retention and the vendor for vendor sources.
+- [x] Remove-my-post form and admin queue (4.8). Test: rate limit; one admin click deletes matching posts, suppresses the author hash, closes the request, emails the requester and writes `audit_log`; the author is never stored again; a request by post link suppresses that post's author; a request by Bluesky handle resolves to the DID and suppresses the DID-keyed author; an X username resolves to the user id.
+- [x] Admin pages: source health, costs, metrics (4.8). Test: a non-admin gets 404; metrics contain no post text or emails.
+- [x] Legal drafts and `docs/legal/` (12.9). Test: every page footer links them; the privacy notice names every processor in `src/server/net/hosts.ts`, every collect source in the registry and every vendor `name` (test compares the lists), and states the vendor's snapshot retention.
+- [x] Security headers (12.8). Test: present on `/` and `/app`.
 - [ ] (you) Read every claim on the landing, pricing and sources pages against `docs/claims.md` before they merge to production.
-- [ ] Launch switch: remove the `noindex` metadata, the robots disallow and the `SIGNUP_ALLOWLIST` check, only when the founder says launch. Test: the three change together. With it: turn Supabase public sign-up back on, add an IP-hash rate limit to the sign-in action (Supabase sees our server's IP, not the visitor's), and clear `terms_accepted_at` for beta accounts once the final Terms are in force.
+- [x] Launch switch: remove the `noindex` metadata, the robots disallow and the `SIGNUP_ALLOWLIST` check, only when the founder says launch. Test: the three change together. With it: turn Supabase public sign-up back on, add an IP-hash rate limit to the sign-in action (Supabase sees our server's IP, not the visitor's), and clear `terms_accepted_at` for beta accounts once the final Terms are in force.
 - [ ] (you) F15 legal, and the pre-launch checklist in `docs/BRIEF.md` with route C applied.
+- [ ] (you) Apply migration `launch` (`20261025050000`) to development, run the advisors, then to production.
+- [ ] (you) At launch: set `PUBLIC_LAUNCH=true` in Vercel production, turn Supabase public sign-up back on, set `APP_HMAC_SECRET` (the sign-in and preview rate limits need it), and clear `terms_accepted_at` for beta accounts once the final Terms are in force.
+- [ ] (you) The instant preview spends model credit: set `PREVIEW_DAILY_CAP` (default 200 a day) or `PREVIEW_ENABLED=false` to turn it off.
