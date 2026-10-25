@@ -38,6 +38,8 @@ export interface TrialingProfile {
   id: string;
   trialEnd: Date;
   cancelAtPeriodEnd: boolean;
+  /** For the invoice preview: the reminder states the full amount, tax included (10.5). */
+  subscriptionId?: string | null;
 }
 
 export type EventClaim = "new" | "retry" | "duplicate";
@@ -53,6 +55,8 @@ export interface ProfileStore {
   /** Atomically mark the reminder as sent. False if another run already claimed it. */
   claimTrialReminder(userId: string, now: Date): Promise<boolean>;
   releaseTrialReminder(userId: string): Promise<void>;
+  /** Stores the consent time once (record_service_consent); later calls never move it. */
+  recordServiceConsent(userId: string, at: Date): Promise<boolean>;
 }
 
 export interface PriceInfo {
@@ -61,6 +65,16 @@ export interface PriceInfo {
   currency: string;
   interval: "day" | "week" | "month" | "year" | null;
   intervalCount: number | null;
+  /** "inclusive" when the amount already includes tax; anything else may add tax at checkout. */
+  taxBehavior?: "inclusive" | "exclusive" | "unspecified" | null;
+}
+
+/** A completed Checkout Session, as the welcome step reads it (docs/PLAN.md 7.3). */
+export interface CheckoutSessionInfo {
+  clientReferenceId: string | null;
+  subscriptionId: string | null;
+  mode: string;
+  createdAt: Date;
 }
 
 export interface CancelState {
@@ -89,6 +103,12 @@ export interface BillingStripe {
   ): Promise<{ url: string | null }>;
   createPortalSession(args: { customerId: string; returnUrl: string }): Promise<{ url: string }>;
   setCancelAtPeriodEnd(subscriptionId: string, cancel: boolean): Promise<CancelState>;
+  /** A Checkout Session by id, or null if Stripe has none. */
+  getCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null>;
+  /** Cancels at once, with no further charge (account deletion, 10.6). */
+  cancelNow(subscriptionId: string): Promise<void>;
+  /** The next invoice's total, tax included, from Stripe's invoice preview; null if none. */
+  previewNextInvoice(subscriptionId: string): Promise<{ total: number; currency: string } | null>;
   /** Verify the signature and parse the event. Throws if the signature is invalid. */
   verifyWebhook(rawBody: string, signature: string): Stripe.Event;
 }

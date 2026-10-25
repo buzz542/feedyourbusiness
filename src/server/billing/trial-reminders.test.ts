@@ -299,6 +299,25 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
     expect(html).toContain('href="https://app.example.test/app/settings"');
   });
 
+  it("with a tax-exclusive price, states Stripe's invoice preview total (tax included)", async () => {
+    stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
+    stripe.previews.set("sub_1", { total: 3480, currency: "usd" });
+    await runHourly(9 * 24);
+    expect(mailer.sent).toHaveLength(1);
+    expect(mailer.sent[0]!.text).toContain("$34.80");
+    expect(mailer.sent[0]!.text).not.toContain("$29.00");
+  });
+
+  it("with a tax-exclusive price and no preview, waits for the next run rather than understate", async () => {
+    stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
+    await runHourly(7 * 24 - 50);
+    expect(mailer.sent).toEqual([]);
+    stripe.previews.set("sub_1", { total: 3480, currency: "usd" });
+    await runHourly(7 * 24 - 49, 7 * 24 - 50);
+    expect(mailer.sent).toHaveLength(1);
+    expect(mailer.sent[0]!.text).toContain("$34.80");
+  });
+
   it("does not remind someone who canceled before the window", async () => {
     await runHourly(3 * 24);
     await handleStripeEvent(

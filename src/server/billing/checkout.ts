@@ -31,8 +31,10 @@ export async function createCheckoutSession(args: {
   config: BillingConfig;
   user: CheckoutUser;
   customerId: string | null;
+  /** When the customer ticked the consent box (docs/PLAN.md 10.2); travels in metadata. */
+  consentAt: Date;
 }): Promise<{ url: string }> {
-  const { stripe, config, user, customerId } = args;
+  const { stripe, config, user, customerId, consentAt } = args;
 
   const price = await stripe.getPrice(config.priceId);
   if (!price.active || price.unitAmount == null || !price.interval) {
@@ -53,7 +55,7 @@ export async function createCheckoutSession(args: {
     subscription_data: {
       trial_period_days: TRIAL_DAYS,
       trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-      metadata: { user_id: user.id },
+      metadata: { user_id: user.id, service_consent_at: consentAt.toISOString() },
     },
     client_reference_id: user.id,
     metadata: { user_id: user.id },

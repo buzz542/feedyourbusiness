@@ -17,6 +17,8 @@ export interface BillingDeps {
   stripe: BillingStripe;
   store: ProfileStore;
   getUser(): Promise<AuthedUser | null>;
+  /** Injected in tests. */
+  now?: () => Date;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -41,10 +43,25 @@ async function authenticate(
   return { user };
 }
 
+const checkoutBody = z.object({ consent: z.literal(true) });
+
+/**
+ * Starts Checkout. The body must be `{ "consent": true }`: the customer ticked the box asking for
+ * the service to start during the cancellation period (docs/PLAN.md 10.1, 10.2).
+ */
 export function createCheckoutHandler(deps: BillingDeps): Handler {
   return async (request) => {
     const auth = await authenticate(deps, request);
     if ("response" in auth) return auth.response;
+    const text = await readBodyText(request, 1_000);
+    if (text === null) return json(413, { error: "payload_too_large" });
+    let body: unknown = null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      /* rejected by the schema below */
+    }
+    if (!checkoutBody.safeParse(body).success) return json(400, { error: "consent_required" });
     try {
       const profile = await deps.store.getBillingProfile(auth.user.id);
       // A second checkout while a subscription is live (even past_due) would double-bill.
@@ -56,6 +73,7 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
         config: deps.config,
         user: auth.user,
         customerId: profile?.stripeCustomerId ?? null,
+        consentAt: deps.now?.() ?? new Date(),
       });
       return json(200, { url });
     } catch (error) {

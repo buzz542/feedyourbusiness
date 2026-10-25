@@ -304,3 +304,49 @@ describe("reply_counts", () => {
     expect(Number(rows[0]!.all_posts)).toBe(0);
   });
 });
+
+describe("card actions (Save, Mark replied, Hide, Undo)", () => {
+  it("Mark replied removes the post from Today; only state changes", async () => {
+    const today = await feed({ view: "today" });
+    const target = today[0]!.id;
+    const before = (await db.query("select * from public.product_posts where id = $1", [target]))
+      .rows[0] as Record<string, unknown>;
+
+    await asAlice(() =>
+      db.query("update public.product_posts set state = 'replied' where id = $1", [target]),
+    );
+    expect((await feed({ view: "today" })).map((r) => r.id)).not.toContain(target);
+    expect((await feed({ view: "replied" })).map((r) => r.id)).toContain(target);
+
+    const after = (await db.query("select * from public.product_posts where id = $1", [target]))
+      .rows[0] as Record<string, unknown>;
+    const changed = Object.keys(before).filter(
+      (k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]),
+    );
+    expect(changed.filter((k) => k !== "updated_at")).toEqual(["state"]);
+
+    // Undo puts it back.
+    await asAlice(() =>
+      db.query("update public.product_posts set state = $2 where id = $1", [target, before.state]),
+    );
+    expect((await feed({ view: "today" })).map((r) => r.id)).toContain(target);
+  });
+
+  it.each(["relevance = 99", "category = 'wish'", "reason = 'x'", "product_id = product_id"])(
+    "a user cannot change %s",
+    async (set) => {
+      const target = (await feed({ view: "all" }))[0]!.id;
+      await expect(
+        asAlice(() => db.query(`update public.product_posts set ${set} where id = $1`, [target])),
+      ).rejects.toThrow(/permission denied/);
+    },
+  );
+
+  it("a user cannot change another user's card", async () => {
+    const target = (await feed({ view: "all" }))[0]!.id;
+    const result = await asBob(() =>
+      db.query("update public.product_posts set state = 'hidden' where id = $1", [target]),
+    );
+    expect(result.affectedRows).toBe(0);
+  });
+});

@@ -10,7 +10,14 @@ import {
 import type { BillingStripe, ProfileStore, TrialingProfile } from "./ports";
 
 export interface Mailer {
-  send(message: { to: string; subject: string; text: string; html: string }): Promise<void>;
+  send(message: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    /** Extra headers, such as List-Unsubscribe on repeating emails (docs/PLAN.md 11). */
+    headers?: Record<string, string>;
+  }): Promise<void>;
 }
 
 const HOUR_MS = 3_600_000;
@@ -127,11 +134,24 @@ export async function runTrialReminders(args: {
     try {
       const to = await getEmail(profile.id);
       if (!to) throw new Error("no email address");
+      // The full amount to be charged, tax included where it applies (docs/PLAN.md 10.5): the price
+      // itself when it is tax-inclusive, otherwise Stripe's preview of the first invoice. Without
+      // that total the reminder is not sent now (its claim is released for the next run).
+      let amount = price.unitAmount;
+      let currency = price.currency;
+      if (price.taxBehavior !== "inclusive") {
+        const preview = profile.subscriptionId
+          ? await stripe.previewNextInvoice(profile.subscriptionId)
+          : null;
+        if (!preview) throw new Error("no invoice preview");
+        amount = preview.total;
+        currency = preview.currency;
+      }
       const email = renderTrialReminder({
         chargeDate: profile.trialEnd,
         price: {
-          unitAmount: price.unitAmount,
-          currency: price.currency,
+          unitAmount: amount,
+          currency,
           interval: price.interval,
           intervalCount: price.intervalCount ?? 1,
         },

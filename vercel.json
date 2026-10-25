@@ -2,8 +2,25 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["lhr1"],
   "crons": [
-    { "path": "/api/cron/trial-reminders", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/daily", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/weekly", "schedule": "0 21 * * 0" }
+    {
+      "path": "/api/cron/trial-reminders",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/weekly",
+      "schedule": "0 21 * * 0"
+    },
+    {
+      "path": "/api/cron/digest-bst",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/digest-gmt",
+      "schedule": "0 8 * * *"
+    }
   ]
 }

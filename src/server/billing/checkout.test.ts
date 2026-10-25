@@ -6,7 +6,16 @@ let stripe: FakeStripe;
 const user = { id: "user-1", email: "maker@example.test" };
 
 const create = (overrides: Partial<Parameters<typeof createCheckoutSession>[0]> = {}) =>
-  createCheckoutSession({ stripe, config: TEST_CONFIG, user, customerId: null, ...overrides });
+  createCheckoutSession({
+    stripe,
+    config: TEST_CONFIG,
+    user,
+    customerId: null,
+    consentAt: CONSENT_AT,
+    ...overrides,
+  });
+
+const CONSENT_AT = new Date("2026-10-25T10:00:00Z");
 
 beforeEach(() => {
   stripe = new FakeStripe();
@@ -45,7 +54,7 @@ describe("createCheckoutSession", () => {
     const params = stripe.checkoutCalls[0]!;
 
     expect(params.client_reference_id).toBe("user-1");
-    expect(params.subscription_data?.metadata).toEqual({ user_id: "user-1" });
+    expect(params.subscription_data?.metadata).toMatchObject({ user_id: "user-1" });
   });
 
   it("turns Managed Payments on, and leaves it off only when configured so", async () => {
@@ -93,5 +102,13 @@ describe("createCheckoutSession", () => {
   it("fails loudly if Stripe returns no URL", async () => {
     stripe.checkoutUrl = null;
     await expect(create()).rejects.toMatchObject({ code: "no_checkout_url" });
+  });
+
+  it("puts the consent time in the subscription's metadata (docs/PLAN.md 10.2)", async () => {
+    await create();
+    expect(stripe.checkoutCalls[0]!.subscription_data?.metadata).toEqual({
+      user_id: "user-1",
+      service_consent_at: "2026-10-25T10:00:00.000Z",
+    });
   });
 });

@@ -5,6 +5,7 @@ import type {
   BillingProfile,
   BillingStripe,
   CancelState,
+  CheckoutSessionInfo,
   EventClaim,
   PriceInfo,
   ProfileStore,
@@ -24,6 +25,7 @@ interface Row {
   patch: BillingPatch;
   billingEventAt: Date | null;
   trialReminderSentAt: Date | null;
+  serviceConsentAt: Date | null;
 }
 
 export class FakeProfileStore implements ProfileStore {
@@ -38,6 +40,7 @@ export class FakeProfileStore implements ProfileStore {
       patch: { plan: "none", cancel_at_period_end: false, ...patch },
       billingEventAt: null,
       trialReminderSentAt: null,
+      serviceConsentAt: null,
     });
   }
 
@@ -99,6 +102,7 @@ export class FakeProfileStore implements ProfileStore {
               id: r.id,
               trialEnd: new Date(r.patch.trial_end),
               cancelAtPeriodEnd: r.patch.cancel_at_period_end ?? false,
+              subscriptionId: r.patch.stripe_subscription_id ?? null,
             },
           ]
         : [],
@@ -116,6 +120,13 @@ export class FakeProfileStore implements ProfileStore {
     const r = this.rows.get(userId);
     if (r) r.trialReminderSentAt = null;
   }
+
+  async recordServiceConsent(userId: string, at: Date): Promise<boolean> {
+    const r = this.rows.get(userId);
+    if (!r || r.serviceConsentAt) return false;
+    r.serviceConsentAt = at;
+    return true;
+  }
 }
 
 export const TEST_PRICE: PriceInfo = {
@@ -124,6 +135,7 @@ export const TEST_PRICE: PriceInfo = {
   currency: "usd",
   interval: "month",
   intervalCount: 1,
+  taxBehavior: "inclusive",
 };
 
 export class FakeStripe implements BillingStripe {
@@ -179,6 +191,25 @@ export class FakeStripe implements BillingStripe {
       status: "trialing",
       accessUntil: "2026-10-20T10:00:00.000Z",
     };
+  }
+
+  checkoutSessions = new Map<string, CheckoutSessionInfo>();
+  canceledNow: string[] = [];
+  /** Next invoice totals by subscription id; missing means no preview. */
+  previews = new Map<string, { total: number; currency: string }>();
+
+  async getCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null> {
+    return this.checkoutSessions.get(sessionId) ?? null;
+  }
+
+  async cancelNow(subscriptionId: string): Promise<void> {
+    this.canceledNow.push(subscriptionId);
+    const sub = this.subscriptions.get(subscriptionId);
+    if (sub) sub.status = "canceled";
+  }
+
+  async previewNextInvoice(subscriptionId: string) {
+    return this.previews.get(subscriptionId) ?? null;
   }
 
   verifyWebhook(rawBody: string, signature: string): Stripe.Event {

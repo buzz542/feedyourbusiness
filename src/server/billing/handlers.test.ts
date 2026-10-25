@@ -44,7 +44,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe.each([
-  ["checkout", createCheckoutHandler, undefined],
+  ["checkout", createCheckoutHandler, { consent: true }],
   ["portal", createPortalHandler, undefined],
   ["cancel", createCancelHandler, { action: "cancel" }],
 ] as const)("%s: shared guards", (_name, make, body) => {
@@ -69,9 +69,21 @@ describe.each([
   });
 });
 
+const CONSENT = { consent: true };
+
 describe("checkout", () => {
+  it.each([undefined, {}, { consent: false }, { consent: "yes" }, "not json"])(
+    "answers 400 without { consent: true } (%j), before calling Stripe",
+    async (body) => {
+      const response = await createCheckoutHandler(deps())(post("/x", body));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "consent_required" });
+      expect(stripe.checkoutCalls).toHaveLength(0);
+    },
+  );
+
   it("returns the Stripe URL for a signed in user", async () => {
-    const response = await createCheckoutHandler(deps())(post("/api/billing/checkout"));
+    const response = await createCheckoutHandler(deps())(post("/api/billing/checkout", CONSENT));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ url: "https://checkout.stripe.test/session_1" });
   });
@@ -80,6 +92,7 @@ describe("checkout", () => {
     const request = new Request("https://app.example.test/x", {
       method: "POST",
       headers: { "sec-fetch-site": "same-origin" },
+      body: JSON.stringify(CONSENT),
     });
     expect((await createCheckoutHandler(deps())(request)).status).toBe(200);
   });
@@ -88,7 +101,7 @@ describe("checkout", () => {
     "refuses a second subscription while one is %s, so nobody is billed twice",
     async (status) => {
       store.addUser("user-1", { subscription_status: status, stripe_customer_id: "cus_1" });
-      const response = await createCheckoutHandler(deps())(post("/x"));
+      const response = await createCheckoutHandler(deps())(post("/x", CONSENT));
 
       expect(response.status).toBe(409);
       expect(await response.json()).toEqual({ error: "subscription_exists" });
@@ -100,13 +113,13 @@ describe("checkout", () => {
     "allows checkout again after a %s subscription",
     async (status) => {
       store.addUser("user-1", { subscription_status: status, stripe_customer_id: "cus_1" });
-      expect((await createCheckoutHandler(deps())(post("/x"))).status).toBe(200);
+      expect((await createCheckoutHandler(deps())(post("/x", CONSENT))).status).toBe(200);
     },
   );
 
   it("lets a lapsed subscriber check out again, on their existing customer", async () => {
     store.addUser("user-1", { subscription_status: "canceled", stripe_customer_id: "cus_1" });
-    expect((await createCheckoutHandler(deps())(post("/x"))).status).toBe(200);
+    expect((await createCheckoutHandler(deps())(post("/x", CONSENT))).status).toBe(200);
     expect(stripe.checkoutCalls[0]!.customer).toBe("cus_1");
   });
 
@@ -114,7 +127,7 @@ describe("checkout", () => {
     stripe.createCheckoutSession = async () => {
       throw new Error("Invalid API Key provided: sk_test_secret");
     };
-    const response = await createCheckoutHandler(deps())(post("/x"));
+    const response = await createCheckoutHandler(deps())(post("/x", CONSENT));
     const text = await response.text();
 
     expect(response.status).toBe(500);

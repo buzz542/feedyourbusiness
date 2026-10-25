@@ -10,5 +10,11 @@ export const signInEmail = (project: string): string => `e2e-sign-in-${project}@
 export const onboardingEmail = (project: string): string =>
   `e2e-onboarding-${project}@askedfor.test`;
 
+export const replyEmail = (project: string): string => `e2e-reply-${project}@askedfor.test`;
+
 export const allE2EEmails = (): string[] =>
-  E2E_PROJECTS.flatMap((project) => [signInEmail(project), onboardingEmail(project)]);
+  E2E_PROJECTS.flatMap((project) => [
+    signInEmail(project),
+    onboardingEmail(project),
+    replyEmail(project),
+  ]);

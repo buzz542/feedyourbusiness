@@ -119,3 +119,73 @@ export async function productOf(
   if (error) throw new Error(`products read failed: ${error.code}`);
   return data;
 }
+
+/**
+ * A ready account for the Reply tab: terms accepted, an active product, a trialing subscription,
+ * and `cards` synthetic posts (invented text, reserved hosts) linked to the product.
+ */
+export async function seedReadyAccount(
+  config: E2EConfig,
+  userId: string,
+  cards: number,
+): Promise<string> {
+  const client = admin(config);
+  const now = Date.now();
+  const must = (r: { error: { code?: string } | null }, what: string) => {
+    if (r.error) throw new Error(`${what} failed: ${r.error.code ?? "error"}`);
+  };
+  must(
+    await client
+      .from("profiles")
+      .update({
+        terms_accepted_at: new Date(now).toISOString(),
+        subscription_status: "trialing",
+        plan: "pro",
+      })
+      .eq("id", userId),
+    "profile update",
+  );
+  const product = await client
+    .from("products")
+    .insert({
+      owner_id: userId,
+      url: "https://invoicer.example.test",
+      name: "Invoicer",
+      status: "active",
+      confirmed_at: new Date(now).toISOString(),
+    })
+    .select("id")
+    .single();
+  must(product, "product insert");
+  const productId = (product.data as { id: string }).id;
+  const posts = Array.from({ length: cards }, (_, i) => ({
+    source: "hackernews",
+    external_id: `e2e-${userId.slice(0, 8)}-${i}`,
+    url: `https://news.ycombinator.com/item?id=${900000000 + i}`,
+    excerpt: `Synthetic post ${i}: is there a tool that sends invoice reminders for me?`,
+    posted_at: new Date(now - i * 60_000).toISOString(),
+    collected_at: new Date(now).toISOString(),
+    delete_after: new Date(now + 29 * 86_400_000).toISOString(),
+    author_hash: `e2e-hash-${i}`,
+    community: "Hacker News",
+  }));
+  const inserted = await client.from("posts").insert(posts).select("id");
+  must(inserted, "posts insert");
+  const links = (inserted.data as { id: string }[]).map((p, i) => ({
+    product_id: productId,
+    post_id: p.id,
+    relevance: 95 - (i % 50),
+    category: "looking_for_tool",
+    reason: "Asks for a tool that sends invoice reminders",
+  }));
+  must(await client.from("product_posts").insert(links), "links insert");
+  return productId;
+}
+
+/** Remove the synthetic posts a seeded account left (posts are not owned by the user). */
+export async function deleteSeededPosts(config: E2EConfig, userId: string): Promise<void> {
+  await admin(config)
+    .from("posts")
+    .delete()
+    .like("external_id", `e2e-${userId.slice(0, 8)}-%`);
+}

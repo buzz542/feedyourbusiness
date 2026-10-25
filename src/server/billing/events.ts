@@ -16,8 +16,20 @@ const HANDLED = new Set<string>(HANDLED_EVENT_TYPES);
 
 type EventStore = Pick<
   ProfileStore,
-  "claimEvent" | "markEventProcessed" | "applyBillingPatch" | "findUserIdByCustomerId"
+  | "claimEvent"
+  | "markEventProcessed"
+  | "applyBillingPatch"
+  | "findUserIdByCustomerId"
+  | "recordServiceConsent"
 >;
+
+/** The consent time our checkout put in the subscription's metadata, if it is a valid time. */
+export function consentFrom(metadata: Record<string, string>): Date | null {
+  const raw = metadata.service_consent_at;
+  if (!raw || !/^\d{4}-\d{2}-\d{2}T/.test(raw)) return null;
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
 
 export interface EventDeps {
   store: EventStore;
@@ -88,6 +100,8 @@ export async function handleStripeEvent(
         profilePatchFromSubscription(sub),
         eventAt,
       );
+      const consentAt = consentFrom(sub.metadata);
+      if (consentAt) await store.recordServiceConsent(userId, consentAt);
       outcome = applied ? "processed" : "stale";
       break;
     }

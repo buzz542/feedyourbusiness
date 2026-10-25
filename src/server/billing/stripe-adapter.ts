@@ -7,6 +7,7 @@ const iso = (unixSeconds: number | undefined): string | null =>
   unixSeconds == null ? null : new Date(unixSeconds * 1000).toISOString();
 
 const INTERVALS = ["day", "week", "month", "year"] as const;
+const TAX_BEHAVIORS = ["inclusive", "exclusive", "unspecified"] as const;
 
 /** The only file that talks to the Stripe SDK. Everything else uses the BillingStripe port. */
 export function createStripeAdapter(config: BillingConfig): BillingStripe {
@@ -24,6 +25,7 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
         currency: price.currency,
         interval: INTERVALS.find((i) => i === price.recurring?.interval) ?? null,
         intervalCount: price.recurring?.interval_count ?? null,
+        taxBehavior: TAX_BEHAVIORS.find((t) => t === price.tax_behavior) ?? null,
       };
     },
 
@@ -80,6 +82,43 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
         status: sub.status,
         accessUntil: iso(sub.items.data[0]?.current_period_end),
       };
+    },
+
+    async getCheckoutSession(sessionId) {
+      try {
+        const s = await stripe.checkout.sessions.retrieve(sessionId);
+        return {
+          clientReferenceId: s.client_reference_id,
+          subscriptionId:
+            typeof s.subscription === "string" ? s.subscription : (s.subscription?.id ?? null),
+          mode: s.mode,
+          createdAt: new Date(s.created * 1000),
+        };
+      } catch (error) {
+        if (error instanceof Stripe.errors.StripeInvalidRequestError) return null;
+        throw error;
+      }
+    },
+
+    async cancelNow(subscriptionId) {
+      try {
+        await stripe.subscriptions.cancel(subscriptionId);
+      } catch (error) {
+        const gone =
+          error instanceof Stripe.errors.StripeInvalidRequestError &&
+          error.code === "resource_missing";
+        if (!gone) throw error;
+      }
+    },
+
+    async previewNextInvoice(subscriptionId) {
+      try {
+        const invoice = await stripe.invoices.createPreview({ subscription: subscriptionId });
+        return { total: invoice.total, currency: invoice.currency };
+      } catch (error) {
+        if (error instanceof Stripe.errors.StripeInvalidRequestError) return null;
+        throw error;
+      }
     },
 
     verifyWebhook(rawBody, signature) {

@@ -12,6 +12,9 @@ import { createCollectStep, type Classifier } from "./collect-step";
 import { costPerUnitFor, dailyBudgetFor, monthlyCapFor, SOURCE_USER_AGENT } from "./config";
 import { createPurgeHandler, type CronDeps } from "./cron";
 import { createDeletionSyncHandler } from "./deletion-sync";
+import { createDailyDigestHandler } from "./digest";
+import { createFirstRunHandler, createFirstRunNotify } from "./first-run";
+import { createSupabaseDailyDigestDeps } from "./supabase-digest";
 import type { JobHandler, JobKind } from "./ports";
 import {
   createSupabaseCollectStore,
@@ -19,6 +22,7 @@ import {
   loadCollectTerms,
   recheckProducts,
 } from "./supabase-collect";
+import { createSupabaseNotifyDeps } from "./supabase-first-run";
 import {
   collectableProducts,
   createSupabaseBudgetStore,
@@ -69,6 +73,9 @@ export function createServerCronDeps(): CronDeps {
     }),
   };
   const model = serverClassifier(db);
+  const notify = createFirstRunNotify(createSupabaseNotifyDeps(db));
+  handlers.digest_daily = createDailyDigestHandler(createSupabaseDailyDigestDeps(db));
+  handlers.first_run = createFirstRunHandler(null, notify);
   if (model) {
     const collect = createCollectHandler({
       sourceFor,
@@ -87,7 +94,7 @@ export function createServerCronDeps(): CronDeps {
       userAgent: SOURCE_USER_AGENT,
     });
     handlers.collect = collect;
-    handlers.first_run = collect;
+    handlers.first_run = createFirstRunHandler(collect, notify);
   }
   return {
     store: createSupabaseJobStore(db),

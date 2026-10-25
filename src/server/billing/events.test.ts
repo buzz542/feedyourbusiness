@@ -213,3 +213,33 @@ describe("other events", () => {
     expect(store.events.size).toBe(0);
   });
 });
+
+describe("consent record (docs/PLAN.md 10.2)", () => {
+  it("writes service_consent_at from the subscription's metadata, once", async () => {
+    const sub = subscriptionFixture({
+      metadata: { user_id: "user-1", service_consent_at: "2026-10-25T10:00:00.000Z" },
+    });
+    await handle(subscriptionEvent("created", sub));
+    expect(store.rows.get("user-1")!.serviceConsentAt?.toISOString()).toBe(
+      "2026-10-25T10:00:00.000Z",
+    );
+    const later = subscriptionFixture({
+      metadata: { user_id: "user-1", service_consent_at: "2026-12-01T10:00:00.000Z" },
+    });
+    await handle(subscriptionEvent("updated", later, "2026-10-14T10:00:00Z"));
+    expect(store.rows.get("user-1")!.serviceConsentAt?.toISOString()).toBe(
+      "2026-10-25T10:00:00.000Z",
+    );
+  });
+
+  it.each(["", "yesterday", "not-a-date", "2026-13-45T00:00:00Z"])(
+    "ignores a malformed consent value %j",
+    async (value) => {
+      const sub = subscriptionFixture({
+        metadata: { user_id: "user-1", service_consent_at: value },
+      });
+      await handle(subscriptionEvent("created", sub));
+      expect(store.rows.get("user-1")!.serviceConsentAt).toBeNull();
+    },
+  );
+});

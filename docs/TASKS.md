@@ -130,15 +130,17 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 
 - [x] Feed queries for Today, All, Saved and Replied with filters in the URL (4.4). Test: PGlite with 200 seeded rows: the right rows for each view and filter; another user's rows never returned. Built as migration `reply_feed`: two read-only, security-invoker functions (`reply_feed`, `reply_counts`) over the existing tables, so RLS decides what comes back; no new table, column or table grant.
 - [ ] (you) Apply `reply_feed` to the development project with the advisors clean, then approve it for production (it only adds four read-only functions; nothing is changed or deleted), and run `npm run db:types`.
-- [ ] `PostCard` and `FilterBar`. Test: render shows source and community, age, category, match, excerpt with highlight, the reason, an Open post link with `rel="noopener noreferrer"`, the reply tip and "Say you built it.".
-- [ ] Save, Mark replied, Hide and Undo as server actions. Test: Mark replied removes the post from Today; only `state` changes.
-- [ ] Reply tips are fixed copy (D8). Test: the list of modules that call the model is exactly draft, classify, synthesize and preview, and none of their prompts asks for reply text.
-- [ ] Search links panel, including subreddit links (7.8). Test: every link is https on a declared link host, with the term encoded; the panel shows "Say you built it.".
-- [ ] Keyboard shortcuts (`j`, `k`, `o`, `s`, `r`, `h`, `?`). Test: E2E.
-- [ ] Performance. Test: E2E on localhost with 200 seeded cards renders in under 1.5 seconds.
-- [ ] First run after checkout (7.3) with progress by source and the "feed ready" email. Test (fakes): `first_run` is enqueued once, results appear as sources finish, the email is sent once.
-- [ ] Daily posts email (11) with one-click unsubscribe. Test: tokens verify and expire with the secret; `POST /api/unsubscribe` turns it off and `GET` does not; no email when there are no new posts; the email contains no post excerpts and shows "Say you built it."; sends at 08:00 UK time across the daylight saving change.
-- [ ] Loading, empty and error states (4.9). Test: render tests.
+- [x] `PostCard` and `FilterBar`. Test: render shows source and community, age, category, match, excerpt with highlight, the reason, an Open post link with `rel="noopener noreferrer"`, the reply tip and "Say you built it.".
+- [x] Save, Mark replied, Hide and Undo as server actions. Test: Mark replied removes the post from Today; only `state` changes.
+- [x] Reply tips are fixed copy (D8). Test: the list of modules that call the model is exactly draft, classify, synthesize and preview, and none of their prompts asks for reply text.
+- [x] Search links panel, including subreddit links (7.8). Test: every link is https on a declared link host, with the term encoded; the panel shows "Say you built it.".
+- [x] Keyboard shortcuts (`j`, `k`, `o`, `s`, `r`, `h`, `?`). Test: E2E.
+- [x] Performance. Test: E2E on localhost with 200 seeded cards renders in under 1.5 seconds.
+- [x] First run after checkout (7.3) with progress by source and the "feed ready" email. Test (fakes): `first_run` is enqueued once, results appear as sources finish, the email is sent once.
+- [x] Daily posts email (11) with one-click unsubscribe. Test: tokens verify and expire with the secret; `POST /api/unsubscribe` turns it off and `GET` does not; no email when there are no new posts; the email contains no post excerpts and shows "Say you built it."; sends at 08:00 UK time across the daylight saving change.
+- [x] Loading, empty and error states (4.9). Test: render tests.
+- [ ] (you) After F12: run `npm run test:e2e` and see `tests/e2e/reply.spec.ts` pass (keyboard shortcuts, 200 cards under 1.5 seconds); it is skipped without the development keys.
+- [ ] (you) Set `APP_HMAC_SECRET` (32+ random characters) in Vercel: unsubscribe links need it. Two digest crons (`/api/cron/digest-bst` at 07:00 UTC, `/api/cron/digest-gmt` at 08:00 UTC) send at 08:00 UK time either side of the clock change.
 - [ ] (you) F10 and F6: trademark search and the domain, then the Resend domain and `EMAIL_FROM`; then one real daily email checked by you.
 
 ## M6 Rivals tab
@@ -178,16 +180,17 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 - [x] Cancel and resume handler for the two-click flow, plus billing portal link. Test: `handlers.test.ts`.
 - [x] Trial reminder at least 48 hours before the first charge even if one run fails, on the daily (Hobby, 73 to 98 hours ahead) and the hourly (Pro, 50 to 52 hours) schedule. Test: `trial-reminders.test.ts` simulates whole trials on both cadences and on the deployed default, the daily one with Hobby's in-hour jitter across 72 start times, with and without a failed first run: exactly one reminder, never less than 48 hours ahead, none after a cancel, re-armed if the trial is extended, a hung send released, a spent time budget deferring the rest; a plain 48-hour window is shown to fail. Live billing refuses to start unless the reminder runs hourly (`config.test.ts`).
 - [x] Live mode locked: a live key needs `BILLING_LIVE_ENABLED=true` and Managed Payments on. Test: `config.test.ts`.
-- [ ] Migration `billing_consent` (6.7). Test: only the service role can write `service_consent_at`.
+- [x] Migration `billing_consent` (6.7). Test: only the service role can write `service_consent_at`.
 - [ ] `/app/billing` (10.1): the full price with tax included where it applies, renewal terms, first charge date, the reminder, how to cancel, the consent checkbox, before checkout. Test: render shows each item; the checkout handler answers 400 without `{ consent: true }`.
-- [ ] Consent record (10.2). Test: the consent time travels in subscription metadata and the webhook writes `service_consent_at`.
+- [x] Consent record (10.2). Test: the consent time travels in subscription metadata and the webhook writes `service_consent_at`.
 - [ ] Settings, Plan and billing (10.3): status in plain words, two-click cancel, resume, update card, `past_due` banner. Test: E2E in test mode on localhost.
-- [ ] Welcome step after checkout (7.3): retrieves the Checkout Session from `session_id`, checks `client_reference_id`, applies the billing patch before any gate. Test: a just-paid user whose webhook has not arrived yet lands on Reply, not billing, and a second checkout is refused.
+- [x] Welcome step after checkout (7.3): retrieves the Checkout Session from `session_id`, checks `client_reference_id`, applies the billing patch before any gate. Test: a just-paid user whose webhook has not arrived yet lands on Reply, not billing, and a second checkout is refused.
 - [ ] Entitlement checked on every app data page and before any collection (10.4). Test: a non-entitled user sees the billing page and no collection job runs for them.
-- [ ] The trial reminder states the full amount to be charged, tax included where it applies (10.5). Test: with a tax-exclusive price, the email uses Stripe's invoice preview total.
+- [x] The trial reminder states the full amount to be charged, tax included where it applies (10.5). Test: with a tax-exclusive price, the email uses Stripe's invoice preview total.
 - [ ] Account deletion and export (10.5, 10.6). Test: E2E in test mode: the subscription is canceled at once, the auth user and every owned row are gone, `events` and `audit_log` record it; the export contains the user's data and nothing of anyone else's, and no post excerpts.
 - [ ] Public pricing page with rows in `docs/claims.md`. Test: `compliance:copy` passes; every number on the page is a claim row; the price shown is the full price with tax included where it applies.
 - [ ] Checkout E2E in test mode without driving Stripe's page (10.8). Test: the redirect goes to Stripe Checkout with the right parameters; completing the subscription with the test API and posting a signed event to the local webhook makes the account entitled.
+- [ ] (you) Apply `billing_consent` to the development project with the advisors clean, then approve it for production (adds one nullable column and a service-role function).
 - [ ] (you) F11: Stripe set up in test mode; `/api/health` shows `stripe_config`, `stripe_price` and `stripe_webhook` ok.
 - [ ] (you) The consent wording reviewed by a solicitor.
 - [ ] (you) F14: click through test mode yourself, then switch to live with the checklist in `docs/BILLING.md`.

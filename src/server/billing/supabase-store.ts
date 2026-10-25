@@ -71,7 +71,7 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
         must(
           await db
             .from("profiles")
-            .select("id, trial_end, cancel_at_period_end")
+            .select("id, trial_end, cancel_at_period_end, stripe_subscription_id")
             .eq("subscription_status", "trialing" satisfies SubscriptionStatus)
             .is("trial_reminder_sent_at", null)
             .not("trial_end", "is", null),
@@ -83,6 +83,7 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
                 id: r.id,
                 trialEnd: new Date(r.trial_end),
                 cancelAtPeriodEnd: r.cancel_at_period_end,
+                subscriptionId: r.stripe_subscription_id,
               },
             ]
           : [],
@@ -104,6 +105,13 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
 
     async releaseTrialReminder(userId) {
       must(await db.from("profiles").update({ trial_reminder_sent_at: null }).eq("id", userId));
+    },
+
+    async recordServiceConsent(userId, at) {
+      const stored = must(
+        await db.rpc("record_service_consent", { p_user_id: userId, p_at: at.toISOString() }),
+      );
+      return stored === true;
     },
   };
 }

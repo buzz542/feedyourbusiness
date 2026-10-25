@@ -1,4 +1,5 @@
 import type { CollectSource } from "@/sources/types";
+import { enqueueDigests } from "./digest";
 import { enqueueDaily } from "./enqueue";
 import type { JobHandler, JobKind, JobStore } from "./ports";
 import { runJobs, type RunSummary } from "./runner";
@@ -87,4 +88,18 @@ export function createPurgeHandler(
   purge: (now: Date) => Promise<Record<string, number>>,
 ): JobHandler {
   return async (_job, { now }) => ({ status: "done", payload: { result: await purge(now()) } });
+}
+
+/**
+ * 07:00 and 08:00 UTC: the daily posts email and, on Mondays, the weekly digest, at 08:00 UK time.
+ * Only the run that falls in London's 08:00 hour enqueues (digest.ts), then due jobs run.
+ */
+export async function runDigestCron(deps: CronDeps): Promise<CronResult> {
+  const enqueued = await enqueueDigests({
+    store: deps.store,
+    products: deps.products,
+    now: deps.clock(),
+  });
+  const summary = await runJobs({ store: deps.store, handlers: deps.handlers, clock: deps.clock });
+  return { status: statusFor(summary), body: { enqueued, ...summary } };
 }

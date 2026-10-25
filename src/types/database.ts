@@ -422,6 +422,7 @@ export type Database = {
           marketing_opt_in: boolean
           marketing_opt_in_at: string | null
           plan: string
+          service_consent_at: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string | null
@@ -442,6 +443,7 @@ export type Database = {
           marketing_opt_in?: boolean
           marketing_opt_in_at?: string | null
           plan?: string
+          service_consent_at?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -462,6 +464,7 @@ export type Database = {
           marketing_opt_in?: boolean
           marketing_opt_in_at?: string | null
           plan?: string
+          service_consent_at?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -759,6 +762,10 @@ export type Database = {
       purge_expired: {
         Args: { p_now: string }
         Returns: Json
+      }
+      record_service_consent: {
+        Args: { p_at: string; p_user_id: string }
+        Returns: boolean
       }
       record_term_stats: {
         Args: { p_day: string; p_job_id: string; p_source: string; p_stats: Json }
