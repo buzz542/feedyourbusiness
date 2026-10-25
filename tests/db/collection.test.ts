@@ -110,7 +110,8 @@ describe("posts", () => {
   });
 
   it("lets a customer read a matched post's content but never its author columns", async () => {
-    const { id } = await ingest();
+    // RLS hides posts past delete_after by the database clock, so this one is collected now.
+    const { id } = await ingest({ now: new Date().toISOString() });
     await db.query(
       "insert into public.product_posts (product_id, post_id, relevance, category, reason) values ($1, $2, 80, 'looking_for_tool', 'r')",
       [alice, id],
