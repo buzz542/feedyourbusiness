@@ -4,6 +4,7 @@ import type { BillingStripe, WebhookEndpointInfo } from "@/server/billing/ports"
 import { isCronAuthorized } from "@/server/http/cron";
 import { json } from "@/server/http/respond";
 import { PROCESSOR_HOSTS } from "@/server/net/hosts";
+import { BUDGET_ENV, dailyBudgetFor } from "@/server/pipeline/config";
 import {
   collectSources,
   isEnabled,
@@ -318,6 +319,11 @@ function checkSources(env: Env): CheckResult {
       );
     const read = (name: string) => (s.credentials.includes(name) ? env[name] : undefined);
     for (const problem of s.configProblems?.(read) ?? []) invalid.push(`${s.id}: ${problem}`);
+    // Switched on with no budget (X defaults to 0): it would make no calls at all.
+    if (dailyBudgetFor(s, env) <= 0)
+      invalid.push(
+        `${s.id}: ${BUDGET_ENV[s.id] ?? "its daily budget"} is 0 or unset, so it makes no calls`,
+      );
   }
   const on = collectSources(env).map((s) => s.id);
   if (on.length > 0) {

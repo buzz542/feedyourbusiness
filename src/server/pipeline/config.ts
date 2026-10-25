@@ -23,7 +23,7 @@ export function monthlyCapFor(
 type Env = Readonly<Record<string, string | undefined>>;
 
 /** The env var holding each paid source's per-product daily budget (docs/PLAN.md 7.6, 7.7). */
-const BUDGET_ENV: Readonly<Record<string, string>> = {
+export const BUDGET_ENV: Readonly<Record<string, string>> = {
   reddit: "REDDIT_DAILY_RECORDS_PER_PRODUCT",
   x: "X_DAILY_READS_PER_PRODUCT",
 };

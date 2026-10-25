@@ -400,7 +400,7 @@ describe("runHealthChecks", () => {
       });
     });
 
-    it("reports a source that would refuse to start: an unpinned dataset, or X before deletion compliance", async () => {
+    it("reports a source that would refuse to start, or make no calls: an unpinned dataset, or X with no budget", async () => {
       // A local run: deployments hold Reddit back until the notice states snapshot retention.
       const reddit = withEnv({
         ...PEPPER,
@@ -419,7 +419,17 @@ describe("runHealthChecks", () => {
       const x = withEnv({ ...PEPPER, SOURCE_X_ENABLED: "true", X_BEARER_TOKEN: "x-token" });
       expect((await runHealthChecks(deps({ env: x }))).checks.sources).toEqual({
         status: "invalid",
-        detail: "x: refuses to start until deletion compliance is built (docs/PLAN.md 7.6)",
+        detail: "x: X_DAILY_READS_PER_PRODUCT is 0 or unset, so it makes no calls",
+      });
+      const xOn = withEnv({
+        ...PEPPER,
+        SOURCE_X_ENABLED: "true",
+        X_BEARER_TOKEN: "x-token",
+        X_DAILY_READS_PER_PRODUCT: "50",
+      });
+      expect((await runHealthChecks(deps({ env: xOn }))).checks.sources).toMatchObject({
+        status: "ok",
+        detail: "on: x",
       });
     });
 

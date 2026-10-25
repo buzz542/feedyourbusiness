@@ -107,6 +107,11 @@ export interface CollectSource extends SourceBase {
      * off while it is null, so the notice's promise to state it first holds.
      */
     readonly snapshotRetention: string | null;
+    /**
+     * The env var that may state it instead ("30 days"), so the founder can set it from the
+     * vendor's written answer without a code change. Only "<number> <hours|days|weeks|months>".
+     */
+    readonly snapshotRetentionEnv?: string;
   };
   /** D4: 7 for reddit and x, 30 for the rest. */
   readonly retentionDays: 7 | 30;

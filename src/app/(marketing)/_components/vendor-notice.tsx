@@ -1,4 +1,4 @@
-import { dpaSignedOn, sources } from "@/sources/registry";
+import { dpaSignedOn, snapshotRetention as retentionOf, sources } from "@/sources/registry";
 
 const reddit = sources.find((s) => s.id === "reddit");
 
@@ -10,9 +10,7 @@ const reddit = sources.find((s) => s.id === "reddit");
  */
 export function VendorNotice({
   dpaSignedOn: signedOn = reddit ? dpaSignedOn(reddit) : null,
-  snapshotRetention = reddit?.mode === "collect"
-    ? (reddit.vendor?.snapshotRetention ?? null)
-    : null,
+  snapshotRetention = reddit ? retentionOf(reddit) : null,
 }: { dpaSignedOn?: string | null; snapshotRetention?: string | null } = {}) {
   return (
     <section aria-labelledby="vendor-notice" className="mt-10 space-y-3">

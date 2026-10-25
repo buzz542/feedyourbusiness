@@ -7,6 +7,7 @@ import {
   isEnabled,
   killSwitchName,
   sources,
+  snapshotRetention,
   vendorClearance,
 } from "./registry";
 import type { CollectSource } from "./types";
@@ -167,6 +168,24 @@ describe("vendor clearance (docs/PLAN.md 2.1.7)", () => {
       expect(isEnabled(reddit, signed)).toBe(false);
       expect(allowedHosts(signed)).toEqual([]);
     }
+  });
+
+  it("takes the snapshot retention from BRIGHTDATA_SNAPSHOT_RETENTION, plain text only", () => {
+    const signed = {
+      ...ON,
+      VERCEL_ENV: "production",
+      BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02",
+    };
+    expect(snapshotRetention(reddit, { ...signed, BRIGHTDATA_SNAPSHOT_RETENTION: "30 days" })).toBe(
+      "30 days",
+    );
+    expect(vendorClearance(reddit, { ...signed, BRIGHTDATA_SNAPSHOT_RETENTION: " 30 days " })).toBe(
+      "cleared",
+    );
+    for (const bad of ["", "forever", "30", "0 days", "30 days<script>", "1000 days", "30 days."])
+      expect(vendorClearance(reddit, { ...signed, BRIGHTDATA_SNAPSHOT_RETENTION: bad }), bad).toBe(
+        "notice_missing",
+      );
   });
 
   it("fails closed when it cannot tell it is a local run", () => {

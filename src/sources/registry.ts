@@ -56,7 +56,22 @@ export function vendorClearance(
   if (source.mode !== "collect" || source.access !== "vendor_api") return "not_vendor";
   if (isLocalRun(env)) return "cleared";
   if (!dpaSignedOn(source, env, now)) return "dpa_missing";
-  return source.vendor?.snapshotRetention ? "cleared" : "notice_missing";
+  return snapshotRetention(source, env) ? "cleared" : "notice_missing";
+}
+
+const RETENTION_TEXT = /^[1-9]\d{0,2} (hours?|days?|weeks?|months?)$/;
+
+/**
+ * How long the vendor keeps the snapshots it delivers, as the privacy notice states it (docs/PLAN.md
+ * 2.3.12): the module's value, or the env var it names when that holds plain text like "30 days".
+ * Null until one is set, which keeps the source off on deployments.
+ */
+export function snapshotRetention(source: Source, env: Env = process.env): string | null {
+  if (source.mode !== "collect" || !source.vendor) return null;
+  if (source.vendor.snapshotRetention) return source.vendor.snapshotRetention;
+  const name = source.vendor.snapshotRetentionEnv;
+  const value = name ? env[name]?.trim() : undefined;
+  return value && RETENTION_TEXT.test(value) ? value : null;
 }
 
 /**

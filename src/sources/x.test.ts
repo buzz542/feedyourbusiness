@@ -65,7 +65,7 @@ describe("x source", () => {
       retentionDays: 7,
       costPerUnitUsd: 0.005,
     });
-    expect(x.checkDeleted).toBeUndefined();
+    expect(x.checkDeleted).toBeTypeOf("function");
     expect(allowedHosts({})).not.toContain("api.x.com");
     expect(allowedHosts({ SOURCE_X_ENABLED: "true" })).toEqual(["api.x.com"]);
   });
@@ -76,13 +76,10 @@ describe("x source", () => {
     expect(http).not.toHaveBeenCalled();
   });
 
-  it("refuses to start until deletion compliance is implemented, whatever the env says", async () => {
+  it("starts once deletion compliance exists, with nothing in its way but the env and budget", async () => {
     const http = fakeHttp(ROUTES);
-    expect(await x.start(ctx(http))).toEqual({
-      kind: "failed",
-      errorClass: "DeletionComplianceMissing",
-    });
-    expect(http).not.toHaveBeenCalled();
+    expect((await x.start(ctx(http))).kind).toBe("done");
+    expect(x.configProblems?.(() => undefined)).toEqual([]);
   });
 
   it("searches recent posts per term with the plan's query and fields, and asks for no user data", async () => {
@@ -186,5 +183,77 @@ describe("x fixtures", () => {
         expect(post.author_id, name).toMatch(/^900000000\d$/);
       }
     }
+  });
+});
+
+describe("x deletion compliance (docs/PLAN.md 7.6)", () => {
+  const lookup = (ids: string[]) =>
+    JSON.stringify({ data: ids.map((id) => ({ id, text: "Synthetic text" })) });
+  const ids = (n: number) =>
+    Array.from({ length: n }, (_, i) => `19000000000000${String(i).padStart(5, "0")}`);
+
+  it("reports every id the lookup no longer returns, asking for ids only", async () => {
+    const http = fakeHttp([
+      [/\/2\/tweets\?/, lookup(["1900000000000000001", "1900000000000000003"])],
+    ]);
+    const gone = await x.checkDeleted!(ctx(http), [
+      "1900000000000000001",
+      "1900000000000000002",
+      "1900000000000000003",
+    ]);
+    expect(gone).toEqual(["1900000000000000002"]);
+    const url = new URL(String(http.mock.calls[0]![0]));
+    expect(`${url.origin}${url.pathname}`).toBe("https://api.x.com/2/tweets");
+    expect(url.searchParams.get("ids")).toBe(
+      "1900000000000000001,1900000000000000002,1900000000000000003",
+    );
+    expect(url.searchParams.get("tweet.fields")).toBe("id");
+    expect(url.searchParams.get("expansions")).toBeNull();
+    const init = http.mock.calls[0]![1] as RequestInit;
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer test-bearer");
+  });
+
+  it("looks up at most 100 ids a request", async () => {
+    const all = ids(250);
+    const http = vi.fn<Http>(async (input) => {
+      const asked = new URL(String(input)).searchParams.get("ids")!.split(",");
+      return new Response(lookup(asked), { status: 200 });
+    });
+    expect(await x.checkDeleted!(ctx(http), all)).toEqual([]);
+    expect(
+      http.mock.calls.map((c) => new URL(String(c[0])).searchParams.get("ids")!.split(",").length),
+    ).toEqual([100, 100, 50]);
+  });
+
+  it("ignores anything that is not a post id, and asks for nothing when none are left", async () => {
+    const http = fakeHttp([]);
+    expect(await x.checkDeleted!(ctx(http), ["abc", "1,2", ""])).toEqual([]);
+    expect(http).not.toHaveBeenCalled();
+  });
+
+  it("throws on a failed request, so no post is wrongly treated as live or gone", async () => {
+    await expect(
+      x.checkDeleted!(ctx(fakeHttp([[/\/2\/tweets\?/, 503]])), ["1900000000000000001"]),
+    ).rejects.toThrow("Http503");
+    await expect(
+      x.checkDeleted!(ctx(fakeHttp([[/\/2\/tweets\?/, '{"data":[{"id":5}]}']])), [
+        "1900000000000000001",
+      ]),
+    ).rejects.toThrow("InvalidResponse");
+    await expect(
+      x.checkDeleted!(ctx(fakeHttp([]), { credential: () => undefined }), ["1900000000000000001"]),
+    ).rejects.toThrow("MissingCredentials");
+  });
+
+  it("backs off on 429 once, then stops with what it found", async () => {
+    let calls = 0;
+    const http = vi.fn<Http>(async () => {
+      calls++;
+      return new Response("", { status: 429, headers: { "retry-after": "2" } });
+    });
+    const sleep = vi.fn(async () => {});
+    expect(await x.checkDeleted!(ctx(http, { sleep }), ["1900000000000000001"])).toEqual([]);
+    expect(calls).toBe(2);
+    expect(sleep).toHaveBeenCalledWith(2_000);
   });
 });
