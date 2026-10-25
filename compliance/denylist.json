@@ -1,6 +1,5 @@
 {
   "_comment": "Single source of truth for the compliance gates and the PreToolUse install hook. Changing it changes a hard rule, so it needs founder approval (docs/PLAN.md, section 2). Route C keeps every package here blocked: vendors are called through their REST APIs with safeFetch().",
-
   "packages": {
     "blocked": [
       "puppeteer",
@@ -65,7 +64,6 @@
     ],
     "devOnly": ["playwright", "playwright-core", "@playwright/test"]
   },
-
   "networkModules": [
     "http",
     "https",
@@ -95,16 +93,22 @@
     "eventsource",
     "socket.io-client"
   ],
-
   "schema": {
     "postTables": ["posts", "product_posts"],
     "bannedColumnPattern": "avatar|bio|follower|following|email|phone|photo|picture|image|profile_url",
     "anonGrantsForbidden": true
   },
-
   "copy": {
     "scanRoots": ["src/app/(marketing)", "emails", "src/components/ui"],
-    "appScanRoots": ["src/app/(app)", "src/app/(admin)", "src/components/app"],
+    "appScanRoots": [
+      "src/app/(app)",
+      "src/app/(admin)",
+      "src/components/app",
+      "src/lib/reply-tips.ts",
+      "src/server/email",
+      "src/server/rivals",
+      "src/server/build"
+    ],
     "bannedPhrases": [
       "revolutionary",
       "game-changing",
@@ -177,7 +181,6 @@
       "whilst"
     ]
   },
-
   "logos": {
     "_comment": "Platform names appear in text only. No logo files without written permission.",
     "publicDir": "public",

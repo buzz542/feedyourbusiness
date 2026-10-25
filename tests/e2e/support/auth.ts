@@ -90,7 +90,9 @@ export async function deleteUsers(config: E2EConfig, ids: readonly string[]): Pr
   const client = admin(config);
   for (const id of ids) {
     const { error } = await client.auth.admin.deleteUser(id);
-    if (error) throw new Error(`deleteUser failed: ${error.code ?? error.name}`);
+    // Already gone (another cleanup removed it) is fine.
+    if (error && error.status !== 404 && error.code !== "user_not_found")
+      throw new Error(`deleteUser failed: ${error.code ?? error.name}`);
   }
 }
 
@@ -122,7 +124,8 @@ export async function productOf(
 
 /**
  * A ready account for the Reply tab: terms accepted, an active product, a trialing subscription,
- * and `cards` synthetic posts (invented text, reserved hosts) linked to the product.
+ * and `cards` synthetic posts (invented text, made-up item ids far above real ones) linked to
+ * the product.
  */
 export async function seedReadyAccount(
   config: E2EConfig,

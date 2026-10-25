@@ -1,4 +1,5 @@
 import "server-only";
+import { FEED_CATEGORIES } from "@/lib/reply-filters";
 import { createResendMailer } from "@/server/email/mailer";
 import type { AdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/types/database";
@@ -51,14 +52,22 @@ export function createSupabaseNotifyDeps(db: AdminClient): NotifyDeps {
       return count ?? 0;
     },
     async counts(productId) {
-      const { data, error } = await db
-        .from("product_posts")
-        .select("category")
-        .eq("product_id", productId);
-      if (error) throw new Error("Supabase: could not count posts");
-      const counts: Record<string, number> = {};
-      for (const row of data ?? []) counts[row.category] = (counts[row.category] ?? 0) + 1;
-      return counts;
+      // Cards waiting in the Reply tab, per category: new, and not past delete_after (2.3.4).
+      const now = new Date().toISOString();
+      const entries = await Promise.all(
+        FEED_CATEGORIES.map(async (category) => {
+          const { count, error } = await db
+            .from("product_posts")
+            .select("id, posts!inner(delete_after)", { count: "exact", head: true })
+            .eq("product_id", productId)
+            .eq("state", "new")
+            .eq("category", category)
+            .gt("posts.delete_after", now);
+          if (error) throw new Error("Supabase: could not count posts");
+          return [category, count ?? 0] as const;
+        }),
+      );
+      return Object.fromEntries(entries);
     },
     async recipient(productId) {
       const { data, error } = await db

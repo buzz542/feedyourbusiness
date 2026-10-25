@@ -511,6 +511,66 @@ export type Database = {
         }
         Relationships: []
       }
+      rival_insights: {
+        Row: {
+          competitor_id: string | null
+          complaints: number
+          created_at: string
+          example_post_ids: string[]
+          id: string
+          issue: string
+          product_id: string
+          summary: string
+          switching: number
+          tool_name: string | null
+          trend: string
+          week: string
+        }
+        Insert: {
+          competitor_id?: string | null
+          complaints: number
+          created_at?: string
+          example_post_ids?: string[]
+          id?: string
+          issue: string
+          product_id: string
+          summary: string
+          switching: number
+          tool_name?: string | null
+          trend?: string
+          week: string
+        }
+        Update: {
+          competitor_id?: string | null
+          complaints?: number
+          created_at?: string
+          example_post_ids?: string[]
+          id?: string
+          issue?: string
+          product_id?: string
+          summary?: string
+          switching?: number
+          tool_name?: string | null
+          trend?: string
+          week?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rival_insights_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rival_insights_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       search_terms: {
         Row: {
           active: boolean
@@ -611,8 +671,10 @@ export type Database = {
           created_at: string
           example_post_ids: string[]
           id: string
+          kind: string
           product_id: string
           summary: string
+          theme_key: string | null
           title: string
           trend: string
           week: string
@@ -622,8 +684,10 @@ export type Database = {
           created_at?: string
           example_post_ids?: string[]
           id?: string
+          kind?: string
           product_id: string
           summary: string
+          theme_key?: string | null
           title: string
           trend?: string
           week: string
@@ -633,8 +697,10 @@ export type Database = {
           created_at?: string
           example_post_ids?: string[]
           id?: string
+          kind?: string
           product_id?: string
           summary?: string
+          theme_key?: string | null
           title?: string
           trend?: string
           week?: string
@@ -743,6 +809,13 @@ export type Database = {
         Args: { p_day: string; p_limit: number; p_product_id: string; p_source: string; p_units: number }
         Returns: boolean
       }
+      discovered_tools: {
+        Args: { p_product: string; p_since: string; p_until: string }
+        Returns: {
+          tool_name: string
+          mentions: number
+        }[]
+      }
       finish_job: {
         Args: { p_error_class?: string; p_id: string; p_payload?: Json; p_run_after?: string; p_status: string }
         Returns: undefined
@@ -848,6 +921,40 @@ export type Database = {
       reserve_job_budget: {
         Args: { p_day: string; p_job_id: string; p_limit: number; p_month_start?: string; p_monthly_cap?: number; p_product_id: string; p_source: string; p_units: number }
         Returns: string
+      }
+      rival_counts: {
+        Args: { p_product: string; p_since: string; p_until: string }
+        Returns: {
+          competitor_id: string
+          tool_name: string
+          issue: string
+          complaints: number
+          switching: number
+        }[]
+      }
+      rival_switchers: {
+        Args: { p_competitor?: string; p_limit?: number; p_product: string }
+        Returns: {
+          id: string
+          relevance: number
+          category: string
+          reason: string
+          state: string
+          created_at: string
+          highlight_start: number
+          highlight_end: number
+          tool_mentioned: string
+          competitor_id: string
+          competitor_name: string
+          rival_issue: string
+          rival_sentiment: string
+          switching: boolean
+          source: string
+          community: string
+          url: string
+          excerpt: string
+          posted_at: string
+        }[]
       }
       save_product_draft: {
         Args: { p_audience: string; p_competitors: Json; p_description: string; p_name: string; p_one_liner: string; p_product_id: string; p_subreddits: string[]; p_terms: Json; p_url: string }

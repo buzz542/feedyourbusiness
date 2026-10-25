@@ -149,12 +149,14 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M6 in docs/TASKS.md is complete: every M6 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M6's scope changed. Or stop after 40 turns and list what is left.
 ```
 
-- [ ] Migration `rivals` (6.5) and `purge_expired` clearing its example ids. Test: `tests/db/rivals.test.ts`: owner reads, another user cannot, API roles cannot write, the uniqueness rule holds for tracked and discovered rivals.
-- [ ] Rival queries: complaints per rival and issue for this week and the last 8, switching posts, discovered tools. Test: PGlite fixtures with known counts.
-- [ ] Rivals UI (4.5): picker, this-week scorecards, issue breakdown with sparklines, people looking to switch, what you could fix, discovered tools. Test: render tests and one E2E; "Say you built it." wherever the tab links to posts.
-- [ ] Weekly rival synthesis (8.4). Test (fake model): counts come from labels, not the model; trends computed against last week; a summary copying 8 or more words of an excerpt is regenerated once and then dropped; handles rejected.
-- [ ] Track a discovered tool. Test: it becomes a competitor and "<tool> alternative" is offered as a term.
-- [ ] Markdown export of the week's rival report. Test: contains no handles and no excerpt quotes.
+- [x] Migration `rivals` (6.5) and `purge_expired` clearing its example ids. Test: `tests/db/rivals.test.ts`: owner reads, another user cannot, API roles cannot write, the uniqueness rule holds for tracked and discovered rivals.
+- [x] Rival queries: complaints per rival and issue for this week and the last 8, switching posts, discovered tools. Test: PGlite fixtures with known counts.
+- [x] Rivals UI (4.5): picker, this-week scorecards, issue breakdown with sparklines, people looking to switch, what you could fix, discovered tools. Test: render tests and one E2E; "Say you built it." wherever the tab links to posts.
+- [x] Weekly rival synthesis (8.4). Test (fake model): counts come from labels, not the model; trends computed against last week; a summary copying 8 or more words of an excerpt is regenerated once and then dropped; handles rejected.
+- [x] Track a discovered tool. Test: it becomes a competitor and "<tool> alternative" is offered as a term.
+- [x] Markdown export of the week's rival report. Test: contains no handles and no excerpt quotes.
+
+- [ ] (you) Apply `rivals` to the development project with the advisors clean, then approve it for production (a new table with RLS and three read functions).
 
 ## M7 Build tab
 
@@ -162,11 +164,13 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 /goal Milestone M7 in docs/TASKS.md is complete: every M7 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M7's scope changed. Or stop after 40 turns and list what is left.
 ```
 
-- [ ] Migration `build_themes` (6.6). Test: `kind` and `theme_key` constraints.
-- [ ] Weekly Build synthesis (8.4). Test (fake model): themes regenerate weekly; trend uses last week's counts by `theme_key`; at most 3 example ids; the quote check and handle check apply.
-- [ ] Build UI (4.6): themes, wished it existed, what to build next, week picker. Test: render tests; no author names or handles in the rendered output with fixture data; "Say you built it." wherever the tab links to posts.
-- [ ] Markdown export. Test: matches the screen minus excerpts (links only) and contains no quotes or handles.
-- [ ] Monday digest (11) with Build and Rivals highlights and a working unsubscribe. Test: unsubscribe works; "Say you built it." wherever it links to posts; no post excerpts; sends Monday 08:00 UK time across the daylight saving change.
+- [x] Migration `build_themes` (6.6). Test: `kind` and `theme_key` constraints.
+- [x] Weekly Build synthesis (8.4). Test (fake model): themes regenerate weekly; trend uses last week's counts by `theme_key`; at most 3 example ids; the quote check and handle check apply.
+- [x] Build UI (4.6): themes, wished it existed, what to build next, week picker. Test: render tests; no author names or handles in the rendered output with fixture data; "Say you built it." wherever the tab links to posts.
+- [x] Markdown export. Test: matches the screen minus excerpts (links only) and contains no quotes or handles.
+- [x] Monday digest (11) with Build and Rivals highlights and a working unsubscribe. Test: unsubscribe works; "Say you built it." wherever it links to posts; no post excerpts; sends Monday 08:00 UK time across the daylight saving change.
+
+- [ ] (you) Apply `build_themes` to the development project with the advisors clean, then approve it for production (two columns on `themes` and an index).
 
 ## M8 Billing
 

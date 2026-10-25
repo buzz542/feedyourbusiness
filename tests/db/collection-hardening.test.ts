@@ -291,19 +291,31 @@ describe("purge_expired", () => {
   });
 
   it("runs its rival_insights and preview_runs branches once those tables exist", async () => {
-    await db.query(
-      "create table if not exists public.rival_insights (id serial primary key, example_post_ids uuid[] not null default '{}')",
-    );
-    await db.query(
-      "create table if not exists public.preview_runs (id serial primary key, expires_at timestamptz not null)",
-    );
+    // Later migrations create the real tables; stand-ins are used only when they do not exist yet.
+    const exists = async (t: string) =>
+      (await one<{ r: string | null }>("select to_regclass($1)::text as r", [`public.${t}`])).r !==
+      null;
+    const realRivals = await exists("rival_insights");
+    const realPreviews = await exists("preview_runs");
+    if (!realRivals)
+      await db.query(
+        "create table public.rival_insights (id serial primary key, product_id uuid, tool_name text, week date, issue text, complaints int, switching int, summary text, example_post_ids uuid[] not null default '{}')",
+      );
+    if (!realPreviews)
+      await db.query(
+        "create table public.preview_runs (id serial primary key, ip_hash text, url_host text, result jsonb, created_at timestamptz default now(), expires_at timestamptz not null)",
+      );
     const { id } = await insertPost();
     const gone = "00000000-0000-4000-8000-00000000dead";
-    await db.query("insert into public.rival_insights (example_post_ids) values ($1)", [
-      [id, gone],
-    ]);
     await db.query(
-      "insert into public.preview_runs (expires_at) values (now() - interval '1 hour'), (now() + interval '1 hour')",
+      `insert into public.rival_insights (product_id, tool_name, week, issue, complaints, switching, summary, example_post_ids)
+       values ($1, 'Billwise', '2026-10-12', 'pricing', 1, 0, 'x', $2)`,
+      [product, [id, gone]],
+    );
+    await db.query(
+      `insert into public.preview_runs (ip_hash, url_host, result, created_at, expires_at)
+       values ('h', 'a.example.test', '{}', now() - interval '2 hours', now() - interval '1 hour'),
+              ('h', 'a.example.test', '{}', now(), now() + interval '1 hour')`,
     );
     await db.query(
       "insert into public.product_posts (product_id, post_id, relevance, category, reason) values ($1, $2, 70, 'wish', 'A wish.')",
@@ -316,8 +328,10 @@ describe("purge_expired", () => {
     expect(await one("select example_post_ids from public.rival_insights")).toEqual({
       example_post_ids: [id],
     });
-    await db.query("drop table public.rival_insights");
-    await db.query("drop table public.preview_runs");
+    await db.query("delete from public.rival_insights");
+    await db.query("delete from public.preview_runs");
+    if (!realRivals) await db.query("drop table public.rival_insights");
+    if (!realPreviews) await db.query("drop table public.preview_runs");
   });
 });
 

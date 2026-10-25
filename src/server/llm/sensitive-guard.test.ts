@@ -5,6 +5,8 @@ import { walk } from "../../../compliance/lib/finding";
 import { classificationSystem } from "@/server/classify/prompt";
 import { ClassificationSchema } from "@/server/classify/schema";
 import { DRAFT_SYSTEM, DraftSchema } from "@/server/onboarding/draft";
+import { BUILD_SYSTEM, RIVAL_SYSTEM } from "@/server/synthesis/prompt";
+import { BuildSynthesisSchema, RivalSynthesisSchema } from "@/server/synthesis/schema";
 import { toOutputSchema } from "./llm";
 import { NEVER_INFER_RULE } from "./rules";
 
@@ -36,11 +38,15 @@ const BANNED = [
 const MODEL_SCHEMAS: Record<string, z.ZodType> = {
   draft: DraftSchema,
   classify: ClassificationSchema,
+  synthesize_build: BuildSynthesisSchema,
+  synthesize_rivals: RivalSynthesisSchema,
 };
 
 /** Every system prompt, built with a sample product where it needs one. */
 const SYSTEM_PROMPTS: Record<string, string> = {
   draft: DRAFT_SYSTEM,
+  synthesize_build: BUILD_SYSTEM,
+  synthesize_rivals: RIVAL_SYSTEM,
   classify: classificationSystem({
     name: "Invoicer",
     oneLiner: "Invoices that chase themselves",
@@ -53,7 +59,11 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 /** The files that call the model, each with its schema and prompt above. */
-const CALL_SITES = ["src/server/classify/classify.ts", "src/server/onboarding/draft.ts"];
+const CALL_SITES = [
+  "src/server/classify/classify.ts",
+  "src/server/onboarding/draft.ts",
+  "src/server/synthesis/synthesize.ts",
+];
 
 /** Every property name in a JSON schema, at any depth. */
 function propertyNames(schema: unknown, out = new Set<string>()): Set<string> {
@@ -100,7 +110,7 @@ describe("the sensitive-trait guard", () => {
   it("knows every file that calls the model", () => {
     const callers = walk("src")
       .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
-      .filter((f) => /\.callStructured\(/.test(readFileSync(f, "utf8")))
+      .filter((f) => /\.callStructured\s*(<[^>]*>)?\s*\(/.test(readFileSync(f, "utf8")))
       .sort();
     expect(callers).toEqual([...CALL_SITES].sort());
   });

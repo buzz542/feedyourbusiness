@@ -102,7 +102,7 @@ export function createUnsubscribeHandler(deps: {
     return html(
       200,
       "Unsubscribed",
-      `<h1>You are unsubscribed</h1><p>You will not get ${LIST_NAMES[target.list]} any more. You can turn it back on in Settings.</p>`,
+      `<h1>You are unsubscribed</h1><p>You will not get ${LIST_NAMES[target.list]} anymore. You can turn it back on in Settings.</p>`,
     );
   };
 }

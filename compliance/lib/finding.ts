@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 export interface Finding {
@@ -29,6 +29,12 @@ export function walk(root: string, cwd: string = process.cwd()): string[] {
       else out.push(rel);
     }
   };
+  // A root may also name a single file.
+  try {
+    if (statSync(path.join(cwd, root)).isFile()) return [root];
+  } catch {
+    return out;
+  }
   visit(root);
   return out;
 }

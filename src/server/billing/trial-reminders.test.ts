@@ -308,14 +308,23 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
     expect(mailer.sent[0]!.text).not.toContain("$29.00");
   });
 
-  it("with a tax-exclusive price and no preview, waits for the next run rather than understate", async () => {
+  it("with a tax-exclusive price and no preview, still sends in time, saying tax may be added", async () => {
     stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
-    await runHourly(7 * 24 - 50);
-    expect(mailer.sent).toEqual([]);
-    stripe.previews.set("sub_1", { total: 3480, currency: "usd" });
-    await runHourly(7 * 24 - 49, 7 * 24 - 50);
+    await runHourly(9 * 24);
     expect(mailer.sent).toHaveLength(1);
-    expect(mailer.sent[0]!.text).toContain("$34.80");
+    expect(mailer.sent[0]!.text).toContain("$29.00 plus any sales tax or VAT that applies");
+    expect((chargeAt - mailer.sent[0]!.at.getTime()) / HOUR).toBeGreaterThanOrEqual(48);
+  });
+
+  it("a hung invoice preview never strands a claim", async () => {
+    stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
+    stripe.previewNextInvoice = () => new Promise(() => {});
+    const result = await tick(new Date(chargeAt - 60 * HOUR), {
+      windowHours: 72,
+      sendTimeoutMs: 5,
+    });
+    expect(result.failed).toBe(1);
+    expect(store.row("user-1").trialReminderSentAt).toBeNull();
   });
 
   it("does not remind someone who canceled before the window", async () => {

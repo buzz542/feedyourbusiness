@@ -4,6 +4,8 @@ export interface TrialReminderInput {
   chargeDate: Date;
   price: PriceTerms;
   settingsUrl: string;
+  /** The amount excludes tax that may be added (only when Stripe's total was unavailable). */
+  taxNote?: boolean;
 }
 
 export interface RenderedEmail {
@@ -28,7 +30,9 @@ export function renderTrialReminder(input: TrialReminderInput): RenderedEmail {
 
   const subject = "Your AskedFor trial ends soon";
   const lead = `Your AskedFor free trial ends on ${when}.`;
-  const charge = `Your card is charged ${amount} then, and again every ${every} until you cancel.`;
+  const charge =
+    `Your card is charged ${amount}${input.taxNote ? " plus any sales tax or VAT that applies" : ""} ` +
+    `then, and again every ${every} until you cancel.`;
   const how = "To avoid the charge, cancel before then. It takes two clicks in Settings.";
   const footer = "This is a service email about your subscription.";
 

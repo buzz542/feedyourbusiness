@@ -123,7 +123,7 @@ export class FakeProfileStore implements ProfileStore {
 
   async recordServiceConsent(userId: string, at: Date): Promise<boolean> {
     const r = this.rows.get(userId);
-    if (!r || r.serviceConsentAt) return false;
+    if (!r || (r.serviceConsentAt && r.serviceConsentAt >= at)) return false;
     r.serviceConsentAt = at;
     return true;
   }

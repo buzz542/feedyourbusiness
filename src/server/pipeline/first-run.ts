@@ -98,13 +98,13 @@ export function createFirstRunNotify(deps: NotifyDeps): JobHandler {
     if (!mailer) return { status: "done", payload: { result: "email_off" } };
     const to = await deps.recipient(job.productId);
     if (!to) return { status: "done", payload: { result: "no_recipient" } };
-    if (!(await deps.claim(job.id))) return { status: "done", payload: { result: "already_sent" } };
     const counts = await deps.counts(job.productId);
     const email = renderFeedReady({
       counts: FEED_CATEGORIES.map((c) => ({ label: CATEGORY_LABELS[c], count: counts[c] ?? 0 })),
       appUrl: `${deps.siteUrl.replace(/\/$/, "")}/app/reply`,
     });
-    await mailer.send({ to, ...email });
+    if (!(await deps.claim(job.id))) return { status: "done", payload: { result: "already_sent" } };
+    await mailer.send({ to, ...email, idempotencyKey: `job-${job.id}` });
     return { status: "done", payload: { result: "sent" } };
   };
 }

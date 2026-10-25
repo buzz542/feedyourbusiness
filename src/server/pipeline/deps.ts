@@ -6,15 +6,17 @@ import type { Llm, SpendCap } from "@/server/llm/llm";
 import { createSourceFetch } from "@/server/net/source-fetch";
 import { authorHasher } from "@/server/privacy/author-hash";
 import { createSupabaseAdminClient, type AdminClient } from "@/server/supabase/admin";
+import { createSupabaseSynthesisStore } from "@/server/synthesis/supabase-synthesis";
+import { createSynthesizeHandler } from "@/server/synthesis/synthesize";
 import { collectSources } from "@/sources/registry";
 import { createCollectHandler } from "./collect";
 import { createCollectStep, type Classifier } from "./collect-step";
 import { costPerUnitFor, dailyBudgetFor, monthlyCapFor, SOURCE_USER_AGENT } from "./config";
 import { createPurgeHandler, type CronDeps } from "./cron";
 import { createDeletionSyncHandler } from "./deletion-sync";
-import { createDailyDigestHandler } from "./digest";
+import { createDailyDigestHandler, createWeeklyDigestHandler } from "./digest";
 import { createFirstRunHandler, createFirstRunNotify } from "./first-run";
-import { createSupabaseDailyDigestDeps } from "./supabase-digest";
+import { createSupabaseDailyDigestDeps, createSupabaseWeeklyDigestDeps } from "./supabase-digest";
 import type { JobHandler, JobKind } from "./ports";
 import {
   createSupabaseCollectStore,
@@ -36,9 +38,11 @@ import {
  * collect job is enqueued and nothing is fetched or stored, since a post cannot be stored without
  * its relevance, category and reason.
  */
-function serverClassifier(
-  db: AdminClient,
-): { classifier: Classifier; spendCap: (productId: string) => Promise<SpendCap | null> } | null {
+function serverClassifier(db: AdminClient): {
+  classifier: Classifier;
+  spendCap: (productId: string) => Promise<SpendCap | null>;
+  llm: Llm;
+} | null {
   let llm: Llm;
   try {
     llm = createServerLlm();
@@ -48,6 +52,7 @@ function serverClassifier(
   return {
     classifier: createClassifier({ llm, product: createSupabaseProductLoader(db) }),
     spendCap: (productId) => llm.capReached(productId),
+    llm,
   };
 }
 
@@ -75,7 +80,12 @@ export function createServerCronDeps(): CronDeps {
   const model = serverClassifier(db);
   const notify = createFirstRunNotify(createSupabaseNotifyDeps(db));
   handlers.digest_daily = createDailyDigestHandler(createSupabaseDailyDigestDeps(db));
-  handlers.first_run = createFirstRunHandler(null, notify);
+  handlers.digest_weekly = createWeeklyDigestHandler(createSupabaseWeeklyDigestDeps(db));
+  // Without a model key nothing is collected, so the first run sends no "feed ready" email.
+  handlers.first_run = createFirstRunHandler(null, async () => ({
+    status: "done",
+    payload: { result: "model_off" },
+  }));
   if (model) {
     const collect = createCollectHandler({
       sourceFor,
@@ -94,6 +104,10 @@ export function createServerCronDeps(): CronDeps {
       userAgent: SOURCE_USER_AGENT,
     });
     handlers.collect = collect;
+    handlers.synthesize = createSynthesizeHandler({
+      llm: model.llm,
+      store: createSupabaseSynthesisStore(db),
+    });
     handlers.first_run = createFirstRunHandler(collect, notify);
   }
   return {

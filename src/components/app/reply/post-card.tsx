@@ -28,6 +28,7 @@ function ActionButton({
       <input type="hidden" name="id" value={card.id} />
       <input type="hidden" name="to" value={to} />
       <input type="hidden" name="back" value={back} />
+      {label === "Undo" ? <input type="hidden" name="undo" value="1" /> : null}
       <button
         type="submit"
         data-action={keyName}

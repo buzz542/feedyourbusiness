@@ -1,4 +1,5 @@
 import { renderDailyPosts } from "../../../emails/daily-posts";
+import { renderWeeklyDigest } from "../../../emails/weekly-digest";
 import { ageLabel, CATEGORY_LABELS, whereLabel } from "@/lib/reply-tips";
 import type { FeedCategory } from "@/lib/reply-filters";
 import type { Mailer } from "@/server/billing/trial-reminders";
@@ -8,7 +9,7 @@ import {
   unsubscribeUrl,
   type EmailList,
 } from "@/server/email/unsubscribe";
-import type { JobHandler, JobStore, NewJob } from "./ports";
+import type { JobHandler, JobKind, JobStore, NewJob } from "./ports";
 
 /**
  * Daily posts email and the Monday digest (docs/PLAN.md 7.2, 11), sent at 08:00 UK time. Vercel
@@ -45,18 +46,41 @@ export function londonClock(now: Date): { hour: number; day: string; weekday: nu
 
 export const DIGEST_HOUR = 8;
 
-/** The digest jobs due at `now`: none outside 08:00 London; the weekly one on Mondays too. */
-export function digestJobs(productIds: readonly string[], now: Date): NewJob[] {
+/**
+ * 08:00 London on the London date of `now`, as an instant. The daily email covers the 24 hours to
+ * this point, so the windows tile exactly whatever minute the cron fires in its hour.
+ */
+export function londonDigestTime(now: Date): Date {
+  const clock = londonClock(now);
+  const [y, m, d] = clock.day.split("-").map(Number) as [number, number, number];
+  // London is UTC or UTC+1: the offset is London's hour minus UTC's hour at `now`.
+  const offsetHours = (clock.hour - now.getUTCHours() + 24) % 24;
+  return new Date(Date.UTC(y, m - 1, d, DIGEST_HOUR - offsetHours));
+}
+
+const BOTH: ReadonlySet<JobKind> = new Set(["digest_daily", "digest_weekly"]);
+
+/**
+ * The digest jobs due at `now`: none outside 08:00 London; the weekly one on Mondays too. Only
+ * kinds that have a handler (`kinds`) are made.
+ */
+export function digestJobs(
+  productIds: readonly string[],
+  now: Date,
+  kinds: ReadonlySet<JobKind> = BOTH,
+): NewJob[] {
   const clock = londonClock(now);
   if (clock.hour !== DIGEST_HOUR) return [];
-  const jobs: NewJob[] = productIds.map((productId) => ({
-    kind: "digest_daily",
-    productId,
-    source: null,
-    dedupeKey: `digest_daily:${productId}:${clock.day}`,
-    runAfter: now,
-  }));
-  if (clock.weekday === 1)
+  const jobs: NewJob[] = kinds.has("digest_daily")
+    ? productIds.map((productId) => ({
+        kind: "digest_daily" as const,
+        productId,
+        source: null,
+        dedupeKey: `digest_daily:${productId}:${clock.day}`,
+        runAfter: now,
+      }))
+    : [];
+  if (clock.weekday === 1 && kinds.has("digest_weekly"))
     for (const productId of productIds)
       jobs.push({
         kind: "digest_weekly",
@@ -72,9 +96,10 @@ export async function enqueueDigests(input: {
   store: JobStore;
   products: () => Promise<string[]>;
   now: Date;
+  kinds?: ReadonlySet<JobKind>;
 }): Promise<number> {
   if (londonClock(input.now).hour !== DIGEST_HOUR) return 0;
-  const jobs = digestJobs(await input.products(), input.now);
+  const jobs = digestJobs(await input.products(), input.now, input.kinds);
   return jobs.length ? input.store.enqueue(jobs) : 0;
 }
 
@@ -96,7 +121,7 @@ export interface DigestRecipient {
 
 export interface DailyDigestDeps {
   recipient(productId: string): Promise<DigestRecipient | null>;
-  /** The product's top cards by match, linked in [since, until), not replied or hidden. */
+  /** The product's top new cards by match (not saved, replied or hidden), linked in [since, until). */
   newCards(productId: string, since: Date, until: Date, limit: number): Promise<DigestCard[]>;
   /** Marks this job's email as claimed; false if already claimed (never sent twice). */
   claim(jobId: string): Promise<boolean>;
@@ -119,7 +144,7 @@ export function createDailyDigestHandler(deps: DailyDigestDeps): JobHandler {
     if (!job.productId) return { status: "done", payload: { result: "no_product" } };
     const who = await deps.recipient(job.productId);
     if (!who || !who.daily) return { status: "done", payload: { result: "off" } };
-    const until = now();
+    const until = londonDigestTime(now());
     const cards = await deps.newCards(
       job.productId,
       new Date(until.getTime() - 24 * 60 * 60_000),
@@ -130,7 +155,7 @@ export function createDailyDigestHandler(deps: DailyDigestDeps): JobHandler {
     if (cards.length === 0) return { status: "done", payload: { result: "nothing_new" } };
     const mailer = deps.mailer();
     if (!mailer) return { status: "done", payload: { result: "email_off" } };
-    if (!(await deps.claim(job.id))) return { status: "done", payload: { result: "already_sent" } };
+    // Everything that can fail is built before the claim, so a claimed email is always attempted.
     const site = deps.siteUrl.replace(/\/$/, "");
     const { url, headers } = listUnsubscribe(deps, who.userId, "daily");
     const email = renderDailyPosts({
@@ -144,7 +169,57 @@ export function createDailyDigestHandler(deps: DailyDigestDeps): JobHandler {
       appUrl: `${site}/app/reply`,
       unsubscribeUrl: url,
     });
-    await mailer.send({ to: who.email, ...email, headers });
+    if (!(await deps.claim(job.id))) return { status: "done", payload: { result: "already_sent" } };
+    await mailer.send({ to: who.email, ...email, headers, idempotencyKey: `job-${job.id}` });
     return { status: "done", payload: { result: "sent", cards: cards.length } };
+  };
+}
+
+export interface WeeklySummary {
+  week: string;
+  themes: { title: string; count: number; trend: "new" | "up" | "down" | "flat" }[];
+  rivals: { name: string; complaints: number; trend: "new" | "up" | "down" | "flat" }[];
+  next: { title: string; summary: string }[];
+}
+
+export interface WeeklyDigestDeps {
+  recipient(productId: string): Promise<DigestRecipient | null>;
+  /** The newest synthesized week on or before `before` (themes, rival insights, next steps). */
+  summary(productId: string, before: Date): Promise<WeeklySummary | null>;
+  claim(jobId: string): Promise<boolean>;
+  mailer: () => Mailer | null;
+  siteUrl: string;
+  secret: string | undefined;
+}
+
+const TREND_WORDS = { new: "new", up: "up", down: "down", flat: "steady" } as const;
+
+/** The Monday digest (docs/PLAN.md 11). Nothing is sent for a week with nothing to say. */
+export function createWeeklyDigestHandler(deps: WeeklyDigestDeps): JobHandler {
+  return async (job, { now }) => {
+    if (!job.productId) return { status: "done", payload: { result: "no_product" } };
+    const who = await deps.recipient(job.productId);
+    if (!who || !who.weekly) return { status: "done", payload: { result: "off" } };
+    const summary = await deps.summary(job.productId, now());
+    if (!summary || (summary.themes.length === 0 && summary.rivals.length === 0))
+      return { status: "done", payload: { result: "nothing_new" } };
+    const mailer = deps.mailer();
+    if (!mailer) return { status: "done", payload: { result: "email_off" } };
+    const site = deps.siteUrl.replace(/\/$/, "");
+    const { url, headers } = listUnsubscribe(deps, who.userId, "weekly");
+    const email = renderWeeklyDigest({
+      weekLabel: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(
+        new Date(`${summary.week}T00:00:00Z`),
+      ),
+      themes: summary.themes.slice(0, 5).map((t) => ({ ...t, trend: TREND_WORDS[t.trend] })),
+      rivals: summary.rivals.slice(0, 5).map((r) => ({ ...r, trend: TREND_WORDS[r.trend] })),
+      next: summary.next.slice(0, 3),
+      buildUrl: `${site}/app/build?week=${summary.week}`,
+      rivalsUrl: `${site}/app/rivals`,
+      unsubscribeUrl: url,
+    });
+    if (!(await deps.claim(job.id))) return { status: "done", payload: { result: "already_sent" } };
+    await mailer.send({ to: who.email, ...email, headers, idempotencyKey: `job-${job.id}` });
+    return { status: "done", payload: { result: "sent" } };
   };
 }

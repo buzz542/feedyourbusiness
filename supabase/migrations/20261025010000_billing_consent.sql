@@ -4,7 +4,8 @@
 
 alter table public.profiles add column service_consent_at timestamptz;
 
--- Sets the consent time once. Later calls never move it. Returns true when this call stored it.
+-- Stores the consent time; a later consent (a new subscription) moves it forward, never back.
+-- Returns true when this call stored it.
 create function public.record_service_consent(p_user_id uuid, p_at timestamptz)
 returns boolean
 language plpgsql
@@ -15,7 +16,9 @@ declare
 begin
   update public.profiles
   set service_consent_at = p_at
-  where id = p_user_id and service_consent_at is null and p_at is not null;
+  where id = p_user_id
+    and p_at is not null
+    and (service_consent_at is null or service_consent_at < p_at);
   get diagnostics rows_updated = row_count;
   return rows_updated > 0;
 end;

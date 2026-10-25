@@ -47,7 +47,7 @@ test.describe("reply tab", () => {
     expect(Date.now() - started).toBeLessThan(1_500);
   });
 
-  test("j, k, s, r, h and ? work, and Mark replied removes a card from Today", async ({
+  test("j, k, s, r and ? work, and Mark replied removes a card from Today", async ({
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name === "mobile", "keyboard shortcuts are a desktop feature");

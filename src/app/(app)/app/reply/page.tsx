@@ -34,7 +34,7 @@ const VIEW_LABELS: Readonly<Record<FeedView, string>> = {
   replied: "Replied",
 };
 
-const UNDO = /^([0-9a-f-]{36})\.(new|saved|replied|hidden)$/;
+const UNDO = /^([0-9a-f-]{36})\.(new|saved|replied|hidden)\.(saved|replied|hidden)$/;
 const UNDO_LABELS = { saved: "Saved.", replied: "Marked replied.", hidden: "Hidden." } as const;
 
 type Params = Record<string, string | string[] | undefined>;
@@ -51,9 +51,10 @@ export default async function ReplyPage({ searchParams }: { searchParams: Promis
   const filters = parseFeedFilters(params, context.threshold);
   const now = new Date();
   const feed = await createFeedLoader(db)(product.id, filters, now);
-  const firstRun = await loadFirstRunStatus(createSupabaseAdminClient(), product.id).catch(
-    () => null,
-  );
+  // The banner is a nicety: any failure (config included) hides it rather than the page.
+  const firstRun = await Promise.resolve()
+    .then(() => loadFirstRunStatus(createSupabaseAdminClient(), product.id))
+    .catch(() => null);
   const groups = buildSearchLinks({
     sources: linkSources(),
     terms: context.terms,
@@ -61,11 +62,9 @@ export default async function ReplyPage({ searchParams }: { searchParams: Promis
   });
   const back = feedHref(filters, {}, context.threshold);
   const undoRaw = typeof params.undo === "string" ? UNDO.exec(params.undo) : null;
-  const undoCard = undoRaw ? feed.cards.find((c) => c.id === undoRaw[1]) : undefined;
-  const undo =
-    undoRaw && (!undoCard || undoCard.state !== undoRaw[2])
-      ? { id: undoRaw[1]!, from: undoRaw[2]!, to: undoCard?.state }
-      : null;
+  const undo = undoRaw
+    ? { id: undoRaw[1]!, from: undoRaw[2]!, to: undoRaw[3] as keyof typeof UNDO_LABELS }
+    : null;
 
   after(() =>
     track(createSupabaseEventSink(), "feed_opened", user.id, { view: filters.view }, new Date()),
@@ -111,13 +110,12 @@ export default async function ReplyPage({ searchParams }: { searchParams: Promis
           role="status"
           className="flex flex-wrap items-center gap-3 rounded-[2px] border border-rule bg-sunk p-3 text-sm"
         >
-          <span>
-            {UNDO_LABELS[(undoCard?.state ?? "replied") as keyof typeof UNDO_LABELS] ?? "Done."}
-          </span>
+          <span>{UNDO_LABELS[undo.to]}</span>
           <form action={setPostStateAction}>
             <input type="hidden" name="id" value={undo.id} />
             <input type="hidden" name="to" value={undo.from} />
             <input type="hidden" name="back" value={back} />
+            <input type="hidden" name="undo" value="1" />
             <button type="submit" className="font-medium underline underline-offset-4">
               Undo
             </button>

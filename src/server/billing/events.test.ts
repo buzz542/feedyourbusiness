@@ -215,7 +215,7 @@ describe("other events", () => {
 });
 
 describe("consent record (docs/PLAN.md 10.2)", () => {
-  it("writes service_consent_at from the subscription's metadata, once", async () => {
+  it("writes service_consent_at from the subscription's metadata, never moving it back", async () => {
     const sub = subscriptionFixture({
       metadata: { user_id: "user-1", service_consent_at: "2026-10-25T10:00:00.000Z" },
     });
@@ -224,7 +224,7 @@ describe("consent record (docs/PLAN.md 10.2)", () => {
       "2026-10-25T10:00:00.000Z",
     );
     const later = subscriptionFixture({
-      metadata: { user_id: "user-1", service_consent_at: "2026-12-01T10:00:00.000Z" },
+      metadata: { user_id: "user-1", service_consent_at: "2026-09-01T10:00:00.000Z" },
     });
     await handle(subscriptionEvent("updated", later, "2026-10-14T10:00:00Z"));
     expect(store.rows.get("user-1")!.serviceConsentAt?.toISOString()).toBe(

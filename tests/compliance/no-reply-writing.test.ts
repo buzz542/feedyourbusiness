@@ -24,7 +24,9 @@ function asksForReply(source: string): boolean {
 
 function modelCallers(files: { file: string; source: string }[]) {
   return files
-    .filter((f) => /\bcallStructured\s*\(/.test(f.source) && !f.file.endsWith("/llm/llm.ts"))
+    .filter(
+      (f) => /\bcallStructured\s*(<[^>]*>)?\s*\(/.test(f.source) && !f.file.endsWith("/llm/llm.ts"),
+    )
     .map((f) => ({
       file: f.file,
       tasks: [...f.source.matchAll(/task:\s*"([a-z_]+)"/g)].map((m) => m[1]!),
@@ -38,15 +40,21 @@ function findViolations(files: { file: string; source: string }[]): string[] {
     for (const task of caller.tasks)
       if (!ALLOWED_TASKS.has(task)) problems.push(`${caller.file}: task ${task}`);
   }
+  // Every file that calls the model, plus every prompt-like file, is scanned for reply requests.
+  const callerFiles = new Set(modelCallers(files).map((c) => c.file));
   for (const f of files)
-    if (/\/(prompt|draft|synth|preview|classify)[^/]*\.ts$/.test(f.file) && asksForReply(f.source))
+    if (
+      (callerFiles.has(f.file) ||
+        /\/(prompt|draft|synth|preview|classify)[^/]*\.tsx?$/.test(f.file)) &&
+      asksForReply(f.source)
+    )
       problems.push(`${f.file}: a prompt asks for reply text`);
   return problems;
 }
 
 const sources = () =>
   walk("src")
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+    .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
     .map((file) => ({ file, source: readFileSync(file, "utf8") }));
 
 describe("D8: no model writes replies", () => {
@@ -58,6 +66,18 @@ describe("D8: no model writes replies", () => {
     const tasks = new Set(modelCallers(sources()).flatMap((c) => c.tasks));
     expect(tasks.has("draft")).toBe(true);
     expect(tasks.has("classify")).toBe(true);
+  });
+
+  it("scans the prompt of any model caller, whatever its file name", () => {
+    expect(
+      findViolations([
+        {
+          file: "src/server/reply/hints.ts",
+          source:
+            'llm.callStructured({ task: "classify", system: "Then draft a reply for the user." })',
+        },
+      ]),
+    ).toEqual(["src/server/reply/hints.ts: a prompt asks for reply text"]);
   });
 
   it("catches a planted reply writer and a planted prompt", () => {

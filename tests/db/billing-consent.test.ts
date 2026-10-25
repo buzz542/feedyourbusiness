@@ -50,7 +50,7 @@ describe("service_consent_at", () => {
     },
   );
 
-  it("the service role records it once and never moves it", async () => {
+  it("the service role records it, moves it forward for a new consent, never back", async () => {
     const first = await withRole(db, "service_role", null, () =>
       db.query<{ ok: boolean }>(
         "select public.record_service_consent($1, '2026-10-25T10:00:00Z') as ok",
@@ -58,13 +58,21 @@ describe("service_consent_at", () => {
       ),
     );
     expect(first.rows[0]!.ok).toBe(true);
-    const again = await withRole(db, "service_role", null, () =>
+    const older = await withRole(db, "service_role", null, () =>
+      db.query<{ ok: boolean }>(
+        "select public.record_service_consent($1, '2026-09-01T10:00:00Z') as ok",
+        [ALICE],
+      ),
+    );
+    expect(older.rows[0]!.ok).toBe(false);
+    expect((await consent())?.toISOString()).toBe("2026-10-25T10:00:00.000Z");
+    const newer = await withRole(db, "service_role", null, () =>
       db.query<{ ok: boolean }>(
         "select public.record_service_consent($1, '2026-12-01T10:00:00Z') as ok",
         [ALICE],
       ),
     );
-    expect(again.rows[0]!.ok).toBe(false);
-    expect((await consent())?.toISOString()).toBe("2026-10-25T10:00:00.000Z");
+    expect(newer.rows[0]!.ok).toBe(true);
+    expect((await consent())?.toISOString()).toBe("2026-12-01T10:00:00.000Z");
   });
 });

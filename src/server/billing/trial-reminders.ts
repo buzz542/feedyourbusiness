@@ -17,10 +17,17 @@ export interface Mailer {
     html: string;
     /** Extra headers, such as List-Unsubscribe on repeating emails (docs/PLAN.md 11). */
     headers?: Record<string, string>;
+    /** The provider sends one email per key, so a retried job never sends twice. */
+    idempotencyKey?: string;
   }): Promise<void>;
 }
 
 const HOUR_MS = 3_600_000;
+/**
+ * With no invoice preview, the reminder still goes once the charge is this close (price plus a note
+ * that tax may apply), so a Stripe problem never stops the 48-hour notice.
+ */
+const LAST_CHANCE_HOURS = 52;
 
 /**
  * How far ahead a reminder becomes due, for a cron that runs every `periodHours`.
@@ -126,7 +133,31 @@ export async function runTrialReminders(args: {
       result.deferred = due.length - index;
       break;
     }
-    // Claim first so two overlapping runs cannot both send. Release if sending fails.
+    // The full amount to be charged, tax included where it applies (docs/PLAN.md 10.5): the price
+    // itself when it is tax-inclusive, otherwise Stripe's preview of the first invoice. Fetched
+    // before the claim and under the send timeout, so a slow Stripe never strands a claim. Without
+    // the preview the reminder waits for the next run, unless the charge is close: then it goes
+    // with the price and a note that tax may be added, rather than not at all.
+    let amount = price.unitAmount;
+    let currency = price.currency;
+    let taxNote = false;
+    if (price.taxBehavior !== "inclusive") {
+      const preview = profile.subscriptionId
+        ? await withTimeout(stripe.previewNextInvoice(profile.subscriptionId), sendTimeoutMs).catch(
+            () => null,
+          )
+        : null;
+      if (preview) {
+        amount = preview.total;
+        currency = preview.currency;
+      } else if (profile.trialEnd.getTime() - now.getTime() > LAST_CHANCE_HOURS * HOUR_MS) {
+        result.failed++;
+        continue;
+      } else {
+        taxNote = true;
+      }
+    }
+    // Claim so two overlapping runs cannot both send. Release if sending fails.
     if (!(await store.claimTrialReminder(profile.id, now))) {
       result.skipped++;
       continue;
@@ -134,19 +165,6 @@ export async function runTrialReminders(args: {
     try {
       const to = await getEmail(profile.id);
       if (!to) throw new Error("no email address");
-      // The full amount to be charged, tax included where it applies (docs/PLAN.md 10.5): the price
-      // itself when it is tax-inclusive, otherwise Stripe's preview of the first invoice. Without
-      // that total the reminder is not sent now (its claim is released for the next run).
-      let amount = price.unitAmount;
-      let currency = price.currency;
-      if (price.taxBehavior !== "inclusive") {
-        const preview = profile.subscriptionId
-          ? await stripe.previewNextInvoice(profile.subscriptionId)
-          : null;
-        if (!preview) throw new Error("no invoice preview");
-        amount = preview.total;
-        currency = preview.currency;
-      }
       const email = renderTrialReminder({
         chargeDate: profile.trialEnd,
         price: {
@@ -156,6 +174,7 @@ export async function runTrialReminders(args: {
           intervalCount: price.intervalCount ?? 1,
         },
         settingsUrl: `${config.siteUrl}${BILLING_PATHS.settings}`,
+        taxNote,
       });
       await withTimeout(mailer.send({ to, ...email }), sendTimeoutMs);
       result.sent++;

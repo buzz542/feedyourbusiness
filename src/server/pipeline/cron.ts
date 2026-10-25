@@ -99,6 +99,7 @@ export async function runDigestCron(deps: CronDeps): Promise<CronResult> {
     store: deps.store,
     products: deps.products,
     now: deps.clock(),
+    kinds: kindsOf(deps),
   });
   const summary = await runJobs({ store: deps.store, handlers: deps.handlers, clock: deps.clock });
   return { status: statusFor(summary), body: { enqueued, ...summary } };

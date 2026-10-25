@@ -5,13 +5,14 @@ import {
   FakeProfileStore,
   FakeStripe,
   TEST_CONFIG,
-  subscriptionEvent,
+  checkoutCompletedEvent,
   subscriptionFixture,
 } from "./fakes";
 import { handleStripeEvent } from "./events";
 import { confirmCheckout } from "./welcome";
 
 const SESSION = "cs_test_a1B2c3D4e5F6g7H8";
+const NOW = new Date("2026-10-25T10:02:00Z");
 let store: FakeProfileStore;
 let stripe: FakeStripe;
 
@@ -43,9 +44,10 @@ const stateOf = (id: string) => ({
 describe("welcome step after checkout", () => {
   it("a just-paid user whose webhook has not arrived lands on Reply, not billing", async () => {
     expect(nextStepFor(stateOf("user-1")).path).toBe("/app/billing");
-    expect(await confirmCheckout({ stripe, store }, "user-1", SESSION)).toEqual({
+    expect(await confirmCheckout({ stripe, store }, "user-1", SESSION, NOW)).toEqual({
       ok: true,
       entitled: true,
+      sessionCreatedAt: new Date("2026-10-25T10:00:00Z"),
     });
     expect(nextStepFor(stateOf("user-1")).path).toBe("/app/reply");
     expect(store.rows.get("user-1")!.serviceConsentAt?.toISOString()).toBe(
@@ -95,16 +97,30 @@ describe("welcome step after checkout", () => {
     });
   });
 
-  it("does not undo a newer webhook (the patch carries the session's time)", async () => {
-    await handleStripeEvent(
-      subscriptionEvent(
-        "updated",
-        subscriptionFixture({ status: "active" }),
-        "2026-10-26T10:00:00Z",
-      ),
-      { store, stripe: { getSubscription: async () => subscriptionFixture({ status: "active" }) } },
-    );
-    await confirmCheckout({ stripe, store }, "user-1", SESSION);
-    expect(store.row("user-1").subscription_status).toBe("active");
+  it("checkout.session.completed arriving first never makes the welcome patch stale", async () => {
+    await handleStripeEvent(checkoutCompletedEvent({}, "2026-10-25T10:00:30Z"), { store, stripe });
+    expect(await confirmCheckout({ stripe, store }, "user-1", SESSION, NOW)).toMatchObject({
+      ok: true,
+      entitled: true,
+    });
+    expect(nextStepFor(stateOf("user-1")).path).toBe("/app/reply");
+  });
+
+  it("reports entitlement from what was stored, not from what was sent", async () => {
+    store.applyBillingPatch = async () => false;
+    expect(await confirmCheckout({ stripe, store }, "user-1", SESSION, NOW)).toMatchObject({
+      ok: true,
+      entitled: false,
+    });
+  });
+
+  it("a consent write that fails does not block the welcome", async () => {
+    store.recordServiceConsent = async () => {
+      throw new Error("function missing");
+    };
+    expect(await confirmCheckout({ stripe, store }, "user-1", SESSION, NOW)).toMatchObject({
+      ok: true,
+      entitled: true,
+    });
   });
 });
