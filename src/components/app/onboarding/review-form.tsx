@@ -82,7 +82,18 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
  * Onboarding steps 4 and 5 (docs/PLAN.md 4.3): every field of the draft is editable, then confirm.
  * The page remounts this form after each save, so it always starts from what is stored.
  */
-export function ReviewForm({ draft, saved }: { draft: DraftView; saved: boolean }) {
+export function ReviewForm({
+  draft,
+  saved,
+  mode = "onboarding",
+  saveAction = saveProfileAction,
+}: {
+  draft: DraftView;
+  saved: boolean;
+  /** Settings reuses the editor: save only, no confirm step. */
+  mode?: "onboarding" | "settings";
+  saveAction?: (input: unknown) => Promise<ProfileResult>;
+}) {
   const router = useRouter();
   const [state, dispatch] = useReducer(profileReducer, draft, fromDraft);
   const [errors, setErrors] = useState<ProfileErrors>({});
@@ -126,8 +137,7 @@ export function ReviewForm({ draft, saved }: { draft: DraftView; saved: boolean 
       let result: ProfileResult;
       try {
         const input = toProfileInput(state);
-        result =
-          kind === "save" ? await saveProfileAction(input) : await confirmProfileAction(input);
+        result = kind === "save" ? await saveAction(input) : await confirmProfileAction(input);
       } catch {
         setErrors({ form: "Something went wrong. Your changes were not saved. Try again." });
         return;
@@ -137,7 +147,13 @@ export function ReviewForm({ draft, saved }: { draft: DraftView; saved: boolean 
         return;
       }
       setErrors({});
-      router.replace(kind === "save" ? "/app/onboarding?saved=1" : "/app");
+      router.replace(
+        mode === "settings"
+          ? "/app/settings?saved=product#product"
+          : kind === "save"
+            ? "/app/onboarding?saved=1"
+            : "/app",
+      );
       router.refresh();
     });
   }
@@ -428,20 +444,30 @@ export function ReviewForm({ draft, saved }: { draft: DraftView; saved: boolean 
         </Field>
       </Section>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
-        <Button disabled={pending} onClick={() => run("confirm")}>
-          Confirm and continue
-        </Button>
-        <Button variant="secondary" disabled={pending} onClick={() => run("save")}>
-          Save changes
-        </Button>
-        <Button href="/app/onboarding?step=url" variant="quiet">
-          Start again from a web address
-        </Button>
-      </div>
-      <p className="text-sm text-muted">
-        Nothing is collected until you confirm and start your trial.
-      </p>
+      {mode === "settings" ? (
+        <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
+          <Button disabled={pending} onClick={() => run("save")}>
+            Save changes
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
+            <Button disabled={pending} onClick={() => run("confirm")}>
+              Confirm and continue
+            </Button>
+            <Button variant="secondary" disabled={pending} onClick={() => run("save")}>
+              Save changes
+            </Button>
+            <Button href="/app/onboarding?step=url" variant="quiet">
+              Start again from a web address
+            </Button>
+          </div>
+          <p className="text-sm text-muted">
+            Nothing is collected until you confirm and start your trial.
+          </p>
+        </>
+      )}
     </form>
   );
 }

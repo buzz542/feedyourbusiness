@@ -964,6 +964,10 @@ export type Database = {
         Args: { p_competitors: Json; p_product_id: string; p_profile: Json; p_terms: Json }
         Returns: undefined
       }
+      set_collection_paused: {
+        Args: { p_paused: boolean; p_product_id: string }
+        Returns: string
+      }
       settle_budget: {
         Args: { p_actual: number; p_cost_usd: number; p_day: string; p_product_id: string; p_reserved: number; p_source: string }
         Returns: undefined
