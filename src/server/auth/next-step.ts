@@ -16,9 +16,19 @@ export interface AccountState {
 export type NextStep =
   "/app/terms" | "/app/onboarding" | "/app/billing" | "/app/settings" | "/app/reply";
 
+const CONFIRMED_STATUSES: readonly string[] = ["active", "paused"];
+
+/**
+ * A product counts as confirmed once it leaves draft (4.3, step 5); paused is still confirmed.
+ * Named statuses only, so a status added later is refused until someone decides otherwise.
+ */
+export function isConfirmedProduct(product: AccountState["product"]): boolean {
+  return product != null && CONFIRMED_STATUSES.includes(product.status);
+}
+
 export function nextStepFor(state: AccountState): NextStep {
   if (!state.termsAccepted) return "/app/terms";
-  if (!state.product || state.product.status === "draft") return "/app/onboarding";
+  if (!isConfirmedProduct(state.product)) return "/app/onboarding";
   if (isEntitled(state.subscriptionStatus)) return "/app/reply";
   if (hasLiveSubscription(state.subscriptionStatus)) return "/app/settings";
   return "/app/billing";

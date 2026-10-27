@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AccountState, nextStepFor } from "./next-step";
+import { type AccountState, isConfirmedProduct, nextStepFor } from "./next-step";
 
 /** Where /app sends someone (docs/PLAN.md 4.2, 4.3). */
 
@@ -45,5 +45,17 @@ describe("nextStepFor", () => {
 
   it("an entitled account with paused collection still reaches Reply", () => {
     expect(nextStepFor({ ...ready, product: { status: "paused" } })).toBe("/app/reply");
+  });
+});
+
+describe("isConfirmedProduct (shared by /app and checkout)", () => {
+  it.each([
+    [null, false],
+    [{ status: "draft" }, false],
+    [{ status: "active" }, true],
+    [{ status: "paused" }, true],
+    [{ status: "archived" }, false],
+  ])("%j is confirmed: %s", (product, expected) => {
+    expect(isConfirmedProduct(product)).toBe(expected);
   });
 });

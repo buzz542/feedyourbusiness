@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isConfirmedProduct, type AccountState } from "@/server/auth/next-step";
 import { isSameOrigin, json, readBodyText } from "@/server/http/respond";
 import { BillingError, createCheckoutSession } from "./checkout";
 import type { BillingConfig } from "./config";
@@ -19,6 +20,8 @@ export interface BillingDeps {
   getUser(): Promise<AuthedUser | null>;
   /** The pre-launch allowlist (docs/PLAN.md 12.10): keeps test-mode Checkout away from strangers. */
   isAllowed(email: string | null): boolean;
+  /** The signed-in user's terms acceptance and product, read through RLS (the user's own client). */
+  getAccount(userId: string): Promise<AccountState>;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -51,6 +54,15 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
     // open to everyone who has a subscription: cancelling is as easy as signing up (2.4).
     if (!deps.isAllowed(auth.user.email)) return json(403, { error: "private_beta" });
     try {
+      // The app pages send people through the 18+ and terms step and onboarding first, but this
+      // route can be called directly, so it checks both itself, with the same rule as /app
+      // (docs/PLAN.md 4.3). It keeps the steps in order; it is not a trust boundary, because a
+      // signed-in user can write both columns on their own rows.
+      const account = await deps.getAccount(auth.user.id);
+      if (!account.termsAccepted) return json(403, { error: "terms_not_accepted" });
+      if (!isConfirmedProduct(account.product)) {
+        return json(403, { error: "product_not_confirmed" });
+      }
       const profile = await deps.store.getBillingProfile(auth.user.id);
       // A second checkout while a subscription is live (even past_due) would double-bill.
       if (hasLiveSubscription(profile?.subscriptionStatus)) {

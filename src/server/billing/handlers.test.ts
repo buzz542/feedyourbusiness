@@ -6,6 +6,7 @@ import {
   subscriptionEvent,
   subscriptionFixture,
 } from "./fakes";
+import type { AccountState } from "@/server/auth/next-step";
 import {
   createCancelHandler,
   createCheckoutHandler,
@@ -18,6 +19,8 @@ import {
 let store: FakeProfileStore;
 let stripe: FakeStripe;
 let currentUser: AuthedUser | null;
+let account: AccountState;
+let accountReads: string[];
 
 const deps = (): BillingDeps => ({
   config: TEST_CONFIG,
@@ -25,6 +28,10 @@ const deps = (): BillingDeps => ({
   store,
   getUser: async () => currentUser,
   isAllowed: (email) => email === "maker@example.test",
+  getAccount: async (userId) => {
+    accountReads.push(userId);
+    return account;
+  },
 });
 
 const post = (path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -37,6 +44,8 @@ const post = (path: string, body?: unknown, headers: Record<string, string> = {}
 beforeEach(() => {
   store = new FakeProfileStore();
   store.addUser("user-1");
+  account = { termsAccepted: true, product: { status: "active" }, subscriptionStatus: null };
+  accountReads = [];
   stripe = new FakeStripe();
   currentUser = { id: "user-1", email: "maker@example.test" };
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -68,6 +77,21 @@ describe("pre-launch allowlist (docs/PLAN.md 12.10)", () => {
     expect(portal.status).toBe(200);
     expect(stripe.cancelCalls).toHaveLength(1);
     expect(stripe.portalCalls).toHaveLength(1);
+  });
+});
+
+describe("cancel and the portal stay open without the checkout preconditions (2.4)", () => {
+  it("a subscriber with no product and no recorded terms can still cancel and update the card", async () => {
+    store.addUser("user-1", {
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_1",
+      subscription_status: "trialing",
+    });
+    account = { termsAccepted: false, product: null, subscriptionStatus: "trialing" };
+    expect((await createCancelHandler(deps())(post("/x", { action: "cancel" }))).status).toBe(200);
+    expect((await createPortalHandler(deps())(post("/x"))).status).toBe(200);
+    // They never read the account, so a failing read can never block a cancellation.
+    expect(accountReads).toEqual([]);
   });
 });
 
@@ -136,6 +160,56 @@ describe("checkout", () => {
     store.addUser("user-1", { subscription_status: "canceled", stripe_customer_id: "cus_1" });
     expect((await createCheckoutHandler(deps())(post("/x"))).status).toBe(200);
     expect(stripe.checkoutCalls[0]!.customer).toBe("cus_1");
+  });
+
+  const refusedBeforeStripe = async (error: string) => {
+    const response = await createCheckoutHandler(deps())(post("/x"));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error });
+    expect(stripe.checkoutCalls).toEqual([]);
+  };
+
+  it("reads the signed-in user's own account, never one named in the request", async () => {
+    await createCheckoutHandler(deps())(post("/x", { userId: "user-2" }));
+    expect(accountReads).toEqual(["user-1"]);
+  });
+
+  it("refuses an account that has not accepted the terms and the 18+ confirmation", async () => {
+    account = { ...account, termsAccepted: false };
+    await refusedBeforeStripe("terms_not_accepted");
+  });
+
+  it("refuses an account with no product", async () => {
+    account = { ...account, product: null };
+    await refusedBeforeStripe("product_not_confirmed");
+  });
+
+  it("refuses an account whose product is still a draft", async () => {
+    account = { ...account, product: { status: "draft" } };
+    await refusedBeforeStripe("product_not_confirmed");
+  });
+
+  it("checks the terms before the product, so the 18+ step always comes first", async () => {
+    account = { termsAccepted: false, product: null, subscriptionStatus: null };
+    await refusedBeforeStripe("terms_not_accepted");
+  });
+
+  it("lets an account with a paused product check out: pausing does not undo the confirmation", async () => {
+    account = { ...account, product: { status: "paused" } };
+    expect((await createCheckoutHandler(deps())(post("/x"))).status).toBe(200);
+  });
+
+  it("fails closed with a generic error when the account cannot be read", async () => {
+    const failing: BillingDeps = {
+      ...deps(),
+      getAccount: async () => {
+        throw new Error("could not load");
+      },
+    };
+    const response = await createCheckoutHandler(failing)(post("/x"));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "billing_unavailable" });
+    expect(stripe.checkoutCalls).toEqual([]);
   });
 
   it("hides Stripe errors behind a generic message", async () => {
