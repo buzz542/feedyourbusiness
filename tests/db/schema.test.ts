@@ -213,10 +213,13 @@ describe("products and search terms", () => {
   });
 
   it("a user can create a product they own, and it starts as a draft", async () => {
-    const row = await asBob(async () =>
+    // One product per owner since the onboarding migration (D9), so this is a user without one.
+    const DANA = "00000000-0000-4000-8000-0000000000d4";
+    await db.query("insert into auth.users (id, email) values ($1, 'dana@example.test')", [DANA]);
+    const row = await withRole(db, "authenticated", DANA, async () =>
       one<{ status: string }>(
-        "insert into public.products (owner_id, url, name) values ($1, 'https://bob2.example.test', 'Bob 2') returning status",
-        [BOB],
+        "insert into public.products (owner_id, url, name) values ($1, 'https://dana.example.test', 'Dana App') returning status",
+        [DANA],
       ),
     );
     expect(row.status).toBe("draft");
@@ -238,7 +241,8 @@ describe("products and search terms", () => {
       asAlice(() =>
         db.query("update public.products set owner_id = $1 where id = $2", [BOB, ids.aliceProduct]),
       ),
-    ).rejects.toThrow(/row-level security/i);
+      // Refused by the column grants since the onboarding migration, and by RLS before that.
+    ).rejects.toThrow(/permission denied|row-level security/i);
   });
 
   it("a user cannot update or delete another user's product", async () => {

@@ -38,13 +38,23 @@ const SUPABASE_BOOTSTRAP = `
 
 export type DbRole = "anon" | "authenticated" | "service_role";
 
-export async function createDb(): Promise<PGlite> {
+/**
+ * A database with every migration applied, or, with `stopBefore`, only the migrations whose file
+ * name sorts before it, so a test can seed data the way production had it and then run the next
+ * migration with `applyMigration`.
+ */
+export async function createDb(options: { stopBefore?: string } = {}): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_BOOTSTRAP);
   for (const file of listMigrations()) {
-    await db.exec(readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"));
+    if (options.stopBefore && file >= options.stopBefore) break;
+    await applyMigration(db, file);
   }
   return db;
+}
+
+export async function applyMigration(db: PGlite, file: string): Promise<void> {
+  await db.exec(readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"));
 }
 
 export function listMigrations(): string[] {
