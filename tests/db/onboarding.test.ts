@@ -85,6 +85,14 @@ describe("one product per owner (D9)", () => {
       ),
     ).rejects.toThrow(/products_one_per_owner|duplicate key/);
   });
+
+  it("keeps one index on owner_id: the unique one replaces the plain one", async () => {
+    const { rows } = await db.query<{ indexname: string }>(
+      `select indexname from pg_indexes
+       where schemaname = 'public' and tablename = 'products' and indexdef like '%(owner_id)%'`,
+    );
+    expect(rows.map((r) => r.indexname)).toEqual(["products_one_per_owner"]);
+  });
 });
 
 describe("products: new fields", () => {

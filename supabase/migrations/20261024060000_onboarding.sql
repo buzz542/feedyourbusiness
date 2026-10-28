@@ -28,8 +28,10 @@ alter table public.products
   add column confirmed_at timestamptz,
   add column relevance_threshold smallint not null default 60 check (relevance_threshold between 40 and 95);
 
--- D9: one product per account in v1. The schema allows more; this index enforces one.
+-- D9: one product per account in v1. The schema allows more; this index enforces one. It also
+-- serves every owner lookup, so the plain owner index from the core schema goes.
 create unique index products_one_per_owner on public.products (owner_id);
+drop index public.products_owner_id_idx;
 
 alter table public.search_terms
   add column intent text not null default 'problem'
