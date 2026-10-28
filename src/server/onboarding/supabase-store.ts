@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import type { OnboardingStore } from "./ports";
+import type { CompetitorOrigin, OnboardingStore, TermIntent } from "./ports";
 
 class OnboardingStoreError extends Error {
   override name = "OnboardingStoreError";
@@ -95,6 +95,115 @@ export function createSupabaseOnboardingStore(supabase: SupabaseClient<Database>
           ).error,
         );
       }
+    },
+
+    async loadReview(userId) {
+      const product = await supabase
+        .from("products")
+        .select(
+          "id, status, url, name, one_liner, description, audience, relevance_threshold, subreddits",
+        )
+        .eq("owner_id", userId)
+        .maybeSingle();
+      check(product.error);
+      if (!product.data) return null;
+      const p = product.data;
+      const [terms, competitors] = await Promise.all([
+        supabase
+          .from("search_terms")
+          .select("term, intent")
+          .eq("product_id", p.id)
+          .order("created_at")
+          .order("term"),
+        supabase
+          .from("competitors")
+          .select("name, domain, aliases, origin")
+          .eq("product_id", p.id)
+          .order("created_at")
+          .order("name"),
+      ]);
+      check(terms.error);
+      check(competitors.error);
+      return {
+        id: p.id,
+        status: p.status,
+        url: p.url,
+        name: p.name,
+        oneLiner: p.one_liner ?? "",
+        description: p.description ?? "",
+        audience: p.audience ?? "",
+        relevanceThreshold: p.relevance_threshold,
+        subreddits: p.subreddits,
+        // The database checks both values (search_terms.intent, competitors.origin).
+        terms: (terms.data ?? []).map((t) => ({ term: t.term, intent: t.intent as TermIntent })),
+        competitors: (competitors.data ?? []).map((c) => ({
+          name: c.name,
+          domain: c.domain,
+          aliases: c.aliases,
+          origin: c.origin as CompetitorOrigin,
+        })),
+      };
+    },
+
+    async saveReview(productId, edits) {
+      // Separate statements, as in saveDraft; the first proves the product is still a draft.
+      const updated = await supabase
+        .from("products")
+        .update({
+          url: edits.url,
+          name: edits.name,
+          one_liner: edits.oneLiner,
+          description: edits.description,
+          audience: edits.audience,
+          relevance_threshold: edits.relevanceThreshold,
+          subreddits: edits.subreddits,
+        })
+        .eq("id", productId)
+        .eq("status", "draft")
+        .select("id");
+      check(updated.error);
+      if (!updated.data?.length) throw new OnboardingStoreError("not_a_draft");
+
+      check((await supabase.from("search_terms").delete().eq("product_id", productId)).error);
+      if (edits.terms.length > 0) {
+        const terms = edits.terms.map((t) => ({
+          product_id: productId,
+          term: t.term,
+          intent: t.intent,
+        }));
+        check((await supabase.from("search_terms").insert(terms)).error);
+      }
+
+      // Nothing is collected before confirmation, so no label points at a competitor yet and the
+      // list can be replaced whole. A name that stays keeps its origin.
+      const before = await supabase
+        .from("competitors")
+        .select("name, origin")
+        .eq("product_id", productId);
+      check(before.error);
+      const origins = new Map((before.data ?? []).map((c) => [c.name, c.origin]));
+      check((await supabase.from("competitors").delete().eq("product_id", productId)).error);
+      if (edits.competitors.length > 0) {
+        const competitors = edits.competitors.map((c) => ({
+          product_id: productId,
+          name: c.name,
+          domain: c.domain,
+          aliases: c.aliases,
+          origin: origins.get(c.name) ?? "user",
+        }));
+        check((await supabase.from("competitors").insert(competitors)).error);
+      }
+    },
+
+    async confirmProduct(productId, now) {
+      const { data, error } = await supabase
+        .from("products")
+        .update({ status: "active", confirmed_at: now.toISOString() })
+        .eq("id", productId)
+        .eq("status", "draft")
+        .select("id");
+      check(error);
+      return (data?.length ?? 0) > 0;
     },
   };
 }

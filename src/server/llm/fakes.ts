@@ -1,7 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { LlmClient, UsageRow, UsageStore } from "./ports";
 
-/** In-memory test doubles for the LLM ports. Test code only; nothing here reaches the network. */
+/**
+ * In-memory doubles for the LLM ports: for tests, and for the E2E fake services, which only a local
+ * dev server honors (src/server/onboarding/e2e-services.ts). Nothing here reaches the network.
+ */
 
 export interface FakeReply {
   text?: string;

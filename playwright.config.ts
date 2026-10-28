@@ -37,6 +37,9 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SITE_URL: baseURL,
       NEXT_TELEMETRY_DISABLED: "1",
+      // A fixture page and a canned model for onboarding: no API key, no spend. Honored only by a
+      // local dev server (src/server/onboarding/e2e-services.ts).
+      E2E_FAKE_SERVICES: "1",
       SIGNUP_ALLOWLIST: [process.env.SIGNUP_ALLOWLIST, E2E_EMAIL].filter(Boolean).join(","),
     },
   },

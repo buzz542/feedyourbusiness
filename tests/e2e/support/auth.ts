@@ -56,3 +56,27 @@ export async function magicLinkPath(email: string, next?: string): Promise<strin
   if (next) params.set("next", next);
   return `/auth/callback?${params}`;
 }
+
+/** The product the E2E user owns, read with the admin client to check what the UI saved. */
+export async function productForEmail(email: string): Promise<{
+  status: string;
+  confirmed_at: string | null;
+  name: string;
+  relevance_threshold: number;
+  subreddits: string[];
+  terms: string[];
+} | null> {
+  const admin = adminClient();
+  const id = await findUserId(admin, email);
+  if (!id) return null;
+  const { data, error } = await admin
+    .from("products")
+    .select("id, status, confirmed_at, name, relevance_threshold, subreddits")
+    .eq("owner_id", id)
+    .maybeSingle();
+  if (error) throw new Error(`products query failed: ${error.code ?? "unknown"}`);
+  if (!data) return null;
+  const terms = await admin.from("search_terms").select("term").eq("product_id", data.id);
+  if (terms.error) throw new Error(`search_terms query failed: ${terms.error.code ?? "unknown"}`);
+  return { ...data, terms: terms.data.map((t: { term: string }) => t.term) };
+}

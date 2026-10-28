@@ -1,7 +1,17 @@
 import type { RawDraft } from "./draft";
-import type { OnboardingStore, OwnedProduct, ProductDraft } from "./ports";
+import type {
+  CompetitorOrigin,
+  OnboardingStore,
+  OwnedProduct,
+  ProductDraft,
+  ReviewEdits,
+  ReviewProduct,
+} from "./ports";
 
-/** In-memory test doubles for onboarding. Test code only. */
+/**
+ * In-memory doubles for onboarding: for tests, and the canned draft of the E2E fake services, which
+ * only a local dev server honors (./e2e-services.ts).
+ */
 
 export function rawDraft(over: Partial<RawDraft> = {}): RawDraft {
   return {
@@ -22,16 +32,9 @@ export function rawDraft(over: Partial<RawDraft> = {}): RawDraft {
   };
 }
 
-export interface FakeProduct {
-  id: string;
+export interface FakeProduct extends ReviewProduct {
   ownerId: string;
-  url: string;
-  name: string;
-  status: string;
   confirmedAt: Date | null;
-  draft: ProductDraft | null;
-  terms: ProductDraft["terms"];
-  competitors: { name: string; domain: string | null; origin: "user" | "draft" | "discovered" }[];
 }
 
 /** Mirrors the onboarding migration: one product per owner, competitors unique by name. */
@@ -43,11 +46,15 @@ export class FakeOnboardingStore implements OnboardingStore {
     const product: FakeProduct = {
       id: `product-${this.next++}`,
       ownerId,
-      url: "https://myproduct.example/",
-      name: "Existing",
       status: "draft",
       confirmedAt: null,
-      draft: null,
+      url: "https://myproduct.example/",
+      name: "Existing",
+      oneLiner: "",
+      description: "",
+      audience: "",
+      relevanceThreshold: 60,
+      subreddits: [],
       terms: [],
       competitors: [],
       ...fields,
@@ -58,6 +65,12 @@ export class FakeOnboardingStore implements OnboardingStore {
 
   ownedBy(ownerId: string): FakeProduct | undefined {
     return [...this.products.values()].find((p) => p.ownerId === ownerId);
+  }
+
+  private draftProduct(productId: string): FakeProduct {
+    const p = this.products.get(productId);
+    if (!p || p.status !== "draft") throw new Error("not a draft");
+    return p;
   }
 
   async findProduct(userId: string): Promise<OwnedProduct | null> {
@@ -71,19 +84,48 @@ export class FakeOnboardingStore implements OnboardingStore {
   }
 
   async saveDraft(productId: string, url: string, draft: ProductDraft) {
-    const p = this.products.get(productId);
-    if (!p) throw new Error("no such product");
-    p.url = url;
-    p.name = draft.name;
-    p.draft = draft;
-    p.terms = [...draft.terms];
+    const p = this.draftProduct(productId);
+    Object.assign(p, {
+      url,
+      name: draft.name,
+      oneLiner: draft.oneLiner,
+      description: draft.description,
+      audience: draft.audience,
+      subreddits: [...draft.subreddits],
+      terms: [...draft.terms],
+    });
     const kept = p.competitors.filter((c) => c.origin !== "draft");
     const taken = new Set(kept.map((c) => c.name));
     p.competitors = [
       ...kept,
       ...draft.competitors
         .filter((c) => !taken.has(c.name))
-        .map((c) => ({ ...c, origin: "draft" as const })),
+        .map((c) => ({ ...c, aliases: [], origin: "draft" as const })),
     ];
+  }
+
+  async loadReview(userId: string): Promise<ReviewProduct | null> {
+    const p = this.ownedBy(userId);
+    if (!p) return null;
+    const review: Partial<FakeProduct> = structuredClone(p);
+    delete review.ownerId;
+    delete review.confirmedAt;
+    return review as ReviewProduct;
+  }
+
+  async saveReview(productId: string, edits: ReviewEdits) {
+    const p = this.draftProduct(productId);
+    const origins = new Map<string, CompetitorOrigin>(p.competitors.map((c) => [c.name, c.origin]));
+    Object.assign(p, structuredClone(edits), {
+      competitors: edits.competitors.map((c) => ({ ...c, origin: origins.get(c.name) ?? "user" })),
+    });
+  }
+
+  async confirmProduct(productId: string, now: Date) {
+    const p = this.products.get(productId);
+    if (!p || p.status !== "draft") return false;
+    p.status = "active";
+    p.confirmedAt = now;
+    return true;
   }
 }

@@ -10,7 +10,7 @@ import type { ProductDraft } from "./ports";
  * item is dropped rather than costing a retry of the whole draft.
  */
 
-const INTENTS = ["problem", "category", "alternative", "competitor"] as const;
+export const INTENTS = ["problem", "category", "alternative", "competitor"] as const;
 
 export const DraftSchema = z.object({
   name: z.string().min(1).max(120),
@@ -91,7 +91,7 @@ const DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 const bareDomain = (host: string) => host.replace(/^www\./, "").replace(/\.+$/, "");
 
 /** "https://www.Example.com/pricing" -> "example.com"; null unless it is a plain domain. */
-function cleanDomain(raw: string | null): string | null {
+export function cleanDomain(raw: string | null): string | null {
   if (!raw) return null;
   const host = bareDomain(
     raw
@@ -103,7 +103,8 @@ function cleanDomain(raw: string | null): string | null {
   return DOMAIN.test(host) && host.length <= 253 ? host : null;
 }
 
-const SUBREDDIT = /^[A-Za-z0-9_]{2,21}$/;
+/** A bare subreddit name, as products.subreddits stores it; "u_" names are user profiles. */
+export const SUBREDDIT = /^[A-Za-z0-9_]{2,21}$/;
 
 export function normalizeDraft(raw: RawDraft, productUrl: string): ProductDraft {
   const ownHost = bareDomain(new URL(productUrl).hostname);

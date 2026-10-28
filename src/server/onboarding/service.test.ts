@@ -89,11 +89,11 @@ describe("draft from a URL (docs/TASKS.md M2)", () => {
     expect(product.terms.length).toBeGreaterThanOrEqual(20);
     expect(product.terms.length).toBeLessThanOrEqual(30);
     expect(product.competitors).toEqual([
-      { name: "Ledgerly", domain: "ledgerly.example", origin: "draft" },
-      { name: "Billwise", domain: null, origin: "draft" },
+      { name: "Ledgerly", domain: "ledgerly.example", aliases: [], origin: "draft" },
+      { name: "Billwise", domain: null, aliases: [], origin: "draft" },
     ]);
     // Sensitive communities are dropped (planted: depression, politics).
-    expect(product.draft!.subreddits).toEqual(["freelance", "smallbusiness", "SaaS"]);
+    expect(product.subreddits).toEqual(["freelance", "smallbusiness", "SaaS"]);
   });
 
   it("asks the draft model for the page's visible text, not its scripts or navigation", async () => {
@@ -149,8 +149,8 @@ describe("draft from a URL (docs/TASKS.md M2)", () => {
     const existing = store.addProduct(USER, {
       terms: [{ term: "old term", intent: "problem" }],
       competitors: [
-        { name: "Mine", domain: null, origin: "user" },
-        { name: "Old draft", domain: null, origin: "draft" },
+        { name: "Mine", domain: null, aliases: [], origin: "user" },
+        { name: "Old draft", domain: null, aliases: [], origin: "draft" },
       ],
     });
     client.queue({ text: JSON.stringify(rawDraft()) });
@@ -220,7 +220,7 @@ describe("draft from a pasted description (docs/TASKS.md M2)", () => {
     expect(product.status).toBe("draft");
     expect(product.terms.length).toBeGreaterThanOrEqual(20);
     expect(product.competitors.every((c) => c.origin === "draft")).toBe(true);
-    expect(product.draft!.subreddits).toEqual(["freelance"]);
+    expect(product.subreddits).toEqual(["freelance"]);
     const input = client.requests[0]!.messages[0]!.content as string;
     expect(input).toContain(DESCRIPTION);
   });
