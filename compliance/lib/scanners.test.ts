@@ -192,6 +192,28 @@ describe("URL host scanner", () => {
     ).toEqual(["dynamic-url-host"]);
   });
 
+  it("lets only the product URL normalizer add a scheme to what a user typed", () => {
+    const code = "const u = `https://${typed}`";
+    expect(findUnexpectedHosts(code, "src/server/onboarding/draft.ts", allowed)).toEqual([]);
+    for (const file of [
+      "src/server/onboarding/service.ts",
+      "src/server/onboarding/draft.test.ts",
+      "src/sources/hackernews.ts",
+      "src/server/preview/run.ts",
+    ])
+      expect(rules(findUnexpectedHosts(code, file, allowed)), file).toEqual(["dynamic-url-host"]);
+    // Only the runtime-host rule: a literal platform host there still fails.
+    expect(
+      rules(
+        findUnexpectedHosts(
+          `const u = "https://www.reddit.com/"`,
+          "src/server/onboarding/draft.ts",
+          allowed,
+        ),
+      ),
+    ).toEqual(["unexpected-host"]);
+  });
+
   it("does not flag a template that only appends a path to a configured base", () => {
     expect(findUnexpectedHosts("const u = `${base}/settings?x=1`", "src/x.ts", allowed)).toEqual(
       [],

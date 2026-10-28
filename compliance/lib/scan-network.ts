@@ -239,12 +239,19 @@ export function findUrlHosts(code: string, file: string): { host: string | null;
   return out;
 }
 
+/**
+ * The one file that may build a URL on a runtime host: it adds https:// to the product URL a user
+ * typed. That URL is fetched only by fetchOwnSite, which refuses every platform host on its own.
+ */
+export const USER_URL_FILE = "src/server/onboarding/draft.ts";
+
 export function findUnexpectedHosts(
   code: string,
   file: string,
   allowed: ReadonlySet<string>,
 ): Finding[] {
   return findUrlHosts(code, file).flatMap(({ host, line }) => {
+    if (host === null && file === USER_URL_FILE) return [];
     if (host === null) {
       return [
         {
