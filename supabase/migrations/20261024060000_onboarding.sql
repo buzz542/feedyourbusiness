@@ -52,6 +52,22 @@ create table public.llm_usage (
 create index llm_usage_product_created_idx on public.llm_usage (product_id, created_at);
 create index llm_usage_created_idx on public.llm_usage (created_at);
 
+-- The sum behind the spend caps, in the database: summing rows in the app would stop at the API's
+-- row limit and let a cap leak. No product (null) means every product.
+create function public.llm_spend_usd(p_since timestamptz, p_product_id uuid default null)
+returns numeric
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(sum(u.cost_usd), 0)
+  from public.llm_usage u
+  where u.created_at >= p_since
+    and (p_product_id is null or u.product_id = p_product_id);
+$$;
+revoke all on function public.llm_spend_usd(timestamptz, uuid) from public, anon, authenticated;
+grant execute on function public.llm_spend_usd(timestamptz, uuid) to service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS and grants
 -- ---------------------------------------------------------------------------

@@ -315,6 +315,29 @@ describe("llm_usage: server only", () => {
     expect(row).toEqual({ task: "draft", cost_usd: "0.006400" });
   });
 
+  it("llm_spend_usd sums spend since a time, for one product or for all, service role only", async () => {
+    await db.query(
+      `insert into public.llm_usage (product_id, task, model, input_tokens, output_tokens, cost_usd, created_at)
+       values ($1, 'classify', 'm', 1, 1, 0.5, '2099-11-01T00:00:00Z'),
+              ($1, 'classify', 'm', 1, 1, 0.25, '2099-11-15T12:00:00Z'),
+              (null, 'preview', 'm', 1, 1, 1.0, '2099-11-15T12:00:00Z'),
+              ($1, 'classify', 'm', 1, 1, 9.0, '2099-10-31T23:59:59Z')`,
+      [ids.alice],
+    );
+    const spend = (product: string | null, since: string) =>
+      asService(() =>
+        one<{ usd: string }>("select public.llm_spend_usd($1, $2)::text as usd", [since, product]),
+      );
+    expect(await spend(ids.alice!, "2099-11-01T00:00:00Z")).toEqual({ usd: "0.750000" });
+    expect(await spend(null, "2099-11-15T00:00:00Z")).toEqual({ usd: "1.250000" });
+    expect(await spend(ids.alice!, "2099-12-01T00:00:00Z")).toEqual({ usd: "0" });
+    for (const run of [asAnon, asAlice]) {
+      await expect(
+        run(() => db.query("select public.llm_spend_usd('2026-01-01T00:00:00Z')")),
+      ).rejects.toThrow(/permission denied/i);
+    }
+  });
+
   it("refuses an unknown task", async () => {
     await expect(
       db.query(

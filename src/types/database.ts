@@ -559,6 +559,10 @@ export type Database = {
         Args: { p_event_id: string; p_type: string }
         Returns: string
       }
+      llm_spend_usd: {
+        Args: { p_product_id?: string; p_since: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
