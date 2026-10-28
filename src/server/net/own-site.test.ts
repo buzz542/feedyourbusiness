@@ -140,8 +140,15 @@ describe("fetchOwnSite: what it refuses before connecting", () => {
     "https://[::ffff:127.0.0.1]/",
     "https://0x7f.1/",
     "https://2130706433/",
-  ])("refuses the private address %s", async (url) => {
-    await nothingSent(url, "private_address");
+    // Public ones too: no product site is a bare address, and a platform's CDN address is public.
+    "https://93.184.215.14/",
+    "https://[2606:4700::1]/",
+  ])("refuses the IP address %s", async (url) => {
+    await nothingSent(url, "ip_literal");
+  });
+
+  it("refuses a host with an empty label", async () => {
+    await nothingSent("https://my..product.example/", "invalid_url");
   });
 
   it("refuses a hostname whose resolver returns a private address", async () => {
@@ -182,6 +189,20 @@ const PLATFORM_URLS = [
   "https://hn.algolia.com/api/v1/search?query=a",
   "https://www-reddit-com.translate.goog/r/x",
   "https://web.archive.org/web/2026/https://www.reddit.com/",
+  // Found in review: extra trailing dots, other first-party domains, proxies and mirrors that take
+  // the platform URL in their path, and host spellings the URL parser folds into a platform.
+  "https://www.reddit.com../",
+  "https://www.reddit.com.../",
+  "https://cdn.discordapp.com/attachments/1/2/notes.txt",
+  "https://www.youtube-nocookie.com/embed/a",
+  "https://r.jina.ai/https://www.reddit.com/r/x",
+  "https://archive.is/newest/https://www.reddit.com/",
+  "https://www-reddit-com.cdn.ampproject.org/c/s/www.reddit.com/",
+  "https://reader.example/https%3A%2F%2Fwww.reddit.com%2Fr%2Fx",
+  "https://ｗｗｗ.ｒｅｄｄｉｔ.ｃｏｍ/",
+  "https://www.reddit。com/",
+  "https://www.%72eddit.com/",
+  "https://WWW.REDDIT.COM./",
 ];
 
 describe("fetchOwnSite: platform hosts (docs/PLAN.md 2.1.10)", () => {
@@ -203,6 +224,37 @@ describe("fetchOwnSite: platform hosts (docs/PLAN.md 2.1.10)", () => {
   it.each(PLATFORM_URLS)("refuses %s as a redirect target", async (url) => {
     const { transport, sent } = fakeTransport({
       "https://myproduct.example/": { status: 302, headers: { location: url } },
+    });
+    await refused(
+      createFetchOwnSite({ resolve: resolver(), transport })("https://myproduct.example/"),
+      "platform_host",
+    );
+    expect(sent).toEqual(["https://myproduct.example/"]);
+  });
+});
+
+describe("fetchOwnSite: paths and queries", () => {
+  it("drops the query and fragment of the URL it is given", async () => {
+    const { transport, sent } = fakeTransport({ "https://myproduct.example/": {} });
+    const fetchSite = createFetchOwnSite({ resolve: resolver(), transport });
+    const page = await fetchSite("https://myproduct.example/?ref=producthunt.com#top");
+    expect(sent).toEqual(["https://myproduct.example/"]);
+    expect(page.url).toBe("https://myproduct.example/");
+  });
+
+  it("fetches a path that names a domain that is not a platform", async () => {
+    const url = "https://myproduct.example/integrations/dropbox.com";
+    const { transport, sent } = fakeTransport({ [url]: {} });
+    await createFetchOwnSite({ resolve: resolver(), transport })(url);
+    expect(sent).toEqual([url]);
+  });
+
+  it("refuses a same-site redirect whose query names a platform", async () => {
+    const { transport, sent } = fakeTransport({
+      "https://myproduct.example/": {
+        status: 302,
+        headers: { location: "/go?u=https%3A%2F%2Fnews.ycombinator.com%2Fitem%3Fid%3D1" },
+      },
     });
     await refused(
       createFetchOwnSite({ resolve: resolver(), transport })("https://myproduct.example/"),

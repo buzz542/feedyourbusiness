@@ -15,16 +15,31 @@ create table public.competitors (
   unique (product_id, name)
 );
 
--- Move existing values, then drop the array.
+-- Move existing values, then drop the array. A name the new table cannot hold stops the migration
+-- rather than vanish (production had no products when this was written; count them first).
 insert into public.competitors (product_id, name, origin)
   select p.id, c.name, 'user' from public.products p, unnest(p.competitors) as c(name)
-  where char_length(c.name) between 1 and 80
   on conflict do nothing;
 alter table public.products drop column competitors;
 
+-- Every subreddit is a bare name, the shape the draft schema allows (8.3), because an owner can
+-- write this column directly and search links and Reddit terms are built from it.
+create function public.subreddit_names_valid(p_names text[])
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(bool_and(n ~ '^[A-Za-z0-9_]{2,21}$'), true) from unnest(p_names) as n;
+$$;
+-- The check runs as the role that writes the row.
+revoke all on function public.subreddit_names_valid(text[]) from public, anon;
+grant execute on function public.subreddit_names_valid(text[]) to authenticated, service_role;
+
 alter table public.products
   add column one_liner text check (char_length(one_liner) <= 160),
-  add column subreddits text[] not null default '{}' check (cardinality(subreddits) <= 10),
+  add column subreddits text[] not null default '{}'
+    check (cardinality(subreddits) <= 10 and public.subreddit_names_valid(subreddits)),
   add column confirmed_at timestamptz,
   add column relevance_threshold smallint not null default 60 check (relevance_threshold between 40 and 95);
 

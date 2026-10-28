@@ -15,7 +15,8 @@ export const FETCH_WRAPPER_FILE = "src/server/net/safe-fetch.ts";
 
 /**
  * fetchOwnSite (docs/PLAN.md 12.3) needs a custom DNS lookup on every connection, which fetch
- * cannot do, so this one file may import node:https and node:dns. Nothing else, and no other file.
+ * cannot do, so this one file may import node:https and node:dns, with static imports it never
+ * exports. Nothing else, and no other file.
  */
 export const OWN_SITE_FILE = "src/server/net/own-site.ts";
 const OWN_SITE_MODULES = new Set(["https", "dns"]);
@@ -82,9 +83,20 @@ export function findNetworkPrimitives(
       detail,
     });
 
+  // Names own-site.ts binds from node:https and node:dns; it may use them, never export them.
+  const ownSiteBindings = new Set<string>();
+
   const checkModule = (node: ts.Node, specifier: string) => {
     const name = moduleName(specifier);
-    if (file === OWN_SITE_FILE && OWN_SITE_MODULES.has(name)) return;
+    if (file === OWN_SITE_FILE && OWN_SITE_MODULES.has(name) && ts.isImportDeclaration(node)) {
+      const clause = node.importClause;
+      if (clause?.name) ownSiteBindings.add(clause.name.text);
+      const named = clause?.namedBindings;
+      if (named && ts.isNamespaceImport(named)) ownSiteBindings.add(named.name.text);
+      if (named && ts.isNamedImports(named))
+        for (const el of named.elements) ownSiteBindings.add(el.name.text);
+      return;
+    }
     if (banned.has(name)) {
       add(
         node,
@@ -109,6 +121,20 @@ export function findNetworkPrimitives(
     ) {
       const expr = node.moduleReference.expression;
       if (ts.isStringLiteral(expr)) checkModule(node, expr.text);
+    }
+
+    const exported =
+      ts.isExportSpecifier(node) && !node.parent.parent.moduleSpecifier
+        ? (node.propertyName ?? node.name)
+        : ts.isExportAssignment(node)
+          ? node.expression
+          : null;
+    if (exported && ts.isIdentifier(exported) && ownSiteBindings.has(exported.text)) {
+      add(
+        node,
+        "banned-network-module",
+        `exports "${exported.text}", a node:https or node:dns binding.`,
+      );
     }
 
     if (ts.isCallExpression(node)) {

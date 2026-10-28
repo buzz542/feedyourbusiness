@@ -74,6 +74,25 @@ describe("existing competitors move to the competitors table", () => {
   });
 });
 
+describe("the competitors move stops rather than drop a name", () => {
+  it("fails the migration on a name the new table cannot hold", async () => {
+    const fresh = await createDb({ before: "_onboarding" });
+    try {
+      await fresh.query("insert into auth.users (id, email) values ($1, 'c@example.test')", [
+        ALICE,
+      ]);
+      await fresh.query(
+        `insert into public.products (owner_id, url, name, competitors)
+         values ($1, 'https://c.example.test', 'C', $2)`,
+        [ALICE, ["Fine", "x".repeat(81)]],
+      );
+      await expect(applyMigrationsFrom(fresh, "_onboarding")).rejects.toThrow(/check constraint/i);
+    } finally {
+      await fresh.close();
+    }
+  });
+});
+
 describe("one product per owner (D9)", () => {
   it("refuses a second product for the same owner", async () => {
     await expect(
@@ -122,7 +141,12 @@ describe("products: new fields", () => {
     ["a threshold below 40", "relevance_threshold = 39"],
     ["a threshold above 95", "relevance_threshold = 96"],
     ["a one-liner over 160 characters", `one_liner = '${"x".repeat(161)}'`],
-    ["more than 10 subreddits", `subreddits = '{a,b,c,d,e,f,g,h,i,j,k}'`],
+    ["more than 10 subreddits", `subreddits = '{aa,bb,cc,dd,ee,ff,gg,hh,ii,jj,kk}'`],
+    ["a subreddit with a prefix", `subreddits = '{r/SaaS}'`],
+    ["a subreddit with a space", `subreddits = '{"Saa S"}'`],
+    ["a one-letter subreddit", `subreddits = '{a}'`],
+    ["a subreddit over 21 characters", `subreddits = '{${"a".repeat(22)}}'`],
+    ["one bad name among good ones", `subreddits = '{SaaS,"bad/name",startups}'`],
   ])("refuses %s", async (_label, set) => {
     await expect(
       asBob(() => db.query(`update public.products set ${set} where id = $1`, [ids.bob])),

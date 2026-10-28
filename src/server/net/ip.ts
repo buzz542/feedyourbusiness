@@ -2,8 +2,8 @@
  * Is an address one fetchOwnSite may connect to (docs/PLAN.md 12.3)? Only public unicast:
  * loopback, private, link-local (cloud metadata), CGNAT, multicast, reserved, documentation,
  * IPv6 unique-local and link-local, and IPv4 embedded in IPv6 in any form that hides one of those
- * are refused. Parsed by hand because node:net is not allowed outside safeFetch's gate exception,
- * and anything that does not parse is refused.
+ * are refused. Parsed by hand because the hosts gate bans node:net everywhere, and anything that
+ * does not parse is refused.
  */
 
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;

@@ -55,6 +55,18 @@ describe("network scanner", () => {
     });
 
     it.each([
+      ["a re-export", `export { request } from "node:https";`],
+      ["a re-export of everything", `export * from "node:dns";`],
+      ["require()", `const https = require("node:https");`],
+      ["a dynamic import", `const dns = await import("node:dns");`],
+      ["an import passed on by name", `import https from "node:https"; export { https };`],
+      ["an import passed on renamed", `import * as h from "node:https"; export { h as net };`],
+      ["an import as the default export", `import dns from "node:dns"; export default dns;`],
+    ])("allows only static imports there, so it cannot hand node:https on: %s", (_label, code) => {
+      expect(rules(scan(code, "src/server/net/own-site.ts"))).toContain("banned-network-module");
+    });
+
+    it.each([
       "src/server/net/own-site-helper.ts",
       "src/server/net/safe-fetch.ts",
       "src/server/onboarding/draft.ts",

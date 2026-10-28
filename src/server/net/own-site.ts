@@ -1,7 +1,8 @@
+import "server-only";
 import dns from "node:dns";
 import https from "node:https";
 import { isPublicAddress } from "./ip";
-import { isPlatformHost } from "./platform-hosts";
+import { isPlatformHost, mentionsPlatform, normalizeHost } from "./platform-hosts";
 
 /**
  * fetchOwnSite (docs/PLAN.md 12.3): fetch the user's own product page once, for the onboarding
@@ -9,7 +10,10 @@ import { isPlatformHost } from "./platform-hosts";
  *
  *   * https on port 443 only, no credentials, no cookies, at most 3 redirects, each within the same
  *     host or its www twin, 10 second timeout, 2 MB body cap, text/html or text/plain only.
- *   * Every platform host is refused, on the first URL and on every redirect (2.1.10).
+ *   * Every platform host is refused, on the first URL and on every redirect (2.1.10), and so is
+ *     any path or query that names one, which is how a reader or proxy takes its target. The
+ *     first URL loses its query and fragment: a product page needs neither.
+ *   * No IP address as the host: no product site is a bare address.
  *   * The connection resolves the name through our own lookup, which refuses loopback, private,
  *     link-local, CGNAT, multicast, reserved and the IPv6 equivalents, on every connection. The
  *     address that was checked is the address connected to, so DNS rebinding has no gap.
@@ -21,6 +25,7 @@ export type OwnSiteErrorCode =
   | "credentials_in_url"
   | "non_default_port"
   | "platform_host"
+  | "ip_literal"
   | "private_address"
   | "dns_failed"
   | "redirect_off_site"
@@ -81,16 +86,11 @@ const HEADERS = {
   accept: "text/html, text/plain;q=0.9",
 };
 
-const bareHost = (url: URL) =>
-  url.hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "")
-    .replace(/\.$/, "");
 const isIpLiteral = (host: string) => /^[\d.]+$/.test(host) || host.includes(":");
 const sameSite = (a: string, b: string) => a === b || a === `www.${b}` || b === `www.${a}`;
 
 /** Every check that needs no network, for the first URL and for each redirect target. */
-function checkUrl(raw: string | URL, from: string | null): URL {
+function checkUrl(raw: string | URL, from: string | null): { url: URL; host: string } {
   let url: URL;
   try {
     url = new URL(raw);
@@ -100,11 +100,15 @@ function checkUrl(raw: string | URL, from: string | null): URL {
   if (url.protocol !== "https:") throw new OwnSiteError("insecure_scheme");
   if (url.username || url.password) throw new OwnSiteError("credentials_in_url");
   if (url.port && url.port !== "443") throw new OwnSiteError("non_default_port");
-  const host = bareHost(url);
+  url.hash = "";
+  if (from === null) url.search = "";
+  const host = normalizeHost(url.hostname);
+  if (host.split(".").includes("")) throw new OwnSiteError("invalid_url");
   if (isPlatformHost(host)) throw new OwnSiteError("platform_host");
-  if (isIpLiteral(host) && !isPublicAddress(host)) throw new OwnSiteError("private_address");
+  if (mentionsPlatform(url.pathname + url.search)) throw new OwnSiteError("platform_host");
+  if (isIpLiteral(host)) throw new OwnSiteError("ip_literal");
   if (from !== null && !sameSite(from, host)) throw new OwnSiteError("redirect_off_site");
-  return url;
+  return { url, host };
 }
 
 /** A lookup that resolves, refuses the whole answer if any address is not public, then connects. */
@@ -134,7 +138,15 @@ const nodeTransport: Transport = ({ url, lookup, signal, headers }) =>
   new Promise((resolve, reject) => {
     const request = https.request(
       url,
-      { method: "GET", headers, lookup: lookup as never, agent: false, signal },
+      // rejectUnauthorized is the default; stated so no later edit can drop certificate checks.
+      {
+        method: "GET",
+        headers,
+        lookup: lookup as never,
+        agent: false,
+        signal,
+        rejectUnauthorized: true,
+      },
       (response) => {
         const flat: Record<string, string | undefined> = {};
         for (const [key, value] of Object.entries(response.headers))
@@ -187,8 +199,9 @@ export function createFetchOwnSite(options: {
 
   return async function fetchSite(input: string): Promise<OwnSitePage> {
     const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
-    let url = checkUrl(input, null);
-    const origin = bareHost(url);
+    const first = checkUrl(input, null);
+    let url = first.url;
+    const origin = first.host;
 
     try {
       for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
@@ -197,7 +210,7 @@ export function createFetchOwnSite(options: {
         if (REDIRECTS.has(response.status) && location) {
           response.abort();
           if (hop === MAX_REDIRECTS) throw new OwnSiteError("too_many_redirects");
-          url = checkUrl(new URL(location, url), origin);
+          url = checkUrl(new URL(location, url), origin).url;
           continue;
         }
         if (response.status < 200 || response.status > 299) {

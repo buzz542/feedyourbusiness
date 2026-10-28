@@ -563,6 +563,10 @@ export type Database = {
         Args: { p_product_id?: string; p_since: string }
         Returns: number
       }
+      subreddit_names_valid: {
+        Args: { p_names: string[] }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
