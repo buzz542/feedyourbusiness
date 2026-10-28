@@ -1,11 +1,61 @@
 import { describe, expect, it } from "vitest";
-import { BRIGHTDATA_API_HOST } from "@/sources/reddit-vendor";
-import { isPlatformHost, mentionsPlatform, PLATFORM_WEB_HOSTS } from "./platform-hosts";
+import { BRIGHTDATA_API_HOST, BRIGHTDATA_DOMAIN } from "@/sources/reddit-vendor";
+import {
+  isPlatformHost,
+  mentionsPlatform,
+  PLATFORM_DOMAINS,
+  PLATFORM_WEB_HOSTS,
+} from "./platform-hosts";
 
 /**
  * One shared list (docs/PLAN.md 2.1.10, 12.3): fetchOwnSite and the instant preview refuse every
  * platform host, its subdomains, and the proxies and caches that would reach a platform page.
  */
+/** The minimum docs/PLAN.md 12.3 names, word for word, plus the vendor's domain. */
+const PLAN_12_3 = [
+  "reddit.com",
+  "redd.it",
+  "redditmedia.com",
+  "x.com",
+  "twitter.com",
+  "t.co",
+  "linkedin.com",
+  "lnkd.in",
+  "facebook.com",
+  "fb.com",
+  "fb.me",
+  "instagram.com",
+  "threads.net",
+  "threads.com",
+  "tiktok.com",
+  "youtube.com",
+  "youtu.be",
+  "discord.com",
+  "discord.gg",
+  "bsky.app",
+  "bsky.social",
+  "ycombinator.com",
+  "hn.algolia.com",
+  "hacker-news.firebaseio.com",
+  "producthunt.com",
+  "indiehackers.com",
+  BRIGHTDATA_DOMAIN,
+  "translate.goog",
+  "web.archive.org",
+  "archive.org",
+  "archive.ph",
+  "archive.today",
+  "webcache.googleusercontent.com",
+];
+
+describe("the list holds at least what the plan names", () => {
+  it.each(PLAN_12_3)("lists %s", (domain) => {
+    expect(PLATFORM_DOMAINS).toContain(domain);
+    expect(isPlatformHost(domain)).toBe(true);
+    expect(isPlatformHost(`any.${domain}`)).toBe(true);
+  });
+});
+
 describe("isPlatformHost", () => {
   it.each([
     "www.reddit.com",

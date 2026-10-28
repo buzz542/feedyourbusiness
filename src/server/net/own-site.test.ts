@@ -7,6 +7,7 @@ import {
   type ResolvedAddress,
   type Transport,
 } from "./own-site";
+import { PLATFORM_DOMAINS } from "./platform-hosts";
 
 /**
  * fetchOwnSite (docs/PLAN.md 12.3): the user's own product page, once, for the onboarding draft.
@@ -19,18 +20,22 @@ interface Route {
   status?: number;
   headers?: Record<string, string>;
   body?: string | Uint8Array[];
+  /** A body that can wait on the request's signal, like a slow server. */
+  stream?: (signal: AbortSignal) => AsyncIterable<Uint8Array>;
 }
 
 /** A transport that behaves like https.request: it resolves through the lookup it is given. */
 function fakeTransport(routes: Record<string, Route>) {
   const sent: string[] = [];
-  const transport: Transport = async ({ url, lookup, signal }) => {
+  const headersSent: Record<string, string>[] = [];
+  const transport: Transport = async ({ url, lookup, signal, headers }) => {
     await new Promise<void>((resolve, reject) =>
       lookup(url.hostname.replace(/^\[|\]$/g, ""), { all: true }, (error) =>
         error ? reject(error) : resolve(),
       ),
     );
     sent.push(url.href);
+    headersSent.push(headers);
     const route = routes[url.href];
     if (!route) throw new Error(`no route for ${url.href}`);
     if (route.status === -1) {
@@ -46,14 +51,16 @@ function fakeTransport(routes: Record<string, Route>) {
     const response: RawResponse = {
       status: route.status ?? 200,
       headers: { "content-type": "text/html; charset=utf-8", ...route.headers },
-      body: (async function* () {
-        yield* chunks;
-      })(),
+      body: route.stream
+        ? route.stream(signal)
+        : (async function* () {
+            yield* chunks;
+          })(),
       abort: () => {},
     };
     return response;
   };
-  return { transport, sent };
+  return { transport, sent, headersSent };
 }
 
 const resolver =
@@ -89,6 +96,33 @@ describe("fetchOwnSite: what it fetches", () => {
     });
     const fetchSite = createFetchOwnSite({ resolve: resolver(), transport });
     expect((await fetchSite("https://myproduct.example/")).contentType).toBe("text/plain");
+  });
+
+  it("asks for an unencoded body and decodes the charset the page declares", async () => {
+    const { transport, headersSent } = fakeTransport({
+      "https://myproduct.example/": {
+        headers: { "content-type": "text/html; charset=windows-1252" },
+        body: [new Uint8Array([0x63, 0x61, 0x66, 0xe9, 0x20, 0x93, 0x6f, 0x6b, 0x94])],
+      },
+    });
+    const page = await createFetchOwnSite({ resolve: resolver(), transport })(
+      "https://myproduct.example/",
+    );
+    expect(page.body).toBe("caf\u00e9 \u201cok\u201d");
+    expect(headersSent[0]).toMatchObject({ "accept-encoding": "identity" });
+  });
+
+  it("falls back to UTF-8 for a charset it does not know", async () => {
+    const { transport } = fakeTransport({
+      "https://myproduct.example/": {
+        headers: { "content-type": "text/html; charset=made-up" },
+        body: "caf\u00e9",
+      },
+    });
+    const page = await createFetchOwnSite({ resolve: resolver(), transport })(
+      "https://myproduct.example/",
+    );
+    expect(page.body).toBe("caf\u00e9");
   });
 
   it("follows a redirect on the same host, and to its www twin and back", async () => {
@@ -206,6 +240,14 @@ const PLATFORM_URLS = [
 ];
 
 describe("fetchOwnSite: platform hosts (docs/PLAN.md 2.1.10)", () => {
+  it.each(PLATFORM_DOMAINS)("refuses %s and its subdomains as the first URL", async (domain) => {
+    const { transport, sent } = fakeTransport({});
+    const fetchSite = createFetchOwnSite({ resolve: resolver(), transport });
+    await refused(fetchSite(`https://${domain}/`), "platform_host");
+    await refused(fetchSite(`https://sub.${domain}/`), "platform_host");
+    expect(sent).toEqual([]);
+  });
+
   it.each(PLATFORM_URLS)("refuses %s as the first URL, before resolving it", async (url) => {
     const looked: string[] = [];
     const { transport, sent } = fakeTransport({});
@@ -369,6 +411,24 @@ describe("fetchOwnSite: redirects and responses", () => {
     await refused(
       createFetchOwnSite({ resolve: resolver(), transport })("https://myproduct.example/"),
       "http_status",
+    );
+  });
+
+  it("gives up on a body that drips in slower than the timeout", async () => {
+    const { transport } = fakeTransport({
+      "https://myproduct.example/": {
+        async *stream(signal) {
+          yield new TextEncoder().encode("<p>first</p>");
+          await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+          yield new TextEncoder().encode("<p>after the deadline</p>");
+        },
+      },
+    });
+    await refused(
+      createFetchOwnSite({ resolve: resolver(), transport, timeoutMs: 50 })(
+        "https://myproduct.example/",
+      ),
+      "timeout",
     );
   });
 

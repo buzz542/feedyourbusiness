@@ -9,7 +9,10 @@ import type Anthropic from "@anthropic-ai/sdk";
 export type LlmTask = "draft" | "classify" | "synthesize" | "preview";
 
 export interface LlmClient {
-  createMessage(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
+  createMessage(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    options?: { signal?: AbortSignal },
+  ): Promise<Anthropic.Message>;
 }
 
 /** One row of public.llm_usage. */

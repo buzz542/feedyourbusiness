@@ -77,7 +77,7 @@ describe("extractPageText", () => {
   it("caps the output at 30,000 characters", () => {
     const huge = `<html><body><p>${"word ".repeat(20_000)}</p></body></html>`;
     expect(MAX_PAGE_TEXT).toBe(30_000);
-    expect(extractPageText(huge).length).toBeLessThanOrEqual(30_000);
+    expect(extractPageText(huge).length).toBe(30_000);
   });
 
   it("handles a page with no title, description or body", () => {
@@ -102,6 +102,14 @@ describe("extractPageText", () => {
 
   it("drops an unclosed script to the end rather than leaking it", () => {
     expect(extractPageText("<p>Visible</p><script>leak()")).toBe("Visible");
+  });
+
+  it("keeps a hero heading inside the page header, and drops the navigation beside it", () => {
+    const out = extractPageText(
+      `<body><header><nav><a href="/">NAV HOME</a></nav><h1>Invoicing for freelancers</h1>` +
+        `<p>Get paid on time</p></header><main><p>More</p></main></body>`,
+    );
+    expect(out).toBe("Invoicing for freelancers\nGet paid on time\nMore");
   });
 
   it("keeps an apostrophe inside a double-quoted description, in either attribute order", () => {

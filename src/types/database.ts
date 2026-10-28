@@ -559,6 +559,10 @@ export type Database = {
         Args: { p_event_id: string; p_type: string }
         Returns: string
       }
+      competitor_aliases_valid: {
+        Args: { p_aliases: string[] }
+        Returns: boolean
+      }
       llm_spend_usd: {
         Args: { p_product_id?: string; p_since: string }
         Returns: number

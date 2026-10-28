@@ -9,6 +9,6 @@ export const CLIENT_OPTIONS = { timeout: 60_000, maxRetries: 2 } as const;
 export function createAnthropicClient(apiKey: string): LlmClient {
   const client = new Anthropic({ apiKey, ...CLIENT_OPTIONS });
   return {
-    createMessage: (params) => client.messages.create(params),
+    createMessage: (params, options) => client.messages.create(params, { signal: options?.signal }),
   };
 }

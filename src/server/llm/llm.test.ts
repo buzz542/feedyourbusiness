@@ -80,6 +80,26 @@ describe("callStructured: the request", () => {
   });
 });
 
+describe("callStructured: the deadline", () => {
+  it("passes the caller's abort signal to the client", async () => {
+    const { client, llm } = setup();
+    client.queue({ text: VALID });
+    const controller = new AbortController();
+    await llm.callStructured(call({ signal: controller.signal }));
+    expect(client.signals).toEqual([controller.signal]);
+  });
+
+  it("does not start the retry once the signal has aborted", async () => {
+    const { client, llm } = setup();
+    const controller = new AbortController();
+    client.queue({ text: "{}" }, { text: VALID });
+    client.onCall = () => controller.abort();
+    const error = await rejection(llm.callStructured(call({ signal: controller.signal })));
+    expect((error as Error).name).toBe("AbortError");
+    expect(client.requests).toHaveLength(1);
+  });
+});
+
 describe("callStructured: the answer", () => {
   it("returns the validated output, reading only the text blocks", async () => {
     const { client, llm } = setup();

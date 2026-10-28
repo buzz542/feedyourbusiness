@@ -55,6 +55,26 @@ describe("network scanner", () => {
     });
 
     it.each([
+      ["src/sources/hackernews.ts", `import { fetchOwnSite } from "@/server/net/own-site";`],
+      ["src/server/net/index.ts", `export * from "./own-site";`],
+      ["src/server/pipeline/collect.ts", `const m = await import("@/server/net/own-site");`],
+      [
+        "src/app/api/x/route.ts",
+        `import { createFetchOwnSite } from "../../../server/net/own-site";`,
+      ],
+    ])("refuses fetchOwnSite outside onboarding and the preview: %s", (file, code) => {
+      expect(rules(scan(code, file))).toContain("own-site-import");
+    });
+
+    it.each([
+      "src/server/onboarding/deps.ts",
+      "src/server/preview/run.ts",
+      "src/server/net/own-site.test.ts",
+    ])("lets %s use fetchOwnSite", (file) => {
+      expect(scan(`import { fetchOwnSite } from "@/server/net/own-site";`, file)).toEqual([]);
+    });
+
+    it.each([
       ["a re-export", `export { request } from "node:https";`],
       ["a re-export of everything", `export * from "node:dns";`],
       ["require()", `const https = require("node:https");`],

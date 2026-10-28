@@ -48,6 +48,9 @@ export function fakeMessage(reply: FakeReply, model = "claude-sonnet-5-5"): Anth
 /** Answers each call with the next queued reply and keeps the requests it was sent. */
 export class FakeLlmClient implements LlmClient {
   readonly requests: Anthropic.MessageCreateParamsNonStreaming[] = [];
+  readonly signals: (AbortSignal | undefined)[] = [];
+  /** Runs on every call, before the reply: to abort, or to hang until aborted. */
+  onCall?: (signal: AbortSignal | undefined) => void | Promise<void>;
   constructor(private readonly replies: FakeReply[] = []) {}
 
   queue(...replies: FakeReply[]): this {
@@ -55,8 +58,13 @@ export class FakeLlmClient implements LlmClient {
     return this;
   }
 
-  async createMessage(params: Anthropic.MessageCreateParamsNonStreaming) {
+  async createMessage(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    options: { signal?: AbortSignal } = {},
+  ) {
     this.requests.push(params);
+    this.signals.push(options.signal);
+    await this.onCall?.(options.signal);
     const reply = this.replies.shift();
     if (!reply) throw new Error("FakeLlmClient: no reply queued");
     return fakeMessage(reply, params.model);

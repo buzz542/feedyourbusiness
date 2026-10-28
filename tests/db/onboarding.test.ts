@@ -147,6 +147,7 @@ describe("products: new fields", () => {
     ["a one-letter subreddit", `subreddits = '{a}'`],
     ["a subreddit over 21 characters", `subreddits = '{${"a".repeat(22)}}'`],
     ["one bad name among good ones", `subreddits = '{SaaS,"bad/name",startups}'`],
+    ["a null subreddit", `subreddits = '{SaaS,NULL}'`],
   ])("refuses %s", async (_label, set) => {
     await expect(
       asBob(() => db.query(`update public.products set ${set} where id = $1`, [ids.bob])),
@@ -269,6 +270,9 @@ describe("competitors: row-level security", () => {
     ["a domain with capitals", "domain", "'Acme.example'"],
     ["a bare word as a domain", "domain", "'acme'"],
     ["more than 10 aliases", "aliases", "'{a,b,c,d,e,f,g,h,i,j,k}'"],
+    ["an empty alias", "aliases", `'{Acme,""}'`],
+    ["an alias over 80 characters", "aliases", `'{${"x".repeat(81)}}'`],
+    ["a null alias", "aliases", "'{Acme,NULL}'"],
   ])("refuses %s", async (_label, column, value) => {
     await expect(
       asAlice(() =>

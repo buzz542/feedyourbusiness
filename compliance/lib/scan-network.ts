@@ -21,6 +21,17 @@ export const FETCH_WRAPPER_FILE = "src/server/net/safe-fetch.ts";
 export const OWN_SITE_FILE = "src/server/net/own-site.ts";
 const OWN_SITE_MODULES = new Set(["https", "dns"]);
 
+/**
+ * fetchOwnSite reaches any public host that is not a platform, so only the onboarding draft and
+ * the instant preview may use it; anything else (a collect source above all) uses safeFetch and
+ * its allowlist.
+ */
+const OWN_SITE_USERS = ["src/server/onboarding/", "src/server/preview/"];
+const OWN_SITE_TEST = "src/server/net/own-site.test.ts";
+const isOwnSiteSpecifier = (specifier: string) =>
+  specifier === "@/server/net/own-site" ||
+  (specifier.startsWith(".") && /(^|\/)own-site(\.ts)?$/.test(specifier));
+
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self", "global"]);
 const NETWORK_CONSTRUCTORS = new Set([
   "XMLHttpRequest",
@@ -87,6 +98,14 @@ export function findNetworkPrimitives(
   const ownSiteBindings = new Set<string>();
 
   const checkModule = (node: ts.Node, specifier: string) => {
+    const mayUseOwnSite = file === OWN_SITE_TEST || OWN_SITE_USERS.some((d) => file.startsWith(d));
+    if (isOwnSiteSpecifier(specifier) && !mayUseOwnSite) {
+      add(
+        node,
+        "own-site-import",
+        `uses fetchOwnSite, which only onboarding and the preview may. Use safeFetch().`,
+      );
+    }
     const name = moduleName(specifier);
     if (file === OWN_SITE_FILE && OWN_SITE_MODULES.has(name) && ts.isImportDeclaration(node)) {
       const clause = node.importClause;

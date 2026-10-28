@@ -22,8 +22,8 @@ const DROPPED = new Set([
   "iframe",
   "object",
   "canvas",
+  // Not "header": a hero heading often sits in it. Navigation inside it still goes.
   "nav",
-  "header",
   "footer",
   "select",
   "button",

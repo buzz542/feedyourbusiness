@@ -4,12 +4,28 @@
 -- Destructive: drops products.competitors after copying its values into public.competitors.
 -- Production had no products when this was written; count them before applying.
 
+-- Each alias is a name like a competitor's own (1 to 80 characters), because aliases go into the
+-- classifier's prompt (8.2) and an owner can write them directly.
+create function public.competitor_aliases_valid(p_aliases text[])
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(bool_and(a is not null and char_length(a) between 1 and 80), true)
+  from unnest(p_aliases) as a;
+$$;
+-- The check runs as the role that writes the row.
+revoke all on function public.competitor_aliases_valid(text[]) from public, anon;
+grant execute on function public.competitor_aliases_valid(text[]) to authenticated, service_role;
+
 create table public.competitors (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references public.products (id) on delete cascade,
   name text not null check (char_length(name) between 1 and 80),
   domain text check (domain is null or (domain ~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$' and char_length(domain) <= 253)),
-  aliases text[] not null default '{}' check (cardinality(aliases) <= 10),
+  aliases text[] not null default '{}'
+    check (cardinality(aliases) <= 10 and public.competitor_aliases_valid(aliases)),
   origin text not null default 'user' check (origin in ('user', 'draft', 'discovered')),
   created_at timestamptz not null default now(),
   unique (product_id, name)
@@ -30,7 +46,8 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select coalesce(bool_and(n ~ '^[A-Za-z0-9_]{2,21}$'), true) from unnest(p_names) as n;
+  select coalesce(bool_and(n is not null and n ~ '^[A-Za-z0-9_]{2,21}$'), true)
+  from unnest(p_names) as n;
 $$;
 -- The check runs as the role that writes the row.
 revoke all on function public.subreddit_names_valid(text[]) from public, anon;

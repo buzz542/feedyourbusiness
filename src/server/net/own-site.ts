@@ -84,6 +84,8 @@ const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const HEADERS = {
   "user-agent": "AskedFor/1.0 (+https://askedfor.app)",
   accept: "text/html, text/plain;q=0.9",
+  // No compression: the body is read as sent, and the size cap counts what we decode.
+  "accept-encoding": "identity",
 };
 
 const isIpLiteral = (host: string) => /^[\d.]+$/.test(host) || host.includes(":");
@@ -167,16 +169,35 @@ function mediaType(header: string | undefined): string {
   return (header ?? "").split(";")[0]!.trim().toLowerCase();
 }
 
-async function readBody(response: RawResponse, maxBytes: number): Promise<string> {
+/** The page's declared charset, or UTF-8 when it names none or one we do not know. */
+function decoderFor(contentType: string | undefined): TextDecoder {
+  const label = /charset\s*=\s*"?([^";\s]+)/i.exec(contentType ?? "")?.[1];
+  try {
+    return new TextDecoder(label ?? "utf-8");
+  } catch {
+    return new TextDecoder("utf-8");
+  }
+}
+
+async function readBody(
+  response: RawResponse,
+  maxBytes: number,
+  signal: AbortSignal,
+): Promise<string> {
   const declared = Number(response.headers["content-length"]);
   if (Number.isFinite(declared) && declared > maxBytes) {
     response.abort();
     throw new OwnSiteError("too_large");
   }
-  const decoder = new TextDecoder();
+  const decoder = decoderFor(response.headers["content-type"]);
   let received = 0;
   let text = "";
   for await (const chunk of response.body) {
+    // node:https destroys the stream on abort; this also stops any body that keeps yielding.
+    if (signal.aborted) {
+      response.abort();
+      throw new OwnSiteError("timeout");
+    }
     received += chunk.byteLength;
     if (received > maxBytes) {
       response.abort();
@@ -222,7 +243,8 @@ export function createFetchOwnSite(options: {
           response.abort();
           throw new OwnSiteError("not_html");
         }
-        return { url: url.href, contentType: type, body: await readBody(response, maxBytes) };
+        const body = await readBody(response, maxBytes, signal);
+        return { url: url.href, contentType: type, body };
       }
       throw new OwnSiteError("too_many_redirects");
     } catch (error) {

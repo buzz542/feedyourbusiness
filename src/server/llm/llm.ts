@@ -59,6 +59,8 @@ export interface StructuredCall<T> {
   schema: z.ZodType<T>;
   maxTokens: number;
   effort?: "low" | "medium" | "high";
+  /** The caller's deadline: aborts the request in flight and stops a retry from starting. */
+  signal?: AbortSignal;
 }
 
 export interface StructuredResult<T> {
@@ -139,8 +141,9 @@ export function createLlm(deps: {
 
       let total = 0;
       for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+        call.signal?.throwIfAborted();
         await checkCaps(call.productId);
-        const message = await client.createMessage(params);
+        const message = await client.createMessage(params, { signal: call.signal });
         total += await record(call, message);
 
         if (message.stop_reason === "refusal") throw new LlmRefusalError();
