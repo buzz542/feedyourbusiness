@@ -103,4 +103,74 @@ describe("extractPageText", () => {
   it("drops an unclosed script to the end rather than leaking it", () => {
     expect(extractPageText("<p>Visible</p><script>leak()")).toBe("Visible");
   });
+
+  it("keeps an apostrophe inside a double-quoted description, in either attribute order", () => {
+    expect(extractPageText(`<meta name="description" content="It's fast, isn't it">`)).toBe(
+      "Description: It's fast, isn't it",
+    );
+    expect(extractPageText(`<meta content='Say "hi"' name='description'>`)).toBe(
+      'Description: Say "hi"',
+    );
+  });
+
+  it("does not end a tag at a > inside a quoted attribute", () => {
+    const out = extractPageText(`<body><a title="a > b" href="/">Link</a><p>Next</p></body>`);
+    expect(out).toBe("Link\nNext");
+  });
+
+  it("drops nested navigation whole, and keeps what follows it", () => {
+    const out = extractPageText(
+      `<body><nav><ul><li><nav>INNER</nav></li><li>OUTER NAV</li></ul></nav><p>After</p>` +
+        `<div role="navigation"><div>ROLE INNER</div>ROLE OUTER</div><p>Kept</p></body>`,
+    );
+    expect(out).toBe("After\nKept");
+  });
+
+  it("reads the body when the head is never closed", () => {
+    const out = extractPageText(
+      `<html><head><title>T</title><meta name="description" content="D"><body><p>Body text</p>`,
+    );
+    expect(out).toBe("Title: T\n\nDescription: D\n\nBody text");
+  });
+
+  it("takes the page title, never an icon's title inside svg", () => {
+    expect(
+      extractPageText(
+        `<head><title>Real</title></head><body><svg><title>Icon</title></svg></body>`,
+      ),
+    ).toBe("Title: Real");
+    expect(extractPageText(`<body><svg><title>Icon</title></svg><p>Hi</p></body>`)).toBe("Hi");
+  });
+
+  it("never ends the capped output with half a character", () => {
+    const out = extractPageText(`<body><p>${"\u{1F600}".repeat(20_000)}</p></body>`);
+    expect(out.length).toBeLessThanOrEqual(MAX_PAGE_TEXT);
+    const last = out.charCodeAt(out.length - 1);
+    expect(last >= 0xd800 && last <= 0xdbff).toBe(false);
+  });
+});
+
+describe("extractPageText on a crafted page", () => {
+  // A user's own page (up to fetchOwnSite's 2 MB) reaches this unchanged, so it must run in linear
+  // time: the first version took 27 seconds on 200 KB of "<a " and would have held a function for
+  // its whole limit at 2 MB. Synchronous code cannot be interrupted by a test timeout, so the pages
+  // are 512 KB: a quadratic regression fails here within minutes instead of hanging CI.
+  const SIZE = 512 * 1024;
+  it.each([
+    ["unclosed scripts", "<body>" + "<script>".repeat(SIZE / 8)],
+    ["tags that never close", "<body>" + "<script ".repeat(SIZE / 8)],
+    ["a bare < run", "<body>" + "<a ".repeat(SIZE / 3)],
+    ["unclosed role=navigation", "<body>" + "<div role=navigation>".repeat(SIZE / 21)],
+    ["unclosed comments", "<body>" + "<!--".repeat(SIZE / 4)],
+    ["unclosed titles", "<title " + "<title>".repeat(SIZE / 7)],
+    ["unterminated quotes", "<body>" + `<a title="x`.repeat(SIZE / 11)],
+    ["unclosed nav", "<body>" + "<nav>".repeat(SIZE / 5)],
+    ["unclosed heads", "<head>".repeat(SIZE / 6)],
+    ["entities", "<body>" + "&#x1F600;&amp".repeat(SIZE / 13)],
+    ["ordinary paragraphs", "<body>" + "<p>hello world</p>".repeat(SIZE / 18)],
+  ])("%s finish within 1.5 seconds", (_label, html) => {
+    const started = performance.now();
+    extractPageText(html);
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
 });
