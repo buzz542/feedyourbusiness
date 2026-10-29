@@ -329,7 +329,7 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
    something": inline edit of every field, add and remove terms (chips, max 40), add and remove
    competitors (name, optional domain, optional aliases, max 20), relevance threshold (default 60). "Not
    my product?" goes back to step 2 with the input kept and drafts again into the same product. Drafting
-   runs at most 5 times per product per UTC day (8.3). Subreddits the user adds go through the same
+   makes at most 6 model calls per product per UTC day, a retry included (8.3). Subreddits the user adds go through the same
    sensitive-community list as the draft's (2.3.7) before they are saved.
 5. **Confirm** is the one click on "Looks right" (or "Save and confirm" after edits). The product becomes
    `active` and the database stamps `confirmed_at`. Nothing is collected before this, and nothing is
@@ -968,8 +968,10 @@ schema, jsonSchema, maxTokens })`. `system` is a list of blocks; blocks marked `
 - No server tools in v1: no web search, web fetch, code execution, computer use, bash, text editor, memory,
   tool search or MCP. Every call is a plain request with our own input. A static scan of `src/`, `scripts/`
   and `eval/` fails on any tool `type` ending in an 8-digit date (`web_search_20260209` and the rest), on
-  `mcp_servers` and `mcp_toolset`, and on the Agent SDK tool names `WebSearch` and `WebFetch`;
-  `compliance:deps` refuses `@anthropic-ai/claude-agent-sdk`.
+  `mcp_servers` and `mcp_toolset`, on the Agent SDK tool names `WebSearch` and `WebFetch`, on any import
+  of `@anthropic-ai/claude-agent-sdk`, and on a `tools`, `tool_choice` or `container` property in any file
+  that imports the Anthropic SDK (part of `compliance:hosts`). Adding the Agent SDK to
+  `compliance/denylist.json` as well needs the founder (that file is a hard rule).
 - No collected content is used to train any model.
 
 ### 8.2 Classification (Haiku, batches of 20)
@@ -1056,8 +1058,13 @@ about people or with nothing about the product is never read, and that rule beat
 `customers`, `case-studies`, `stories`, `testimonials`, `reviews`, `wall-of-love`, `team`, `people`,
 `founders`, `careers`, `jobs`, `blog`, `press`, `community`, `forum`, `contact`, sign-in and account
 pages, and legal pages. The extra pages honor the site's `robots.txt` for our User-Agent and `*` (RFC
-9309: read once through `fetchOwnSite()`; a 4xx answer allows them; a 5xx, a timeout, a refused redirect or
-any other failure reads no extra pages). Fetch them one at a time.
+9309: the group whose token is exactly `AskedFor`, ignoring case, or else `*`; read once through
+`fetchOwnSite()`; a 4xx answer allows them; a 5xx, a timeout, a refused redirect or any other failure reads
+no extra pages). Extra pages come from the pasted page's own host only, since robots rules are per host,
+and a page that redirects to a disallowed path or a people path is thrown away. At most 5 attempts,
+failures included. If the pasted page itself is a people page (a blog post, the team page), the site's
+home page is read in its place. Fetch them one at a time, and start one only when a full 10 second
+fetch still fits in the 30 seconds.
 Extract visible text from each (title, meta description, headings, body; scripts, styles, navigation and
 footers removed) and join them with a header per page, at most 30,000 characters in all, the pasted page
 first. Nothing fetched is stored.
@@ -1065,7 +1072,8 @@ first. Nothing fetched is stored.
 **3. Draft** (`src/server/onboarding/draft.ts`, Sonnet, 45 seconds, task `draft`, JSON schema output).
 Input: the site text and the URL, or the description. The draft product row is created first (named from
 the host or the first words of the description), so the limit counts per product from the first run: at
-most 5 drafts per product per UTC day, checked before the call from `llm_usage`. The system prompt says:
+most 6 draft calls per product per UTC day, a retry included, checked before each call with
+`llm_usage_since()`. That bounds drafting at about $0.30 a day, well inside the product's monthly cap. The system prompt says:
 describe products and companies, never people; no names of founders, team members, customers or
 reviewers; competitor names and other names are products or companies only; competitors come from what
 the site says and from well-known products in the same category, never invented; never infer sensitive
@@ -1331,8 +1339,14 @@ Server actions rely on Next's origin check. Cookie-authenticated route handlers 
 
 The only other file allowed to open connections. It fetches one URL per call; the site reader (8.3) calls
 it for the pasted page, `robots.txt` and at most 5 more pages on the same site, one at a time, so one
-onboarding makes at most 7 requests to the user's site plus redirects. A URL whose path or query names a
-platform domain (a reader proxy or archive link) is refused whatever its host. So is a third-party host
+onboarding makes at most 7 requests to the user's site plus redirects (failed attempts count). A URL whose
+path or query embeds another URL or names a platform or third-party domain (a reader proxy or archive
+link), or whose host embeds a platform domain (`www.reddit.com.proxy.example`, `www-reddit-com.*`), is
+refused whatever its host, and so is any URL over 2,048 characters; checks fold Unicode lookalikes
+first. Only `fetchOwnSite()`, its factory, its error and pure helpers are exported: the transport, the
+resolver (with its own 3 second timeout, so a dead name server cannot hold threads) and the lookup stay
+private to the file, a test pins the export list, and the limits can only be tightened. Text parsing of
+fetched pages runs in linear time, with time-bounded tests on hostile input. So is a third-party host
 (`isThirdPartyHost()` in `src/server/net/third-party-hosts.ts`, every subdomain included): app stores and
 extension stores, package registries and code hosts (GitHub, GitLab, npm, PyPI and the like), review and
 listing sites (G2, Capterra, Trustpilot, AlternativeTo, AppSumo and the like), and publishing and profile
@@ -1342,8 +1356,10 @@ of other people's names. So is a profile path on any host (`/@name`, `/u/`, `/us
 the host and refuses loopback, private, link-local, CGNAT, multicast, reserved, IPv6 unique-local and
 link-local, and IPv4-mapped forms of them, on every connection including redirects (no DNS-rebinding gap).
 https and port 443 only, at most 3 redirects within the same host or its `www` twin, 10 second timeout,
-2 MB body cap, `text/html` or `text/plain` only, no cookies or credentials, and a descriptive User-Agent
-naming AskedFor with a contact link. It refuses any host for which
+2 MB body cap, `text/html` or `text/plain` only (checked before the body is read), no cookies or
+credentials, and the User-Agent `AskedFor/1.0 (+https://askedfor.app/bot; reads a product site a user
+pasted)`. Before launch `/bot` says what the reader does, its robots token (`AskedFor`) and a monitored
+contact email. It refuses any host for which
 `isPlatformHost()` in `src/server/net/platform-hosts.ts` is true (2.1.10): every platform domain and all its
 subdomains, API hosts included, because a user's product site is never one of them. The list covers at
 least `reddit.com`, `redd.it`, `redditmedia.com`, `x.com`, `twitter.com`, `t.co`, `linkedin.com`, `lnkd.in`,
