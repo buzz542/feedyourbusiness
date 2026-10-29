@@ -213,10 +213,13 @@ describe("products and search terms", () => {
   });
 
   it("a user can create a product they own, and it starts as a draft", async () => {
-    const row = await asBob(async () =>
+    // A fresh user: since the onboarding migration each owner has at most one product (D9).
+    const dana = "00000000-0000-4000-8000-0000000000d4";
+    await db.query("insert into auth.users (id, email) values ($1, 'dana@example.test')", [dana]);
+    const row = await withRole(db, "authenticated", dana, async () =>
       one<{ status: string }>(
-        "insert into public.products (owner_id, url, name) values ($1, 'https://bob2.example.test', 'Bob 2') returning status",
-        [BOB],
+        "insert into public.products (owner_id, url, name) values ($1, 'https://dana.example.test', 'Dana App') returning status",
+        [dana],
       ),
     );
     expect(row.status).toBe("draft");
@@ -238,18 +241,19 @@ describe("products and search terms", () => {
       asAlice(() =>
         db.query("update public.products set owner_id = $1 where id = $2", [BOB, ids.aliceProduct]),
       ),
-    ).rejects.toThrow(/row-level security/i);
+      // Since the onboarding migration owner_id is not even writable (column grants, 6.2).
+    ).rejects.toThrow(/row-level security|permission denied/i);
   });
 
   it("a user cannot update or delete another user's product", async () => {
     const upd = await asAlice(() =>
       db.query("update public.products set name = 'pwned' where id = $1", [ids.bobProduct]),
     );
-    const del = await asAlice(() =>
-      db.query("delete from public.products where id = $1", [ids.bobProduct]),
-    );
     expect(upd.affectedRows).toBe(0);
-    expect(del.affectedRows).toBe(0);
+    // Since the onboarding migration nobody deletes a product through the API (6.2).
+    await expect(
+      asAlice(() => db.query("delete from public.products where id = $1", [ids.bobProduct])),
+    ).rejects.toThrow(/permission denied/i);
   });
 
   it("refuses non-https product URLs", async () => {

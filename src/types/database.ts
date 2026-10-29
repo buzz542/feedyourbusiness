@@ -59,6 +59,47 @@ export type Database = {
         }
         Relationships: []
       }
+      competitors: {
+        Row: {
+          aliases: string[]
+          created_at: string
+          domain: string | null
+          id: string
+          name: string
+          name_key: string | null
+          origin: string
+          product_id: string
+        }
+        Insert: {
+          aliases?: string[]
+          created_at?: string
+          domain?: string | null
+          id?: string
+          name: string
+          name_key?: never
+          origin?: string
+          product_id: string
+        }
+        Update: {
+          aliases?: string[]
+          created_at?: string
+          domain?: string | null
+          id?: string
+          name?: string
+          name_key?: never
+          origin?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitors_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           at: string
@@ -82,6 +123,53 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      llm_usage: {
+        Row: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          cost_usd: number
+          created_at: string
+          id: number
+          input_tokens: number
+          model: string
+          output_tokens: number
+          product_id: string | null
+          task: string
+        }
+        Insert: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          cost_usd: number
+          created_at?: string
+          id?: never
+          input_tokens: number
+          model: string
+          output_tokens: number
+          product_id?: string | null
+          task: string
+        }
+        Update: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          id?: never
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          product_id?: string | null
+          task?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "llm_usage_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       posts: {
         Row: {
@@ -176,39 +264,48 @@ export type Database = {
       products: {
         Row: {
           audience: string | null
-          competitors: string[]
+          confirmed_at: string | null
           created_at: string
           description: string | null
           id: string
           name: string
+          one_liner: string | null
           owner_id: string
+          relevance_threshold: number
           status: string
+          subreddits: string[]
           updated_at: string
-          url: string
+          url: string | null
         }
         Insert: {
           audience?: string | null
-          competitors?: string[]
+          confirmed_at?: string | null
           created_at?: string
           description?: string | null
           id?: string
           name: string
+          one_liner?: string | null
           owner_id: string
+          relevance_threshold?: number
           status?: string
+          subreddits?: string[]
           updated_at?: string
-          url: string
+          url?: string | null
         }
         Update: {
           audience?: string | null
-          competitors?: string[]
+          confirmed_at?: string | null
           created_at?: string
           description?: string | null
           id?: string
           name?: string
+          one_liner?: string | null
           owner_id?: string
+          relevance_threshold?: number
           status?: string
+          subreddits?: string[]
           updated_at?: string
-          url?: string
+          url?: string | null
         }
         Relationships: []
       }
@@ -316,6 +413,7 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          intent: string
           product_id: string
           term: string
         }
@@ -323,6 +421,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
+          intent?: string
           product_id: string
           term: string
         }
@@ -330,6 +429,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
+          intent?: string
           product_id?: string
           term?: string
         }
