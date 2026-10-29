@@ -83,7 +83,10 @@ export function findNetworkPrimitives(
     });
 
   const checkModule = (node: ts.Node, specifier: string) => {
-    if (file === OWN_SITE_FILE && OWN_SITE_MODULES.has(specifier)) return;
+    // Only a plain import: a re-export would hand raw https to every file that imports own-site.ts.
+    const ownSiteImport =
+      file === OWN_SITE_FILE && ts.isImportDeclaration(node) && OWN_SITE_MODULES.has(specifier);
+    if (ownSiteImport) return;
     if (banned.has(moduleName(specifier))) {
       add(
         node,

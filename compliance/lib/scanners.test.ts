@@ -113,6 +113,10 @@ describe("network scanner", () => {
     ["dns/promises", `import dns from "node:dns/promises"`],
     ["child_process", `import { exec } from "node:child_process"`],
     ["undici", `import { request } from "undici"`],
+    ["a re-export of node:https", `export { request } from "node:https"`],
+    ["a star re-export of node:dns", `export * from "node:dns"`],
+    ["require of node:https", `const https = require("node:https")`],
+    ["a dynamic import of node:dns", `const dns = await import("node:dns")`],
   ])("still flags %s in fetchOwnSite's file", (_label, code) => {
     expect(rules(scan(code, OWN_SITE_FILE))).toContain("banned-network-module");
   });

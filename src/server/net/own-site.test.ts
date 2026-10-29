@@ -216,9 +216,34 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
     "https://www-reddit-com.translate.goog/r/x",
     "https://web.archive.org/web/2026/https://www.reddit.com/",
     "https://REDDIT.com./r/x",
+    "https://reddit.com../r/x",
   ])("refuses the platform URL %s", async (url) => {
     await refusedWithoutFetching(url, "platform_host");
   });
+
+  it.each([
+    "https://safereddit.com/r/x",
+    "https://redlib.anyhost.example/r/x",
+    "https://libreddit.anyhost.example/r/x",
+    "https://teddit.anyhost.example/r/x",
+    "https://nitter.privacydev.net/a/status/1",
+    "https://inv.nadeko.net/watch?v=a",
+    "https://invidious.anyhost.example/watch?v=a",
+    "https://piped.kavin.rocks/watch?v=a",
+    "https://pipedapi-libre.anyhost.example/streams/a",
+    "https://proxitok.anyhost.example/@a",
+    "https://www-reddit-com.proxy.example/r/x",
+    "https://news-ycombinator-com.proxy.example/item?id=1",
+  ])("refuses the platform front end or proxy %s", async (url) => {
+    await refusedWithoutFetching(url, "platform_host");
+  });
+
+  it.each(["https://acme..example/", "https://.acme.example/"])(
+    "refuses the empty host label in %s",
+    async (url) => {
+      await refusedWithoutFetching(url, "invalid_url");
+    },
+  );
 
   it("refuses every platform domain in platform-hosts.ts, and every subdomain of one", async () => {
     expect(PLATFORM_DOMAINS.length).toBeGreaterThan(40);
@@ -233,6 +258,7 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
       "https://reader.example/https://www.reddit.com/r/x",
       "https://reader.example/?url=https%3A%2F%2Fwww.reddit.com%2Fr%2Fx",
       "https://reader.example/?url=https%253A%252F%252Fx.com%252Fa",
+      "https://reader.example/?url=https%25253A%25252F%25252Freddit.com%25252Fr",
       "https://acme.example/read/x.com/a",
       "https://acme.example/?u=news.ycombinator.com",
     ]) {
@@ -253,6 +279,9 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
     ["a publishing site", "https://medium.com/@a"],
     ["a profile site", "https://mastodon.social/@a"],
     ["a link page", "https://linktr.ee/a"],
+    ["a listing site's country domain", "https://www.capterra.co.uk/p/1/a/"],
+    ["a listing site's country domain", "https://www.getapp.com.au/a"],
+    ["a store's country domain", "https://www.amazon.de/dp/a"],
   ])("refuses %s: %s", async (_label, url) => {
     await refusedWithoutFetching(url, "third_party_host");
   });
@@ -279,6 +308,8 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
     "https://acme.example/~a/",
     "https://acme.example/%40a",
     "https://acme.example/U/a",
+    "https://acme.example/u%2Fa",
+    "https://acme.example/%2540a",
   ])("refuses the profile path %s", async (url) => {
     await refusedWithoutFetching(url, "profile_path");
   });
@@ -297,10 +328,16 @@ describe("fetchOwnSite: allowed lookalikes", () => {
     "https://fox.com.example/",
     "https://acme.example/?q=reddit",
     "https://acme.example/compare/acmex.com",
+    // A maker's own site about a platform is not a platform front end.
     "https://notreddit.com/",
+    "https://redditlead.example/",
+    "https://twitter-tools.example/",
+    "https://acme.example/blog/nitter-alternatives",
+    "https://pipedrive.example/",
     "https://mygithub.com/",
     "https://acme.github.io/",
     "https://acme.vercel.app/",
+    "https://acme.s3.amazonaws.com/",
   ])("reads %s", async (url) => {
     const site = fakeSite({ [new URL(url).href]: html("ok") });
     expect((await createFetchOwnSite(site.options)(url)).status).toBe(200);
@@ -366,6 +403,12 @@ describe("fetchOwnSite: redirects", () => {
       "https://hn.algolia.com/api/v1/search?query=a",
       "https://www-reddit-com.translate.goog/r/x",
       "https://web.archive.org/web/2026/https://www.reddit.com/",
+      "https://safereddit.com/r/x",
+      "https://redlib.anyhost.example/r/x",
+      "https://nitter.privacydev.net/a/status/1",
+      "https://inv.nadeko.net/watch?v=a",
+      "https://piped.kavin.rocks/watch?v=a",
+      "https://www-reddit-com.proxy.example/r/x",
     ]) {
       const site = fakeSite({ "https://acme.example/": redirect(target, 302) });
       const code = await codeOf(createFetchOwnSite(site.options)("https://acme.example/"));
@@ -613,6 +656,10 @@ describe("platform and third-party host lists", () => {
       "discord.gg",
       "bsky.app",
       "bsky.social",
+      "api.bsky.chat",
+      "plc.directory",
+      "tiktokapis.com",
+      "youtube.googleapis.com",
       "ycombinator.com",
       "hn.algolia.com",
       "hacker-news.firebaseio.com",
@@ -660,7 +707,18 @@ describe("platform and third-party host lists", () => {
     }
   });
 
-  it("the wired fetchOwnSite refuses a platform without a lookup", async () => {
-    expect(await codeOf(fetchOwnSite("https://www.reddit.com/r/x"))).toBe("platform_host");
+  it("refuses a platform without a lookup or a connection", async () => {
+    const resolve = vi.fn<OwnSiteResolver>(async () => [{ address: PUBLIC, family: 4 }]);
+    const get = vi.fn<OwnSiteTransport["get"]>(async () => {
+      throw new Error("must not connect");
+    });
+    const read = createFetchOwnSite({ resolve, transport: { get } });
+    expect(await codeOf(read("https://www.reddit.com/r/x"))).toBe("platform_host");
+    expect(resolve).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("exports a wired instance", () => {
+    expect(typeof fetchOwnSite).toBe("function");
   });
 });

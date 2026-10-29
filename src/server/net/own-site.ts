@@ -2,7 +2,7 @@ import "server-only";
 import dns from "node:dns";
 import https from "node:https";
 import { isIpLiteral, isPublicAddress } from "./ip-address";
-import { isPlatformHost, namesPlatformDomain } from "./platform-hosts";
+import { isPlatformHost, namesPlatformDomain, normalizeHost } from "./platform-hosts";
 import { isProfilePath, isThirdPartyHost } from "./third-party-hosts";
 
 /**
@@ -133,8 +133,6 @@ export interface CreateFetchOwnSiteOptions {
   timeoutMs?: number;
 }
 
-const normalizeHost = (host: string): string => host.toLowerCase().replace(/\.$/, "");
-
 /** Checks one URL against every rule that needs no network. Returns the parsed URL. */
 export function checkOwnSiteUrl(input: string | URL): URL {
   let url: URL;
@@ -157,7 +155,7 @@ export function checkOwnSiteUrl(input: string | URL): URL {
     const code = isPublicAddress(host) ? "ip_literal" : "blocked_address";
     throw new OwnSiteError(code, host, "A site is read by its name, not an IP address");
   }
-  if (!host.includes(".")) {
+  if (!host.includes(".") || host.split(".").includes("")) {
     throw new OwnSiteError("invalid_url", host, "Not a public site name");
   }
   if (isPlatformHost(host)) {
@@ -260,7 +258,12 @@ function header(headers: OwnSiteTransportResponse["headers"], name: string): str
  * Bytes 0x80 to 0x9F in windows-1252 (which the Encoding Standard also uses for latin1 labels).
  * Node decodes that range as C1 control characters instead, so curly quotes would be lost.
  */
-const WINDOWS_1252_HIGH = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f" + "\u0090‘’“”•–—˜™š›œ\u009džŸ";
+const WINDOWS_1252_HIGH = String.fromCharCode(
+  ...[0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021],
+  ...[0x2c6, 0x2030, 0x160, 0x2039, 0x152, 0x8d, 0x17d, 0x8f],
+  ...[0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014],
+  ...[0x2dc, 0x2122, 0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178],
+);
 
 function decode(bytes: Uint8Array, charset: string | undefined): string {
   let decoder: TextDecoder;

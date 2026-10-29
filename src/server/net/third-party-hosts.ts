@@ -1,3 +1,5 @@
+import { decodeFully, normalizeHost } from "./platform-hosts";
+
 /**
  * Third-party hosts (docs/PLAN.md 4.3 and 12.3): sites that are someone else's, full of reviewers',
  * contributors' and posters' names, so fetchOwnSite() never reads them even when a user pastes
@@ -156,10 +158,24 @@ export const THIRD_PARTY_HOSTS = {
 
 const ALL: readonly string[] = Object.values(THIRD_PARTY_HOSTS).flat();
 
-/** True for a third-party host or any subdomain of one. */
+/**
+ * Brands that run the same site under many country domains (`capterra.co.uk`, `amazon.de`). Any
+ * host with one of these as a whole label is theirs.
+ */
+export const THIRD_PARTY_BRAND_LABELS: readonly string[] = [
+  "capterra",
+  "getapp",
+  "softwareadvice",
+  "trustpilot",
+  "amazon",
+  "etsy",
+];
+
+/** True for a third-party host, any subdomain of one, or any host carrying a brand label. */
 export function isThirdPartyHost(host: string): boolean {
-  const h = host.toLowerCase().replace(/\.$/, "");
-  return ALL.some((d) => h === d || h.endsWith(`.${d}`));
+  const h = normalizeHost(host);
+  if (ALL.some((d) => h === d || h.endsWith(`.${d}`))) return true;
+  return h.split(".").some((label) => THIRD_PARTY_BRAND_LABELS.includes(label));
 }
 
 /** Path segments that put a person's page under them: `/user/<name>`, `/in/<name>` and the rest. */
@@ -175,21 +191,14 @@ const PROFILE_SEGMENTS = new Set([
   "author",
 ]);
 
-function safeDecode(text: string): string {
-  try {
-    return decodeURIComponent(text);
-  } catch {
-    return text;
-  }
-}
-
 /**
  * True for a profile path on any host: a segment that starts with `@` or `~` (`/@name`, `/~name`),
  * or a profile segment followed by another segment (`/u/name`, `/en/user/name`). Whole segments
- * only, so `/users` and `/user-guide/start` are fine.
+ * only, so `/users` and `/user-guide/start` are fine. The path is decoded before it is split, so
+ * `/u%2Fname` is `/u/name`.
  */
 export function isProfilePath(pathname: string): boolean {
-  const segments = pathname.split("/").map((s) => safeDecode(s).toLowerCase());
+  const segments = decodeFully(pathname).toLowerCase().split("/");
   return segments.some((segment, i) => {
     if (/^[@~]./.test(segment)) return true;
     const next = segments[i + 1];

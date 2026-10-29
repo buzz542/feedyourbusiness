@@ -9,7 +9,7 @@ import {
   findUnexpectedHosts,
 } from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
-import { fetchOwnSite } from "@/server/net/own-site";
+import { createFetchOwnSite } from "@/server/net/own-site";
 import { PLATFORM_DOMAINS, PLATFORM_WEB_HOSTS } from "@/server/net/platform-hosts";
 import { SafeFetchError } from "@/server/net/safe-fetch";
 import { safeFetch } from "@/server/net";
@@ -117,10 +117,20 @@ describe("compliance:hosts (runtime)", () => {
   });
 
   it("fetchOwnSite() refuses every platform host and every platform web host, before any lookup", async () => {
+    // A resolver and transport that fail loudly, so a regression can never reach a live platform.
+    const resolve = vi.fn(async () => {
+      throw new Error("must not resolve");
+    });
+    const get = vi.fn(async () => {
+      throw new Error("must not connect");
+    });
+    const read = createFetchOwnSite({ resolve, transport: { get } });
     for (const host of [...PLATFORM_DOMAINS, ...PLATFORM_WEB_HOSTS]) {
-      await expect(fetchOwnSite(`https://${host}/`), host).rejects.toMatchObject({
+      await expect(read(`https://${host}/`), host).rejects.toMatchObject({
         code: "platform_host",
       });
     }
+    expect(resolve).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
   });
 });

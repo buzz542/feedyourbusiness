@@ -42,12 +42,15 @@ export const PLATFORM_DOMAINS: readonly string[] = [
   "tiktok.com",
   "tiktokcdn.com",
   "tiktokv.com",
+  "tiktokapis.com",
   // YouTube
   "youtube.com",
   "youtu.be",
   "youtube-nocookie.com",
   "ytimg.com",
   "googlevideo.com",
+  "youtube.googleapis.com",
+  "youtubei.googleapis.com",
   // Discord
   "discord.com",
   "discord.gg",
@@ -57,6 +60,8 @@ export const PLATFORM_DOMAINS: readonly string[] = [
   "bsky.app",
   "bsky.social",
   "bsky.network",
+  "bsky.chat",
+  "plc.directory",
   // Hacker News
   "ycombinator.com",
   "hn.algolia.com",
@@ -100,8 +105,10 @@ export const PLATFORM_DOMAINS: readonly string[] = [
   "pullpush.io",
   "pushshift.io",
   "photon-reddit.com",
+  "safereddit.com",
   "yewtu.be",
   "invidious.io",
+  "inv.nadeko.net",
   "piped.video",
   "picuki.com",
   "imginn.com",
@@ -109,6 +116,12 @@ export const PLATFORM_DOMAINS: readonly string[] = [
   "ddinstagram.com",
   "gramhir.com",
   "urlebird.com",
+  "fxbsky.app",
+  "skyview.social",
+  "clearsky.app",
+  "hckrnews.com",
+  "hackerweb.app",
+  "hnrss.org",
 ];
 
 /**
@@ -152,32 +165,62 @@ export const PLATFORM_WEB_HOSTS: readonly string[] = [
   "www.indiehackers.com",
 ];
 
-const normalize = (host: string): string => host.toLowerCase().replace(/\.$/, "");
+/** Lowercase, without trailing dots (`reddit.com..` is `reddit.com`). */
+export const normalizeHost = (host: string): string => host.toLowerCase().replace(/\.+$/, "");
 
-/** True for a platform domain or any subdomain of one. */
+/**
+ * Host labels of self-hosted front-end software that republishes platform posts (Nitter for X,
+ * Redlib, Libreddit and Teddit for Reddit, Invidious and Piped for YouTube, ProxiTok for TikTok).
+ * Instances run on anyone's domain, so the label is the signal: `nitter.example.net`,
+ * `redlib.example`, `piped.example`. Piped matches only as a whole label, so `pipedrive.com` is fine.
+ */
+const FRONT_END_LABEL =
+  /^(?:nitter|redlib|libreddit|teddit|invidious|proxitok)[a-z0-9-]*$|^(?:piped|pipedapi|pipedproxy)(?:-[a-z0-9-]+)?$/;
+
+/** A platform domain written into one host label, as proxies do: `www-reddit-com.<proxy>`. */
+const HYPHENATED_DOMAINS = PLATFORM_DOMAINS.map((d) => d.replaceAll(".", "-"));
+
+/**
+ * True for a platform domain or any subdomain of one, for a host with a front-end software label,
+ * and for a host with a label that spells a platform domain with hyphens.
+ */
 export function isPlatformHost(host: string): boolean {
-  const h = normalize(host);
-  return PLATFORM_DOMAINS.some((d) => h === d || h.endsWith(`.${d}`));
+  const h = normalizeHost(host);
+  if (PLATFORM_DOMAINS.some((d) => h === d || h.endsWith(`.${d}`))) return true;
+  return h
+    .split(".")
+    .some(
+      (label) =>
+        FRONT_END_LABEL.test(label) ||
+        HYPHENATED_DOMAINS.some((d) => label === d || label.endsWith(`-${d}`)),
+    );
 }
 
 const DOMAIN_CHAR = /[a-z0-9-]/;
 
-function safeDecode(text: string): string {
-  try {
-    return decodeURIComponent(text);
-  } catch {
-    return text;
+/** Percent-decodes until the text stops changing (at most 5 rounds), so nesting cannot hide. */
+export function decodeFully(text: string): string {
+  let current = text;
+  for (let round = 0; round < 5; round++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      return current;
+    }
+    if (next === current) return current;
+    current = next;
   }
+  return current;
 }
 
 /**
  * True when the path or query names a platform domain, as a reader proxy or an archive link does
- * (`/https://www.reddit.com/r/x`, `?url=x.com%2Fname`). Decoded twice to catch double encoding.
+ * (`/https://www.reddit.com/r/x`, `?url=x.com%2Fname`), however many times it is encoded.
  * A domain counts only as a whole name: `acmex.com` does not name `x.com`.
  */
 export function namesPlatformDomain(url: URL): boolean {
-  const raw = `${url.pathname}${url.search}`;
-  const text = safeDecode(safeDecode(raw)).toLowerCase();
+  const text = decodeFully(`${url.pathname}${url.search}`).toLowerCase();
   return PLATFORM_DOMAINS.some((domain) => {
     let from = 0;
     for (;;) {
