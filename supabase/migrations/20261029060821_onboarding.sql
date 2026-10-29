@@ -31,7 +31,8 @@
 --     locks the product row first, so parallel inserts cannot both pass the count, and a duplicate
 --     at the cap still does nothing instead of failing.
 --   * llm_usage records every model call with tokens and cost (8.1). Server only, and append-only
---     even for the service role, so a bug cannot reset a spend cap.
+--     even for the service role, so a bug cannot reset a spend cap. llm_usage_since() counts and
+--     sums it for the caps and the drafting limit.
 
 do $$
 begin
@@ -309,3 +310,104 @@ create policy llm_usage_deny_all on public.llm_usage
 -- Spend caps (8.1) and the drafting limit (8.3) sum by product and time, and globally by day.
 create index llm_usage_product_created_idx on public.llm_usage (product_id, created_at);
 create index llm_usage_created_idx on public.llm_usage (created_at);
+
+-- Calls and dollars since p_since, for one product or (p_product_id null) all of them, for one
+-- task or (p_task null) all of them. The spend caps (8.1) and the drafting limit (8.3) call it
+-- before every model call. Service role only.
+create function public.llm_usage_since(
+  p_product_id uuid,
+  p_since timestamptz,
+  p_task text default null
+)
+returns table (calls integer, cost_usd numeric)
+language sql
+stable
+set search_path = ''
+as $$
+  select count(*)::integer, coalesce(sum(u.cost_usd), 0)
+    from public.llm_usage u
+   where u.created_at >= p_since
+     and (p_product_id is null or u.product_id = p_product_id)
+     and (p_task is null or u.task = p_task)
+$$;
+
+revoke all on function public.llm_usage_since(uuid, timestamptz, text) from public, anon, authenticated;
+grant execute on function public.llm_usage_since(uuid, timestamptz, text) to service_role;
+
+-- The onboarding draft (8.3), written as the service role after the server has checked the session.
+-- start_product_draft makes or reuses the owner's one draft product before any model call, so the
+-- drafting limit counts from the first run; it refuses once the product is confirmed.
+create function public.start_product_draft(p_owner_id uuid, p_url text, p_name text)
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  existing public.products;
+begin
+  select * into existing from public.products where owner_id = p_owner_id for update;
+  if found then
+    if existing.status <> 'draft' then
+      raise exception 'the product is already confirmed' using errcode = 'check_violation';
+    end if;
+    update public.products set url = p_url, name = p_name where id = existing.id;
+    return existing.id;
+  end if;
+  insert into public.products (owner_id, url, name) values (p_owner_id, p_url, p_name)
+    returning id into existing.id;
+  return existing.id;
+end;
+$$;
+
+-- save_product_draft replaces a draft product's profile, search terms and competitors in one
+-- transaction. Every table constraint applies (labels, caps, subreddit names).
+create function public.save_product_draft(
+  p_product_id uuid,
+  p_owner_id uuid,
+  p_profile jsonb,
+  p_terms jsonb,
+  p_competitors jsonb
+)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  current_status text;
+begin
+  select status into current_status from public.products
+   where id = p_product_id and owner_id = p_owner_id
+   for update;
+  if not found then
+    raise exception 'no such product for this owner' using errcode = 'no_data_found';
+  end if;
+  if current_status <> 'draft' then
+    raise exception 'the product is already confirmed' using errcode = 'check_violation';
+  end if;
+
+  update public.products set
+    name = p_profile ->> 'name',
+    one_liner = p_profile ->> 'one_liner',
+    description = p_profile ->> 'description',
+    audience = p_profile ->> 'audience',
+    subreddits = coalesce(
+      (select array_agg(value) from jsonb_array_elements_text(p_profile -> 'subreddits')), '{}')
+  where id = p_product_id;
+
+  delete from public.search_terms where product_id = p_product_id;
+  insert into public.search_terms (product_id, term, intent)
+    select p_product_id, t.term, t.intent
+      from jsonb_to_recordset(p_terms) as t(term text, intent text);
+
+  delete from public.competitors where product_id = p_product_id;
+  insert into public.competitors (product_id, name, domain, aliases, origin)
+    select p_product_id, c.name, c.domain, coalesce(c.aliases, '{}'), 'draft'
+      from jsonb_to_recordset(p_competitors) as c(name text, domain text, aliases text[]);
+end;
+$$;
+
+revoke all on function public.start_product_draft(uuid, text, text) from public, anon, authenticated;
+revoke all on function public.save_product_draft(uuid, uuid, jsonb, jsonb, jsonb)
+  from public, anon, authenticated;
+grant execute on function public.start_product_draft(uuid, text, text) to service_role;
+grant execute on function public.save_product_draft(uuid, uuid, jsonb, jsonb, jsonb) to service_role;

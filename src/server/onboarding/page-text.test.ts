@@ -75,7 +75,7 @@ describe("extractPageText", () => {
   });
 
   it("never writes an em or en dash, so the draft cannot copy one into the profile", () => {
-    expect(text).not.toMatch(/[–—]/);
+    expect(text).not.toMatch(/[\u2013\u2014]/);
   });
 
   it("caps its output", () => {

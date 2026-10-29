@@ -640,6 +640,47 @@ describe("after the migration", () => {
       }
     });
 
+    it("llm_usage_since counts calls and dollars per product, per task and in all", async () => {
+      const a = await owner();
+      const b = await owner();
+      const at = `insert into public.llm_usage
+        (product_id, task, model, input_tokens, output_tokens, cost_usd, created_at)
+        values ($1, $2, 'claude-sonnet-5-5', 1, 1, $3, $4)`;
+      await asService(async () => {
+        await db.query(at, [a.product, "draft", 0.5, "2026-10-01T00:00:00Z"]);
+        await db.query(at, [a.product, "classify", 0.1, "2026-10-02T00:00:00Z"]);
+        await db.query(at, [a.product, "draft", 0.25, "2026-09-30T23:59:59Z"]);
+        await db.query(at, [b.product, "draft", 1, "2026-10-15T00:00:00Z"]);
+      });
+      const usage = (product: string | null, since: string, task: string | null = null) =>
+        asService(() =>
+          db.query<{ calls: number; usd: string }>(
+            "select calls, cost_usd::text as usd from public.llm_usage_since($1, $2, $3)",
+            [product, since, task],
+          ),
+        ).then((r) => ({ calls: r.rows[0]!.calls, usd: Number(r.rows[0]!.usd) }));
+      expect(await usage(a.product, "2026-10-01T00:00:00Z")).toEqual({ calls: 2, usd: 0.6 });
+      expect(await usage(a.product, "2026-10-01T00:00:00Z", "draft")).toEqual({
+        calls: 1,
+        usd: 0.5,
+      });
+      expect(await usage(a.product, "2026-09-01T00:00:00Z", "draft")).toEqual({
+        calls: 2,
+        usd: 0.75,
+      });
+      expect((await usage(null, "2026-10-01T00:00:00Z")).usd).toBeGreaterThanOrEqual(1.6);
+      expect(await usage(b.product, "2026-11-01T00:00:00Z")).toEqual({ calls: 0, usd: 0 });
+    });
+
+    it("llm_usage_since is for the service role only", async () => {
+      const { user } = await owner();
+      for (const run of [asAnon, <T>(fn: () => Promise<T>) => as(user, fn)]) {
+        await expect(
+          run(() => db.query("select * from public.llm_usage_since(null, now())")),
+        ).rejects.toThrow(/permission denied/);
+      }
+    });
+
     it("keeps the row when the product is deleted, without the product id", async () => {
       const { product } = await owner();
       await asService(() => db.query(insert, [product, "draft", 1, 0]));
@@ -655,6 +696,148 @@ describe("after the migration", () => {
         ),
       );
       expect(after.rows[0]!.n).toBe(before.rows[0]!.n + 1);
+    });
+  });
+
+  describe("the onboarding draft", () => {
+    const start = (ownerId: string, url: string | null, name: string) =>
+      asService(() =>
+        db.query<{ id: string }>("select public.start_product_draft($1, $2, $3) as id", [
+          ownerId,
+          url,
+          name,
+        ]),
+      ).then((r) => r.rows[0]!.id);
+    const save = (
+      productId: string,
+      ownerId: string,
+      profile: object,
+      terms: object[],
+      rivals: object[],
+    ) =>
+      asService(() =>
+        db.query("select public.save_product_draft($1, $2, $3, $4, $5)", [
+          productId,
+          ownerId,
+          JSON.stringify(profile),
+          JSON.stringify(terms),
+          JSON.stringify(rivals),
+        ]),
+      );
+    const newUser = async () => {
+      const id = newId();
+      await db.query("insert into auth.users (id) values ($1)", [id]);
+      return id;
+    };
+    const profile = {
+      name: "Acme",
+      one_liner: "Invoices from your phone",
+      description: "Acme turns receipts into invoices.",
+      audience: "Freelancers",
+      subreddits: ["freelance", "smallbusiness"],
+    };
+
+    it("starts one draft product per owner and reuses it", async () => {
+      const user = await newUser();
+      const first = await start(user, "https://acme.example/", "acme.example");
+      const again = await start(user, null, "Acme");
+      expect(again).toBe(first);
+      const { rows } = await db.query(
+        "select url, name, status from public.products where id = $1",
+        [first],
+      );
+      expect(rows).toEqual([{ url: null, name: "Acme", status: "draft" }]);
+    });
+
+    it("saves the profile, terms and competitors, replacing an earlier draft", async () => {
+      const user = await newUser();
+      const product = await start(user, "https://acme.example/", "acme.example");
+      await save(
+        product,
+        user,
+        profile,
+        [{ term: "old term", intent: "problem" }],
+        [{ name: "Old Rival", domain: null, aliases: [] }],
+      );
+      await save(
+        product,
+        user,
+        profile,
+        [
+          { term: "how do I send an invoice", intent: "problem" },
+          { term: "alternative to Rival", intent: "alternative" },
+        ],
+        [{ name: "Rival", domain: "rival.example", aliases: ["Rival App"] }],
+      );
+      const terms = await db.query(
+        "select term, intent from public.search_terms where product_id = $1 order by term",
+        [product],
+      );
+      expect(terms.rows).toEqual([
+        { term: "alternative to Rival", intent: "alternative" },
+        { term: "how do I send an invoice", intent: "problem" },
+      ]);
+      const rivals = await db.query(
+        "select name, domain, aliases, origin from public.competitors where product_id = $1",
+        [product],
+      );
+      expect(rivals.rows).toEqual([
+        { name: "Rival", domain: "rival.example", aliases: ["Rival App"], origin: "draft" },
+      ]);
+      const saved = await db.query(
+        "select name, one_liner, subreddits, status from public.products where id = $1",
+        [product],
+      );
+      expect(saved.rows).toEqual([
+        {
+          name: "Acme",
+          one_liner: "Invoices from your phone",
+          subreddits: ["freelance", "smallbusiness"],
+          status: "draft",
+        },
+      ]);
+    });
+
+    it("keeps every table rule: a handle in a competitor fails the whole save", async () => {
+      const user = await newUser();
+      const product = await start(user, null, "Acme");
+      await save(product, user, profile, [{ term: "invoice tool", intent: "category" }], []);
+      await expect(
+        save(
+          product,
+          user,
+          profile,
+          [{ term: "new term", intent: "problem" }],
+          [{ name: "@somebody", domain: null, aliases: [] }],
+        ),
+      ).rejects.toThrow(/competitors_name_check/);
+      const terms = await db.query("select term from public.search_terms where product_id = $1", [
+        product,
+      ]);
+      expect(terms.rows).toEqual([{ term: "invoice tool" }]);
+    });
+
+    it("refuses another owner's product and a confirmed one", async () => {
+      const user = await newUser();
+      const other = await newUser();
+      const product = await start(user, null, "Acme");
+      await expect(save(product, other, profile, [], [])).rejects.toThrow(/no such product/);
+      await db.query("update public.products set status = 'active' where id = $1", [product]);
+      await expect(save(product, user, profile, [], [])).rejects.toThrow(/already confirmed/);
+      await expect(start(user, null, "Acme again")).rejects.toThrow(/already confirmed/);
+    });
+
+    it.each([
+      "start_product_draft(uuid, text, text)",
+      "save_product_draft(uuid, uuid, jsonb, jsonb, jsonb)",
+    ])("%s is for the service role only", async (signature) => {
+      for (const role of ["anon", "authenticated"]) {
+        const { rows } = await db.query<{ ok: boolean }>(
+          `select has_function_privilege($1, 'public.${signature}', 'execute') as ok`,
+          [role],
+        );
+        expect(rows[0]!.ok, role).toBe(false);
+      }
     });
   });
 

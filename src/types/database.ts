@@ -559,6 +559,24 @@ export type Database = {
         Args: { p_event_id: string; p_type: string }
         Returns: string
       }
+      save_product_draft: {
+        Args: {
+          p_competitors: Json
+          p_owner_id: string
+          p_product_id: string
+          p_profile: Json
+          p_terms: Json
+        }
+        Returns: undefined
+      }
+      start_product_draft: {
+        Args: { p_name: string; p_owner_id: string; p_url: string | null }
+        Returns: string
+      }
+      llm_usage_since: {
+        Args: { p_product_id: string | null; p_since: string; p_task?: string | null }
+        Returns: { calls: number; cost_usd: number }[]
+      }
     }
     Enums: {
       [_ in never]: never

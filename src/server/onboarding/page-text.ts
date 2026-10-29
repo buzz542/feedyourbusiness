@@ -112,8 +112,8 @@ function decodeEntities(text: string): string {
       }
       return NAMED[code.toLowerCase()] ?? match;
     })
-    .replace(/[‒-―−]/g, "-")
-    .replace(/[  -​  　]/g, " ");
+    .replace(/[\u2012-\u2015\u2212]/g, "-")
+    .replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, " ");
 }
 
 const ATTRS = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
