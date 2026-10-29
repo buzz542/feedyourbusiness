@@ -256,3 +256,78 @@ export function findRemoteFonts(code: string, file: string): Finding[] {
   });
   return findings;
 }
+
+/**
+ * No server tools (docs/PLAN.md 8.1): every model call is a plain request with our own input, so
+ * nothing the model does can reach the web or run code for us. Reports any tool type with a date
+ * suffix (`web_search_20260209`, `code_execution_20260521` and the rest), MCP fields, the Agent
+ * SDK's web tools and the Agent SDK itself, and, in a file that imports the Anthropic SDK, any
+ * `tools`, `tool_choice` or `container` property.
+ */
+const SERVER_TOOL_TYPE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)*_\d{8}\b/;
+const SERVER_TOOL_NAMES = new Set(["mcp_servers", "mcp_toolset", "WebSearch", "WebFetch"]);
+const TOOL_PROPERTIES = new Set(["tools", "tool_choice", "container"]);
+const AGENT_SDK = "@anthropic-ai/claude-agent-sdk";
+
+export function findServerTools(code: string, file: string): Finding[] {
+  const sf = parse(code, file);
+  const findings: Finding[] = [];
+  const add = (node: ts.Node, detail: string) =>
+    findings.push({
+      file,
+      line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+      rule: "server-tool",
+      detail,
+    });
+
+  let importsSdk = false;
+  const specifiers = (node: ts.Node): string | null => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    )
+      return node.moduleSpecifier.text;
+    if (ts.isCallExpression(node)) {
+      const first = node.arguments[0];
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === "require";
+      const isDynamic = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      if ((isRequire || isDynamic) && first && ts.isStringLiteralLike(first)) return first.text;
+    }
+    return null;
+  };
+  const findImports = (node: ts.Node) => {
+    const spec = specifiers(node);
+    if (spec?.startsWith("@anthropic-ai/sdk")) importsSdk = true;
+    if (spec?.startsWith(AGENT_SDK))
+      add(node, `imports ${AGENT_SDK}; model calls go through src/server/llm`);
+    ts.forEachChild(node, findImports);
+  };
+  findImports(sf);
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isStringLiteralLike(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
+      const text = node.text;
+      if (SERVER_TOOL_TYPE.test(text))
+        add(node, `names a server tool type ("${text.slice(0, 40)}")`);
+      else if (SERVER_TOOL_NAMES.has(text)) add(node, `names "${text}"`);
+    } else if (ts.isIdentifier(node) && SERVER_TOOL_NAMES.has(node.text)) {
+      add(node, `names "${node.text}"`);
+    } else if (
+      importsSdk &&
+      (ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) &&
+      (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) &&
+      TOOL_PROPERTIES.has(node.name.text)
+    ) {
+      add(node, `passes "${node.name.text}" to the model`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return findings;
+}

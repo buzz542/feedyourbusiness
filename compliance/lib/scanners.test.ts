@@ -19,6 +19,7 @@ import { findBlockedPackages, lockfileName } from "./scan-deps";
 import {
   FETCH_WRAPPER_FILE,
   findNetworkPrimitives,
+  findServerTools,
   findRemoteFonts,
   findUnexpectedHosts,
   moduleName,
@@ -33,6 +34,56 @@ import { findSchemaViolations, parseAddedColumns, parseCreateTables } from "./sc
 
 const deny = loadDenylist();
 const rules = (findings: { rule: string }[]) => findings.map((f) => f.rule);
+
+describe("server tool scanner (docs/PLAN.md 8.1)", () => {
+  const scan = (code: string, file = "src/server/llm/x.ts") =>
+    findServerTools(code, file).map((f) => f.rule);
+
+  it.each([
+    ["web search", `const tool = { type: "web_search_20260209", name: "web_search" }`],
+    ["web fetch", `const t = "web_fetch_20260209"`],
+    ["code execution", `tools.push({ type: "code_execution_20260521" })`],
+    ["computer use", `const kit = "computer_toolset_20260801"`],
+    ["bash", `const b = { type: "bash_20250124", name: "bash" }`],
+    ["memory", `const m = "memory_20250818"`],
+    ["tool search", `const s = "tool_search_tool_regex_20251119"`],
+    ["a template literal", "const t = `web_search_${'20260209'}`; const u = `x_20260209`"],
+    ["MCP servers", `const params = { mcp_servers: [] }`],
+    ["an MCP toolset", `const t = { type: "mcp_toolset" }`],
+    ["the Agent SDK web tools", `const allowed = ["WebSearch", "WebFetch"]`],
+    ["the Agent SDK", `import { query } from "@anthropic-ai/claude-agent-sdk"`],
+    ["the Agent SDK, dynamically", `const sdk = await import("@anthropic-ai/claude-agent-sdk")`],
+  ])("flags %s", (_label, code) => {
+    expect(scan(code)).toContain("server-tool");
+  });
+
+  it.each([
+    ["tools", `import Anthropic from "@anthropic-ai/sdk"; sdk.messages.create({ tools: [] })`],
+    [
+      "tool_choice",
+      `import A from "@anthropic-ai/sdk"; const p = { tool_choice: { type: "auto" } }`,
+    ],
+    ["container", `import A from "@anthropic-ai/sdk/helpers/zod"; const p = { container: "c" }`],
+    ["a shorthand", `import A from "@anthropic-ai/sdk"; const tools = []; send({ tools })`],
+  ])("flags %s in a file that imports the Anthropic SDK", (_label, code) => {
+    expect(scan(code)).toContain("server-tool");
+  });
+
+  it("stays quiet about ordinary code", () => {
+    expect(
+      scan(`
+        import Anthropic from "@anthropic-ai/sdk";
+        const migration = "20261029060821_onboarding.sql";
+        const day = "2026-10-29";
+        const beta = "server-side-fallback-2026-07-01";
+        const params = { model: "claude-sonnet-5-5", max_tokens: 10, system: [], messages: [] };
+      `),
+    ).toEqual([]);
+    expect(scan(`const ui = { tools: ["a"], container: "main" }`, "src/components/x.tsx")).toEqual(
+      [],
+    );
+  });
+});
 
 describe("network scanner", () => {
   const scan = (code: string, file = "src/x.ts") =>

@@ -4,6 +4,7 @@ import { loadDenylist } from "../../compliance/lib/denylist.mjs";
 import { formatFindings, isTestFile, walk } from "../../compliance/lib/finding";
 import {
   findNetworkPrimitives,
+  findServerTools,
   findRemoteFonts,
   findUnexpectedHosts,
 } from "../../compliance/lib/scan-network";
@@ -46,6 +47,15 @@ describe("compliance:hosts (static)", () => {
     const findings = files.flatMap((file) =>
       findNetworkPrimitives(readFileSync(file, "utf8"), file, deny.networkModules),
     );
+    expect(formatFindings(findings)).toBe("");
+  });
+
+  it("no model call uses a server tool, an MCP server or the Agent SDK (8.1)", () => {
+    const llmFiles = ["src", "scripts", "eval", "emails"]
+      .flatMap((root) => walk(root))
+      .filter((f) => /\.(ts|tsx|mts|js|mjs)$/.test(f) && !isTestFile(f));
+    expect(llmFiles).toContain("src/server/llm/anthropic-client.ts");
+    const findings = llmFiles.flatMap((file) => findServerTools(readFileSync(file, "utf8"), file));
     expect(formatFindings(findings)).toBe("");
   });
 
