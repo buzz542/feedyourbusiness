@@ -13,6 +13,14 @@ import type { Finding } from "./finding";
 /** The single file allowed to reference the global fetch: it is the wrapper itself. */
 export const FETCH_WRAPPER_FILE = "src/server/net/safe-fetch.ts";
 
+/**
+ * The single file allowed to open its own connections: the fetch of the user's own site, which
+ * resolves every address itself to refuse private ones (docs/PLAN.md 12.3). It may import these
+ * modules and nothing else from the banned list, and may not re-export them.
+ */
+export const OWN_SITE_FILE = "src/server/net/own-site.ts";
+export const OWN_SITE_MODULES: ReadonlySet<string> = new Set(["https", "dns"]);
+
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self", "global"]);
 const NETWORK_CONSTRUCTORS = new Set([
   "XMLHttpRequest",
@@ -75,8 +83,13 @@ export function findNetworkPrimitives(
       detail,
     });
 
-  const checkModule = (node: ts.Node, specifier: string) => {
-    if (banned.has(moduleName(specifier))) {
+  const isOwnSite = file === OWN_SITE_FILE;
+
+  const checkModule = (node: ts.Node, specifier: string, reexport = false) => {
+    const name = moduleName(specifier);
+    // The exception covers importing the modules, never handing them on to other files.
+    if (isOwnSite && !reexport && OWN_SITE_MODULES.has(name)) return;
+    if (banned.has(name)) {
       add(
         node,
         "banned-network-module",
@@ -93,7 +106,7 @@ export function findNetworkPrimitives(
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      checkModule(node, node.moduleSpecifier.text);
+      checkModule(node, node.moduleSpecifier.text, true);
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference)

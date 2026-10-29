@@ -63,6 +63,53 @@ describe("network scanner", () => {
     expect(rules(scan(code))).toContain("banned-network-module");
   });
 
+  describe("the own-site exception (docs/PLAN.md 12.3)", () => {
+    const OWN_SITE = "src/server/net/own-site.ts";
+
+    it.each([
+      ["node:https", `import https from "node:https"`],
+      ["node:dns", `import { promises as dns } from "node:dns"`],
+      ["https without the prefix", `import { request } from "https"`],
+      ["dns/promises", `import { lookup } from "node:dns/promises"`],
+    ])("lets own-site.ts import %s", (_label, code) => {
+      expect(rules(scan(code, OWN_SITE))).toEqual([]);
+    });
+
+    it.each([
+      ["node:http", `import http from "node:http"`],
+      ["node:net", `import net from "node:net"`],
+      ["node:tls", `import tls from "node:tls"`],
+      ["undici", `import { request } from "undici"`],
+    ])("still flags %s in own-site.ts", (_label, code) => {
+      expect(rules(scan(code, OWN_SITE))).toContain("banned-network-module");
+    });
+
+    it.each([
+      ["export *", `export * from "node:https"`],
+      ["a named re-export", `export { request } from "node:https"`],
+      ["dns", `export { lookup } from "node:dns"`],
+    ])("flags a re-export from own-site.ts: %s", (_label, code) => {
+      expect(rules(scan(code, OWN_SITE))).toContain("banned-network-module");
+    });
+
+    it("still flags the global fetch in own-site.ts", () => {
+      expect(rules(scan(`await fetch("https://x.example")`, OWN_SITE))).toContain("global-fetch");
+    });
+
+    it.each([
+      "src/server/net/safe-fetch.ts",
+      "src/server/net/own-site.test.ts",
+      "src/server/onboarding/site-reader.ts",
+      "src/server/net/own-site.tsx",
+      "lib/src/server/net/own-site.ts",
+    ])("flags node:https and node:dns anywhere else (%s)", (file) => {
+      expect(rules(scan(`import https from "node:https"`, file))).toContain(
+        "banned-network-module",
+      );
+      expect(rules(scan(`import dns from "node:dns"`, file))).toContain("banned-network-module");
+    });
+  });
+
   it.each(["WebSocket", "XMLHttpRequest", "EventSource"])("flags new %s()", (ctor) => {
     expect(rules(scan(`const s = new ${ctor}("wss://x.example")`))).toContain("raw-network-api");
   });

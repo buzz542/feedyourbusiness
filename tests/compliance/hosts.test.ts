@@ -8,6 +8,8 @@ import {
   findUnexpectedHosts,
 } from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
+import { createOwnSiteFetch, OwnSiteError } from "@/server/net/own-site";
+import { PLATFORM_DOMAINS, PLATFORM_WEB_HOSTS } from "@/server/net/platform-hosts";
 import { SafeFetchError } from "@/server/net/safe-fetch";
 import { safeFetch } from "@/server/net";
 import { allowedHosts, declaredHosts, sources } from "@/sources/registry";
@@ -107,18 +109,59 @@ describe("compliance:hosts (runtime)", () => {
     const NEVER =
       /reddit|redd\.it|linkedin|facebook|instagram|tiktok|threads|youtube|discord|producthunt/i;
     // Web hosts of platforms we collect through an API: links point there, requests never do.
-    const PLATFORM_WEB_HOSTS = new Set([
-      "x.com",
-      "www.x.com",
-      "twitter.com",
-      "www.twitter.com",
-      "mobile.twitter.com",
-      "bsky.app",
-      "news.ycombinator.com",
-      "indiehackers.com",
-      "www.indiehackers.com",
-    ]);
+    const webHosts = new Set(PLATFORM_WEB_HOSTS);
     const hosts = [...allowedHosts(everythingOn), ...sources.flatMap((s) => s.allowedHosts)];
-    expect(hosts.filter((h) => NEVER.test(h) || PLATFORM_WEB_HOSTS.has(h))).toEqual([]);
+    expect(hosts.filter((h) => NEVER.test(h) || webHosts.has(h))).toEqual([]);
+  });
+
+  it("the user's-site fetch refuses every platform domain and subdomain without resolving it", async () => {
+    // docs/PLAN.md 2.1.10: fetchOwnSite() never becomes a way to reach a platform.
+    const resolve = vi.fn(async () => [{ address: "93.184.216.34", family: 4 as const }]);
+    const transport = vi.fn(async () => ({ status: 200, headers: {}, body: "" }));
+    const fetchOwnSite = createOwnSiteFetch({ resolve, transport });
+    // The minimum list in docs/PLAN.md 12.3, pinned here so shrinking the module's list fails.
+    const PLAN_MINIMUM = [
+      "reddit.com",
+      "redd.it",
+      "redditmedia.com",
+      "x.com",
+      "twitter.com",
+      "t.co",
+      "linkedin.com",
+      "lnkd.in",
+      "facebook.com",
+      "fb.com",
+      "fb.me",
+      "instagram.com",
+      "threads.net",
+      "threads.com",
+      "tiktok.com",
+      "youtube.com",
+      "youtu.be",
+      "discord.com",
+      "discord.gg",
+      "bsky.app",
+      "bsky.social",
+      "ycombinator.com",
+      "hn.algolia.com",
+      "hacker-news.firebaseio.com",
+      "producthunt.com",
+      "indiehackers.com",
+      "translate.goog",
+      "web.archive.org",
+      "archive.org",
+      "archive.ph",
+      "archive.today",
+      "webcache.googleusercontent.com",
+    ];
+    for (const domain of [...PLAN_MINIMUM, ...PLATFORM_DOMAINS]) {
+      for (const url of [`https://${domain}/`, `https://www.${domain}/a`]) {
+        const error = await fetchOwnSite(url).catch((e: unknown) => e);
+        expect(error, url).toBeInstanceOf(OwnSiteError);
+        expect((error as OwnSiteError).code, url).toBe("platform_host");
+      }
+    }
+    expect(resolve).not.toHaveBeenCalled();
+    expect(transport).not.toHaveBeenCalled();
   });
 });
