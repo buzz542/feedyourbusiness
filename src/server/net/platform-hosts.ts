@@ -71,7 +71,6 @@ export const PLATFORM_DOMAINS: readonly string[] = [
   "indiehackers.com",
   // Proxies, readers and caches that would reach a platform page indirectly
   "translate.goog",
-  "translate.google.com",
   "webcache.googleusercontent.com",
   "archive.org",
   "archive.ph",
@@ -198,20 +197,46 @@ export function isPlatformHost(host: string): boolean {
 
 const DOMAIN_CHAR = /[a-z0-9-]/;
 
-/** Percent-decodes until the text stops changing (at most 5 rounds), so nesting cannot hide. */
+/** Decodes one run of `%XX` escapes: as UTF-8 when it is valid, byte by byte otherwise. */
+function decodeRun(run: string): string {
+  try {
+    return decodeURIComponent(run);
+  } catch {
+    return run.replace(/%([0-9a-f]{2})/gi, (_, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    );
+  }
+}
+
+/**
+ * Percent-decodes until the text stops changing (at most 5 rounds), so nesting cannot hide, then
+ * folds compatibility forms (NFKC: fullwidth letters and dots) and ideographic full stops to ASCII.
+ * Each run of escapes is decoded on its own, so one malformed `%` cannot switch decoding off.
+ */
 export function decodeFully(text: string): string {
   let current = text;
   for (let round = 0; round < 5; round++) {
-    let next: string;
-    try {
-      next = decodeURIComponent(current);
-    } catch {
-      return current;
-    }
-    if (next === current) return current;
+    const next = current.replace(/(?:%[0-9a-f]{2})+/gi, decodeRun);
+    if (next === current) break;
     current = next;
   }
-  return current;
+  return current.normalize("NFKC").replace(/[。．｡]/g, ".");
+}
+
+/**
+ * True for a path shaped like a platform's own pages, as a front-end copy on an unlisted domain
+ * serves them: a subreddit or thread (`/r/<name>`, `/comments/<id>`), an X post
+ * (`/<name>/status/<id>`), a YouTube video (`/watch?v=`, `/shorts/<id>`).
+ */
+export function hasPlatformShapedPath(url: URL): boolean {
+  const path = decodeFully(url.pathname).toLowerCase();
+  return (
+    /^\/r\/[a-z0-9_]{2,21}(\/|$)/.test(path) ||
+    /\/comments\/[a-z0-9]{5,}(\/|$)/.test(path) ||
+    /\/status(?:es)?\/\d{5,}(\/|$)/.test(path) ||
+    /^\/shorts\/[a-z0-9_-]{6,}(\/|$)/.test(path) ||
+    (path === "/watch" && url.searchParams.has("v"))
+  );
 }
 
 /**

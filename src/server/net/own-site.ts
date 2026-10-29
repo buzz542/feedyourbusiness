@@ -2,7 +2,12 @@ import "server-only";
 import dns from "node:dns";
 import https from "node:https";
 import { isIpLiteral, isPublicAddress } from "./ip-address";
-import { isPlatformHost, namesPlatformDomain, normalizeHost } from "./platform-hosts";
+import {
+  hasPlatformShapedPath,
+  isPlatformHost,
+  namesPlatformDomain,
+  normalizeHost,
+} from "./platform-hosts";
 import { isProfilePath, isThirdPartyHost } from "./third-party-hosts";
 
 /**
@@ -118,7 +123,7 @@ export interface OwnSiteTransportResponse {
   status: number;
   headers: Readonly<Record<string, string | string[] | undefined>>;
   body: AsyncIterable<Uint8Array>;
-  /** Stop reading and close the connection. */
+  /** Stop reading and close the connection. A pending read must then end or reject. */
   close(): void;
 }
 
@@ -164,7 +169,7 @@ export function checkOwnSiteUrl(input: string | URL): URL {
   if (isThirdPartyHost(host)) {
     throw new OwnSiteError("third_party_host", host, "Third-party sites are never fetched");
   }
-  if (namesPlatformDomain(url)) {
+  if (namesPlatformDomain(url) || hasPlatformShapedPath(url)) {
     throw new OwnSiteError("names_platform", host, "A URL that names a platform is never fetched");
   }
   if (isProfilePath(url.pathname)) {
@@ -216,9 +221,20 @@ export function createOwnSiteLookup(resolve: OwnSiteResolver): OwnSiteLookup {
   };
 }
 
+/**
+ * DNS queries through c-ares with their own timeout. Unlike getaddrinfo (`dns.lookup`), they hold
+ * no thread-pool slot, so a site whose nameservers never answer cannot stall the instance.
+ */
 const systemResolve: OwnSiteResolver = async (hostname) => {
-  const found = await dns.promises.lookup(hostname, { all: true });
-  return found.map(({ address, family }) => ({ address, family }));
+  const resolver = new dns.promises.Resolver({ timeout: 2_000, tries: 2 });
+  const [v4, v6] = await Promise.allSettled([
+    resolver.resolve4(hostname),
+    resolver.resolve6(hostname),
+  ]);
+  return [
+    ...(v4.status === "fulfilled" ? v4.value.map((address) => ({ address, family: 4 })) : []),
+    ...(v6.status === "fulfilled" ? v6.value.map((address) => ({ address, family: 6 })) : []),
+  ];
 };
 
 const httpsTransport: OwnSiteTransport = {
@@ -264,6 +280,17 @@ const WINDOWS_1252_HIGH = String.fromCharCode(
   ...[0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014],
   ...[0x2dc, 0x2122, 0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178],
 );
+
+/** The charset by the HTML rules, simplified: a byte order mark, the header, then `<meta>`. */
+function charsetOf(bytes: Uint8Array, contentType: string): string | undefined {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return "utf-8";
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+  const declared = /;\s*charset\s*=\s*"?([^";\s]+)/i.exec(contentType)?.[1];
+  if (declared) return declared;
+  const head = String.fromCharCode(...bytes.subarray(0, 1024));
+  return /<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_.:-]+)/i.exec(head)?.[1];
+}
 
 function decode(bytes: Uint8Array, charset: string | undefined): string {
   let decoder: TextDecoder;
@@ -319,6 +346,12 @@ export function createFetchOwnSite(options: CreateFetchOwnSiteOptions = {}) {
         throw failure(error);
       }
 
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        response.close();
+      };
       try {
         const location = header(response.headers, "location");
         if (REDIRECT_STATUSES.has(response.status) && location) {
@@ -357,17 +390,18 @@ export function createFetchOwnSite(options: CreateFetchOwnSiteOptions = {}) {
           throw new OwnSiteError("body_too_large", host, "The page is too large");
         }
 
+        // Closing the response ends a pending read, so the deadline needs one listener, not a
+        // race per chunk.
+        signal.addEventListener("abort", close, { once: true });
+        if (signal.aborted) throw new OwnSiteError("timeout", host, "The site took too long");
         const chunks: Uint8Array[] = [];
         let total = 0;
-        const iterator = response.body[Symbol.asyncIterator]();
-        for (;;) {
-          const next = await Promise.race([iterator.next(), aborted]);
-          if (next.done) break;
-          total += next.value.byteLength;
+        for await (const chunk of response.body) {
+          total += chunk.byteLength;
           if (total > OWN_SITE_MAX_BYTES) {
             throw new OwnSiteError("body_too_large", host, "The page is too large");
           }
-          chunks.push(next.value);
+          chunks.push(chunk);
         }
         const bytes = new Uint8Array(total);
         let offset = 0;
@@ -375,17 +409,17 @@ export function createFetchOwnSite(options: CreateFetchOwnSiteOptions = {}) {
           bytes.set(chunk, offset);
           offset += chunk.byteLength;
         }
-        const charset = /;\s*charset\s*=\s*"?([^";\s]+)/i.exec(contentType)?.[1];
         return {
           status: response.status,
           url: url.href,
           contentType: mediaType,
-          text: decode(bytes, charset),
+          text: decode(bytes, charsetOf(bytes, contentType)),
         };
       } catch (error) {
         throw failure(error);
       } finally {
-        response.close();
+        signal.removeEventListener("abort", close);
+        close();
       }
     }
   };

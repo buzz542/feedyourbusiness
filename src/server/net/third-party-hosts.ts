@@ -5,8 +5,8 @@ import { decodeFully, normalizeHost } from "./platform-hosts";
  * contributors' and posters' names, so fetchOwnSite() never reads them even when a user pastes
  * one. A host matches when it is one of these or any subdomain of one.
  *
- * Site hosting services (github.io, vercel.app, netlify.app, pages.dev and the like) are not on
- * this list: they serve the user's own site.
+ * Site and blog hosting services (github.io, vercel.app, netlify.app, pages.dev, wordpress.com,
+ * blogspot.com, ghost.io and the like) are not on this list: they serve the user's own site.
  */
 
 export const THIRD_PARTY_HOSTS = {
@@ -92,14 +92,23 @@ export const THIRD_PARTY_HOSTS = {
     "futurepedia.io",
     "toolify.ai",
   ],
+  /** Search engines and aggregators: their result pages are other people's posts and names. */
+  search: [
+    "google.com",
+    "bing.com",
+    "duckduckgo.com",
+    "search.yahoo.com",
+    "yandex.com",
+    "baidu.com",
+    "search.brave.com",
+    "ecosia.org",
+    "startpage.com",
+  ],
   /** Publishing, forum, link-page and profile sites. */
   publishing: [
     "medium.com",
     "substack.com",
-    "ghost.io",
-    "wordpress.com",
     "blogger.com",
-    "blogspot.com",
     "tumblr.com",
     "dev.to",
     "hashnode.com",
@@ -159,8 +168,8 @@ export const THIRD_PARTY_HOSTS = {
 const ALL: readonly string[] = Object.values(THIRD_PARTY_HOSTS).flat();
 
 /**
- * Brands that run the same site under many country domains (`capterra.co.uk`, `amazon.de`). Any
- * host with one of these as a whole label is theirs.
+ * Brands that run the same site under many country domains (`capterra.co.uk`, `amazon.de`,
+ * `google.co.uk`). Any host with one of these as a whole label is theirs.
  */
 export const THIRD_PARTY_BRAND_LABELS: readonly string[] = [
   "capterra",
@@ -169,6 +178,13 @@ export const THIRD_PARTY_BRAND_LABELS: readonly string[] = [
   "trustpilot",
   "amazon",
   "etsy",
+  "yelp",
+  "glassdoor",
+  "google",
+  "bing",
+  "duckduckgo",
+  "yandex",
+  "baidu",
 ];
 
 /** True for a third-party host, any subdomain of one, or any host carrying a brand label. */

@@ -40,9 +40,11 @@ function fakeSite(
   const connectedTo: string[] = [];
   const closed: string[] = [];
   const headersSent: Record<string, string>[] = [];
+  const stats = { chunksRead: 0 };
+  const resolveSpy = vi.fn(resolve);
 
   const transport: OwnSiteTransport = {
-    async get({ url, headers, lookup, signal }) {
+    async get({ url, headers, lookup }) {
       const addresses = await new Promise<{ address: string; family: number }[]>((ok, fail) =>
         lookup(url.hostname, { all: true }, (error, result) =>
           error ? fail(error) : ok(result as { address: string; family: number }[]),
@@ -52,15 +54,24 @@ function fakeSite(
       served.push(url.href);
       headersSent.push({ ...headers });
       const route = routes[url.href];
-      if (!route) return response(url.href, { status: 404, body: "not found" }, signal, closed);
+      if (!route) return response(url.href, { status: 404, body: "not found" }, closed, stats);
       if (route.hang === "headers") return new Promise(() => {});
-      return response(url.href, route, signal, closed);
+      return response(url.href, route, closed, stats);
     },
   };
-  return { options: { transport, resolve }, served, connectedTo, closed, headersSent };
+  return {
+    options: { transport, resolve: resolveSpy },
+    resolve: resolveSpy,
+    served,
+    connectedTo,
+    closed,
+    headersSent,
+    stats,
+  };
 }
 
-function response(href: string, route: Route, signal: AbortSignal, closed: string[]) {
+/** A response whose pending read ends only when close() is called, as a destroyed socket's does. */
+function response(href: string, route: Route, closed: string[], stats: { chunksRead: number }) {
   const chunks =
     route.body === undefined
       ? []
@@ -69,16 +80,26 @@ function response(href: string, route: Route, signal: AbortSignal, closed: strin
         : route.body instanceof Uint8Array
           ? [route.body]
           : route.body;
+  let onClose = () => {};
+  const closedSignal = new Promise<never>((_, fail) => {
+    onClose = () => fail(new Error("closed"));
+  });
+  closedSignal.catch(() => undefined);
   async function* body() {
-    for (const chunk of chunks) yield chunk;
-    if (route.hang === "body")
-      await new Promise((_, fail) => signal.addEventListener("abort", fail));
+    for (const chunk of chunks) {
+      stats.chunksRead++;
+      yield chunk;
+    }
+    if (route.hang === "body") await closedSignal;
   }
   return {
     status: route.status ?? 200,
     headers: { "content-type": "text/html; charset=utf-8", ...route.headers },
     body: body(),
-    close: () => closed.push(href),
+    close: () => {
+      closed.push(href);
+      onClose();
+    },
   };
 }
 
@@ -149,6 +170,32 @@ describe("fetchOwnSite: the user's own site", () => {
     expect(page.text).toBe("“hi”");
   });
 
+  it("finds the charset in a <meta> tag when the header names none", async () => {
+    const page = new Uint8Array([
+      ...new TextEncoder().encode('<html><head><meta charset="windows-1252"></head><body>'),
+      0x93,
+      0x68,
+      0x69,
+      0x94,
+    ]);
+    const site = fakeSite({
+      "https://acme.example/": { headers: { "content-type": "text/html" }, body: page },
+    });
+    const result = await createFetchOwnSite(site.options)("https://acme.example/");
+    expect(result.text).toContain("\u201chi\u201d");
+  });
+
+  it("lets a byte order mark decide the charset, and drops the mark", async () => {
+    const site = fakeSite({
+      "https://acme.example/": {
+        headers: { "content-type": "text/html; charset=windows-1252" },
+        body: new Uint8Array([0xef, 0xbb, 0xbf, 0xe2, 0x80, 0x9c, 0x68, 0x69]),
+      },
+    });
+    const result = await createFetchOwnSite(site.options)("https://acme.example/");
+    expect(result.text).toBe("\u201chi");
+  });
+
   it("returns a non-2xx status without reading the body", async () => {
     const site = fakeSite({
       "https://acme.example/robots.txt": { status: 404, body: "x".repeat(10) },
@@ -169,7 +216,8 @@ describe("fetchOwnSite: the user's own site", () => {
 describe("fetchOwnSite: refused before anything is fetched", () => {
   const refusedWithoutFetching = async (url: string, code: string) => {
     const site = fakeSite({});
-    expect(await codeOf(createFetchOwnSite(site.options)(url))).toBe(code);
+    expect(await codeOf(createFetchOwnSite(site.options)(url)), url).toBe(code);
+    expect(site.resolve).not.toHaveBeenCalled();
     expect(site.served).toEqual([]);
   };
 
@@ -217,6 +265,8 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
     "https://web.archive.org/web/2026/https://www.reddit.com/",
     "https://REDDIT.com./r/x",
     "https://reddit.com../r/x",
+    "https://reddit.com.../r/x",
+    "https://www.reddit.com.../",
   ])("refuses the platform URL %s", async (url) => {
     await refusedWithoutFetching(url, "platform_host");
   });
@@ -259,6 +309,10 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
       "https://reader.example/?url=https%3A%2F%2Fwww.reddit.com%2Fr%2Fx",
       "https://reader.example/?url=https%253A%252F%252Fx.com%252Fa",
       "https://reader.example/?url=https%25253A%25252F%25252Freddit.com%25252Fr",
+      "https://reader.example/?x=%&u=https://www.reddit%2Ecom/r/x",
+      "https://reader.example/?u=reddit%EF%BC%8Ecom",
+      "https://reader.example/?u=reddit\u3002com",
+      "https://reader.example/?u=\uff52\uff45\uff44\uff44\uff49\uff54.com",
       "https://acme.example/read/x.com/a",
       "https://acme.example/?u=news.ycombinator.com",
     ]) {
@@ -267,6 +321,17 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
     for (const domain of PLATFORM_DOMAINS) {
       await refusedWithoutFetching(`https://acme.example/?u=${domain}`, "names_platform");
     }
+  });
+
+  it.each([
+    "https://frontend.example/r/SaaS",
+    "https://frontend.example/r/saas/comments/abc123/a_post",
+    "https://frontend.example/someone/status/1234567890",
+    "https://frontend.example/watch?v=a1b2c3",
+    "https://frontend.example/shorts/a1b2c3d4",
+    "https://frontend.example/%72/saas",
+  ])("refuses the platform-shaped path %s on any host", async (url) => {
+    await refusedWithoutFetching(url, "names_platform");
   });
 
   it.each([
@@ -282,6 +347,12 @@ describe("fetchOwnSite: refused before anything is fetched", () => {
     ["a listing site's country domain", "https://www.capterra.co.uk/p/1/a/"],
     ["a listing site's country domain", "https://www.getapp.com.au/a"],
     ["a store's country domain", "https://www.amazon.de/dp/a"],
+    ["a code host with trailing dots", "https://github.com.../a/b"],
+    ["a search engine", "https://www.google.com/search?q=invoicing+reddit"],
+    ["a search engine's country domain", "https://www.google.co.uk/search?q=a"],
+    ["a search engine", "https://duckduckgo.com/?q=a"],
+    ["a review site's country domain", "https://www.yelp.co.uk/biz/a"],
+    ["a jobs site's country domain", "https://www.glassdoor.co.uk/a"],
   ])("refuses %s: %s", async (_label, url) => {
     await refusedWithoutFetching(url, "third_party_host");
   });
@@ -338,6 +409,15 @@ describe("fetchOwnSite: allowed lookalikes", () => {
     "https://acme.github.io/",
     "https://acme.vercel.app/",
     "https://acme.s3.amazonaws.com/",
+    "https://acme.wordpress.com/",
+    "https://acme.blogspot.com/",
+    "https://acme.ghost.io/",
+    "https://acme.example/resources",
+    "https://acme.example/r",
+    "https://acme.example/status",
+    "https://acme.example/status/ok",
+    "https://acme.example/watchlist?v=2",
+    "https://acme.example/blog/comments",
   ])("reads %s", async (url) => {
     const site = fakeSite({ [new URL(url).href]: html("ok") });
     expect((await createFetchOwnSite(site.options)(url)).status).toBe(200);
@@ -409,10 +489,28 @@ describe("fetchOwnSite: redirects", () => {
       "https://inv.nadeko.net/watch?v=a",
       "https://piped.kavin.rocks/watch?v=a",
       "https://www-reddit-com.proxy.example/r/x",
+      "https://reddit.com.../r/x",
     ]) {
       const site = fakeSite({ "https://acme.example/": redirect(target, 302) });
       const code = await codeOf(createFetchOwnSite(site.options)("https://acme.example/"));
       expect(code, target).toBe("platform_host");
+      expect(site.served).toEqual(["https://acme.example/"]);
+    }
+  });
+
+  it("refuses every platform domain and every third-party host as a redirect target", async () => {
+    const targets = [
+      ...PLATFORM_DOMAINS.map((d) => [`https://${d}/`, "platform_host"]),
+      ...Object.values(THIRD_PARTY_HOSTS)
+        .flat()
+        .map((h) => [`https://${h}/`, "third_party_host"]),
+      ["https://github.com.../a/b", "third_party_host"],
+    ];
+    for (const [target = "", code] of targets) {
+      const site = fakeSite({ "https://acme.example/": redirect(target, 302) });
+      expect(await codeOf(createFetchOwnSite(site.options)("https://acme.example/")), target).toBe(
+        code,
+      );
       expect(site.served).toEqual(["https://acme.example/"]);
     }
   });
@@ -586,6 +684,8 @@ describe("fetchOwnSite: what it will read", () => {
       "body_too_large",
     );
     expect(site.closed).toEqual(["https://acme.example/"]);
+    // 8 chunks fit in 2 MB; the 9th crosses the cap and nothing after it is read.
+    expect(site.stats.chunksRead).toBe(9);
   });
 
   it("reads a body of exactly the cap", async () => {
