@@ -6,6 +6,14 @@ it to the build session is the founder's approval of decisions D1 to D12. It sup
 `docs/PRD.md` wherever they disagree; both stay in the repo as history. The task list
 with checkboxes and acceptance tests is `docs/TASKS.md`, which follows this plan milestone by milestone.
 
+Changed since the handoff: on 29 Oct 2026 the founder said onboarding should be "paste the web link or
+whatever and then we research everything the business does ourselves", as the lead feeds do (D3), instead
+of reading one page and handing the user a form to fill in. Onboarding now reads up to 6 pages of the
+user's own site, drafts everything, and asks for one click. Sections 3.2, 4.2, 4.3, 4.7, 6.2, 8.1, 8.3, 8.5,
+12.3, 12.9, 14, 17, 18 and 19, milestone M2 and the Reddit box in M3 in `docs/TASKS.md` carry that change.
+Sections 1 and 2 are unchanged: nothing searches the web, and `fetchOwnSite()` still reaches only the
+user's own site, now refusing store, review and profile sites too.
+
 Who to reply to today. What your rivals get wrong. What to build next.
 
 ---
@@ -221,19 +229,19 @@ Never edit a migration that is already applied. Add new ones.
 
 ### 3.2 Alter
 
-| What             | Change                                                                                                                                            | Milestone |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `posts`          | Sources gain `reddit` and `x`; per-source retention check (D4); `community` column; inserts only through `ingest_post`                            | M3        |
-| `product_posts`  | Rival columns, highlight offsets, matched term; new indexes                                                                                       | M4        |
-| `products`       | `competitors text[]` becomes the `competitors` table; add `one_liner`, `subreddits`, `confirmed_at`, `relevance_threshold`; one product per owner | M2        |
-| `profiles`       | `is_admin`, email preferences, `terms_accepted_at`, `service_consent_at`                                                                          | M1, M8    |
-| `themes`         | `kind` and `theme_key` for trends                                                                                                                 | M7        |
-| Source contract  | `access`, `retentionDays`, two-phase `start` and `poll` for vendor runs                                                                           | M3        |
-| `vercel.json`    | Pipeline crons; the Pro schedule once the founder upgrades (D6)                                                                                   | M3        |
-| Copy gate        | Also scans app UI for em dashes, hype words, UK spellings and competitor names (not the numbers rule)                                             | M1        |
-| Hosts gate       | Allows `node:https` and `node:dns` in exactly one more file, `src/server/net/own-site.ts`                                                         | M2        |
-| Home page        | Becomes the landing page (section 9.6)                                                                                                            | M9        |
-| `docs/claims.md` | Rows for every claim and number on the landing, pricing and sources pages                                                                         | M8, M9    |
+| What             | Change                                                                                                                                                                                                                                         | Milestone |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `posts`          | Sources gain `reddit` and `x`; per-source retention check (D4); `community` column; inserts only through `ingest_post`                                                                                                                         | M3        |
+| `product_posts`  | Rival columns, highlight offsets, matched term; new indexes                                                                                                                                                                                    | M4        |
+| `products`       | `competitors text[]` becomes the `competitors` table; add `one_liner`, `subreddits`, `confirmed_at` (stamped by the database), `relevance_threshold`; `url` may be null (no website yet); one product per owner, which the owner cannot delete | M2        |
+| `profiles`       | `is_admin`, email preferences, `terms_accepted_at`, `service_consent_at`                                                                                                                                                                       | M1, M8    |
+| `themes`         | `kind` and `theme_key` for trends                                                                                                                                                                                                              | M7        |
+| Source contract  | `access`, `retentionDays`, two-phase `start` and `poll` for vendor runs                                                                                                                                                                        | M3        |
+| `vercel.json`    | Pipeline crons; the Pro schedule once the founder upgrades (D6)                                                                                                                                                                                | M3        |
+| Copy gate        | Also scans app UI for em dashes, hype words, UK spellings and competitor names (not the numbers rule)                                                                                                                                          | M1        |
+| Hosts gate       | Allows `node:https` and `node:dns` in exactly one more file, `src/server/net/own-site.ts`                                                                                                                                                      | M2        |
+| Home page        | Becomes the landing page (section 9.6)                                                                                                                                                                                                         | M9        |
+| `docs/claims.md` | Rows for every claim and number on the landing, pricing and sources pages                                                                                                                                                                      | M8, M9    |
 
 Already altered on 14 Oct 2026 for route C: `CLAUDE.md`, `.claude/rules/*`, the compliance reviewer, the
 registry test (Reddit can now be collected, never fetched directly), the Reddit link source renamed to
@@ -273,7 +281,7 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
 | `/login`                                            | public    | Magic link and Google sign-in, 18+ and terms confirmation                    |
 | `/auth/callback`                                    | public    | Route handler: exchanges the auth code, then redirects to a safe `next` path |
 | `/app`                                              | signed in | Redirects to the right step: onboarding, billing or Reply                    |
-| `/app/onboarding`                                   | signed in | URL, draft review, confirm                                                   |
+| `/app/onboarding`                                   | signed in | Paste a link, we read the site and draft everything, one-click confirm       |
 | `/app/billing`                                      | signed in | Start the trial: price, renewal, cancellation, consent, then Stripe Checkout |
 | `/app/reply`                                        | entitled  | Reply tab                                                                    |
 | `/app/rivals`                                       | entitled  | Rivals tab                                                                   |
@@ -293,15 +301,40 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
 
 1. **Sign in** with a magic link or Google. First sign-in asks for two confirmations on one screen: "I am
    18 or older" and "I agree to the Terms and the Acceptable use policy" (stored as `terms_accepted_at`).
-2. **Paste your product URL.** `fetchOwnSite()` fetches it once (section 12.3). If the fetch fails, the user
-   can paste a description instead.
-3. **Draft** (Sonnet, section 8.3) within 2 minutes: name, one-line summary, description, audience, up to 8
-   competitors (name and domain), 20 to 30 search terms with an intent label, and up to 10 suggested
-   subreddits (used for search links and to steer Reddit terms). A progress state shows what is happening.
-4. **Review and edit** every field: inline edit, add and remove terms (chips, max 40), add and remove
-   competitors (name, optional domain, optional aliases), relevance threshold (default 60).
-5. **Confirm.** The product becomes `active` with `confirmed_at`. Nothing is collected before this, and
-   nothing is collected until the account is entitled.
+2. **Paste one thing.** One box: "Paste your website." Under it, for people without one: "No website yet?
+   Describe your product in a sentence or two." The user types nothing else: no keywords, no competitors,
+   no communities. A link on a platform host (2.1.10: Reddit, X, LinkedIn, Product Hunt and the rest), on
+   a store, registry, review or profile site (App Store, Google Play, GitHub, npm, G2, Capterra, Trustpilot,
+   Medium, Mastodon and the like, 12.3), a profile path on any site (`/@name`, `/u/`, `/user/`,
+   `/profile/`, `/in/`, `/people/`), an email address or a handle (`@name`, `u/name`) is refused without
+   being fetched, with the line "We can only read your own website. Paste it, or describe your product in
+   a sentence or two." Those are someone else's site, full of reviewers', contributors' and posters'
+   names, so we never fetch them. `fetchOwnSite()` itself enforces this, so every path that reads a site
+   (onboarding, "Read my site again", the preview) does too.
+3. **We read the business** (section 8.3) in under a minute, at most 2, with a progress state that names
+   each step as it runs: "Reading your site", "Figuring out who it's for", "Writing your search terms".
+   - The site reader fetches the pasted page and up to 5 more pages on the same site that say what the
+     product does (pricing, features, how it works, use cases, comparisons, FAQ, docs, about), each through
+     `fetchOwnSite()` (section 12.3).
+   - The draft (Sonnet, 8.3) turns that text into: name, one-line summary, description, audience, up to 8
+     competitors (name, domain, other names), 20 to 30 search terms with an intent label, and up to 10
+     suggested subreddits (used for search links and to steer Reddit terms). Competitors come from what
+     the site says (comparison and "alternative to" pages) and from what the model knows about the
+     category.
+   - If the site cannot be read (it blocks us, times out, or is not HTML), the user is asked for a
+     sentence or two instead, and the draft runs on that.
+4. **"Here's what we found."** One screen in plain words: what the product does and for whom, the
+   competitors as chips with their other names, the first 8 search terms with a count of the rest, and the
+   communities. The primary button is "Looks right". Editing is optional and folded away under "Change
+   something": inline edit of every field, add and remove terms (chips, max 40), add and remove
+   competitors (name, optional domain, optional aliases, max 20), relevance threshold (default 60). "Not
+   my product?" goes back to step 2 with the input kept and drafts again into the same product. Drafting
+   runs at most 5 times per product per UTC day (8.3). Subreddits the user adds go through the same
+   sensitive-community list as the draft's (2.3.7) before they are saved.
+5. **Confirm** is the one click on "Looks right" (or "Save and confirm" after edits). The product becomes
+   `active` and the database stamps `confirmed_at`. Nothing is collected before this, and nothing is
+   collected until the account is entitled. The click stays: a wrong guess would spend the first day's
+   vendor budget on the wrong posts.
 6. **Start the trial** at `/app/billing`, then Stripe Checkout. On return, the first run starts at once
    (section 7.3) and the Reply tab shows a progress state until it finishes; an email says when it is ready.
 
@@ -358,7 +391,9 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
   Cancel subscription (one click opens the confirm step, the second click cancels at period end), Resume,
   Update card (Stripe portal).
 - **Email:** daily posts email on or off, Monday digest on or off.
-- **Product:** name, one-liner, description, audience, URL, relevance threshold, pause collection.
+- **Product:** name, one-liner, description, audience, URL, relevance threshold, pause collection, and
+  "Read my site again" (reruns 8.3 and offers the new terms and competitors to add, never replacing the
+  user's own edits without asking).
 - **Search terms:** list with per-term stats for the last 7 days (fetched, relevant), add, pause, remove.
 - **Competitors:** name, domain, aliases; add and remove.
 - **Sources:** per-product toggles for each enabled collect source.
@@ -495,33 +530,60 @@ Test: a user cannot set `is_admin` or any billing column on their own row; can s
 ### 6.2 M2 `onboarding` (competitors table, product fields, model usage)
 
 ```sql
+-- Stop if any owner already has two products (D9); production has none.
+-- Label checks live in the `private` schema, which the API does not expose (writers get USAGE and
+-- EXECUTE because check constraints run as the writing role).
+create function private.are_product_labels(p_labels text[], p_max integer) returns boolean ...;
+  -- every label 1 to p_max characters, trimmed, no control or invisible characters, no
+  -- case-insensitive duplicates, and no handle (@name, u/name, fullwidth forms too), email, URL,
+  -- www address, profile link without a scheme (x.com/name, linkedin.com/in/name, user/name) or
+  -- Bluesky handle (name.bsky.social)
+create function private.are_subreddit_names(p_names text[]) returns boolean ...;
+  -- every entry ^[A-Za-z0-9_]{2,21}$, none starting with u_ (a profile, 2.3.7), no duplicates
+
 create table public.competitors (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references public.products (id) on delete cascade,
-  name text not null check (char_length(name) between 1 and 80),
-  domain text check (domain is null or (domain ~ '^[a-z0-9-]+(\.[a-z0-9-]+)+$' and char_length(domain) <= 253)),
-  aliases text[] not null default '{}' check (cardinality(aliases) <= 10),
+  name text not null check (private.are_product_labels(array[name], 80)),
+  name_key text generated always as (lower(name)) stored,
+  domain text check (domain is null or (domain ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,63}|xn--[a-z0-9-]{1,59})$'
+    and char_length(domain) <= 253 and domain !~ '(^|\.)bsky\.social$')),
+  aliases text[] not null default '{}' check (cardinality(aliases) <= 10
+    and private.are_product_labels(aliases, 80)),
   origin text not null default 'user' check (origin in ('user', 'draft', 'discovered')),
   created_at timestamptz not null default now(),
-  unique (product_id, name)
+  constraint competitors_product_name_key unique (product_id, name_key)
 );
--- Move existing values, then drop the array (production has no products yet; verify the count first).
-insert into public.competitors (product_id, name, origin)
-  select p.id, c.name, 'user' from public.products p, unnest(p.competitors) as c(name)
-  on conflict do nothing;
+-- Move existing values (trimmed, first spelling wins), count them, stop if any would be lost or a
+-- product would have more than 20, then drop the array.
 alter table public.products drop column competitors;
 
 alter table public.products
   add column one_liner text check (char_length(one_liner) <= 160),
-  add column subreddits text[] not null default '{}' check (cardinality(subreddits) <= 10),
-  add column confirmed_at timestamptz,
+  add column subreddits text[] not null default '{}' check (cardinality(subreddits) <= 10
+    and private.are_subreddit_names(subreddits)),
+  add column confirmed_at timestamptz,          -- stamped by a trigger; see below
   add column relevance_threshold smallint not null default 60 check (relevance_threshold between 40 and 95);
+-- Products confirmed by hand before this migration get confirmed_at = updated_at first.
+alter table public.products add constraint products_confirmed_iff_not_draft
+  check ((status = 'draft') = (confirmed_at is null));
+alter table public.products alter column url drop not null;   -- no website yet (4.3)
 create unique index products_one_per_owner on public.products (owner_id);  -- D9
+-- The owner writes the profile and its status, nothing else, and never deletes the product.
+revoke insert, update, delete on public.products from authenticated;
+grant insert (owner_id, url, name, description, audience, one_liner, subreddits, relevance_threshold,
+  status) on public.products to authenticated;
+grant update (url, name, description, audience, one_liner, subreddits, relevance_threshold, status)
+  on public.products to authenticated;
 
 alter table public.search_terms
   add column intent text not null default 'problem'
     check (intent in ('problem', 'category', 'alternative', 'competitor')),
-  add column paused boolean not null default false;
+  add constraint search_terms_term_is_a_phrase check (private.are_product_labels(array[term], 120));
+-- search_terms.active is the pause switch (false = paused).
+-- Triggers: at most 20 competitors and 40 search terms per product. They lock the product row
+-- first, and a duplicate at the cap is left to the unique constraint, so `on conflict do nothing`
+-- still does nothing.
 
 create table public.llm_usage (
   id bigint generated always as identity primary key,
@@ -533,12 +595,27 @@ create table public.llm_usage (
   cost_usd numeric(10, 6) not null,
   created_at timestamptz not null default now()
 );
+-- Append-only: the service role may select and insert, nothing else, so no bug resets a cap.
 ```
+
+The database refuses handles, email addresses, URLs and profile links in competitor names, aliases and
+search terms, and `u_` profiles in subreddits, whoever writes them: a person's handle tracked as a rival
+or searched for every day would profile them (2.2, 4.5). Competitor domains are labels for the Rivals
+tab; nothing fetches them, and any future fetch of one goes through `fetchOwnSite()`. `confirmed_at` is
+stamped by the database the first time the product leaves `draft`, kept afterwards, and not writable by
+the owner; a confirmed product cannot go back to draft. The owner cannot delete the product, so the
+drafting limit (8.3), the spend caps (8.1) and the budgets (6.3) never reset by deleting and recreating
+it; "Not my product?" drafts again into the same row, and account deletion (service role) still
+cascades. Names are unique per product ignoring case through `name_key`, so writers insert with
+`on conflict (product_id, name_key) do nothing` (supabase-js: `upsert` with `onConflict:
+"product_id,name_key"` and `ignoreDuplicates`).
 
 RLS for `competitors`: owner (through `products.owner_id`) can select, insert, update `(name, domain,
 aliases)` and delete; mirror the `search_terms` policies. `llm_usage` (needed by the onboarding draft) is
 deny-all for API roles. Test: another user's competitors are invisible and unwritable; a second product for
-the same owner is refused; `llm_usage` is invisible to anon and authenticated.
+the same owner is refused; the owner cannot delete the product; `llm_usage` is invisible to anon and
+authenticated and append-only for the service role; a product without a URL is accepted and an `http://`
+URL is still refused; every limit is tested on both sides.
 
 ### 6.3 M3 `collection` (posts, jobs, budgets, ingest, purge)
 
@@ -888,6 +965,11 @@ schema, jsonSchema, maxTokens })`. `system` is a list of blocks; blocks marked `
   draft and the weekly synthesis. Prices recorded 6 Oct 2026, per million tokens: Haiku 5.5 $0.10 input,
   $0.50 output; Sonnet 5.5 $2 input, $10 output. Re-check Anthropic's pricing page before M2 and update
   `PRICES` and section 18.
+- No server tools in v1: no web search, web fetch, code execution, computer use, bash, text editor, memory,
+  tool search or MCP. Every call is a plain request with our own input. A static scan of `src/`, `scripts/`
+  and `eval/` fails on any tool `type` ending in an 8-digit date (`web_search_20260209` and the rest), on
+  `mcp_servers` and `mcp_toolset`, and on the Agent SDK tool names `WebSearch` and `WebFetch`;
+  `compliance:deps` refuses `@anthropic-ai/claude-agent-sdk`.
 - No collected content is used to train any model.
 
 ### 8.2 Classification (Haiku, batches of 20)
@@ -951,10 +1033,43 @@ Guard test: no property name in any model schema contains health, medical, relig
 gender, race, ethnic, age, disab, pregnan, union, crime, nationality or immigration, and every system
 prompt contains the never-infer rule.
 
-### 8.3 Onboarding draft (Sonnet)
+### 8.3 Onboarding: read the site, then draft (Sonnet)
 
-Input: the visible text of the user's page (title, meta description, headings, body; scripts, styles and
-navigation removed; at most 30,000 characters) and the URL.
+The user pastes one thing (4.3). Three steps, all server-side, under a minute in the usual case and never
+more than 2. Nothing searches the web: the draft works from the user's own site, or their own words, plus
+what the model already knows.
+
+**1. Classify the input** (`src/server/onboarding/input.ts`, no model). An `https://` or bare-domain
+link becomes a URL with its query and fragment dropped; `http://` is upgraded to `https://` once. A
+platform host (`isPlatformHost()`, 2.1.10), a third-party host (`isThirdPartyHost()`, 12.3: stores,
+registries, review sites, publishing and profile sites), a profile path on any host, or text with a handle
+(`@name`, `u/name`) is refused before anything is fetched. An email address is refused with the
+same message (we do not guess a site from it). Text that is not a link, 20 to 1,000 characters, is a
+description.
+
+**2. Read the site** (`src/server/onboarding/site-reader.ts`, 30 seconds). Fetch the pasted page with
+`fetchOwnSite()`. From its same-site links (the same host or its `www` twin; never another host, so a link
+to the product's X or LinkedIn page is ignored), pick up to 5 more whose path matches, in order,
+`pricing`, `features`, `product`, `how-it-works`, `use-cases`, `solutions`, `alternative`, `vs`,
+`compare`, `faq`, `docs`, `integrations`, `about` (matched as whole path words). A path with any word
+about people or with nothing about the product is never read, and that rule beats the list above:
+`customers`, `case-studies`, `stories`, `testimonials`, `reviews`, `wall-of-love`, `team`, `people`,
+`founders`, `careers`, `jobs`, `blog`, `press`, `community`, `forum`, `contact`, sign-in and account
+pages, and legal pages. The extra pages honor the site's `robots.txt` for our User-Agent and `*` (RFC
+9309: read once through `fetchOwnSite()`; a 4xx answer allows them; a 5xx, a timeout, a refused redirect or
+any other failure reads no extra pages). Fetch them one at a time.
+Extract visible text from each (title, meta description, headings, body; scripts, styles, navigation and
+footers removed) and join them with a header per page, at most 30,000 characters in all, the pasted page
+first. Nothing fetched is stored.
+
+**3. Draft** (`src/server/onboarding/draft.ts`, Sonnet, 45 seconds, task `draft`, JSON schema output).
+Input: the site text and the URL, or the description. The draft product row is created first (named from
+the host or the first words of the description), so the limit counts per product from the first run: at
+most 5 drafts per product per UTC day, checked before the call from `llm_usage`. The system prompt says:
+describe products and companies, never people; no names of founders, team members, customers or
+reviewers; competitor names and other names are products or companies only; competitors come from what
+the site says and from well-known products in the same category, never invented; never infer sensitive
+traits (8.2).
 
 ```ts
 const Draft = z.object({
@@ -963,7 +1078,13 @@ const Draft = z.object({
   description: z.string().max(2000),
   audience: z.string().max(1000),
   competitors: z
-    .array(z.object({ name: z.string().min(1).max(80), domain: z.string().max(253).nullable() }))
+    .array(
+      z.object({
+        name: z.string().min(1).max(80),
+        domain: z.string().max(253).nullable(),
+        aliases: z.array(z.string().min(1).max(80)).max(10),
+      }),
+    )
     .max(8),
   terms: z
     .array(
@@ -979,8 +1100,15 @@ const Draft = z.object({
 ```
 
 Terms are phrases people actually write ("looking for a tool to", "how do I", "alternative to <rival>"),
-not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist. Suggested subreddits are
-filtered through the sensitive-community list (2.3.7) after the model answers.
+not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist. After the call:
+suggested subreddits on the sensitive-community list (2.3.7) or starting with `u_` (a user's profile,
+case-insensitive) are dropped; a competitor `domain` on a platform host is dropped (the competitor stays);
+in every text field (name, one-liner, description, audience, terms, competitor names and aliases) a value
+containing a handle (`@name`, `u/name`), an email address or a URL is rejected: a term, alias or
+competitor is dropped, and a sentence in a longer field is removed; competitors with the same lowercase
+name are merged. The draft is saved into the `draft` product with its terms and competitors (`origin =
+'draft'`); no job is created while it is a draft. If the site could not be read and there is no
+description, the user is asked for one; the model is not called on nothing.
 
 ### 8.4 Weekly synthesis (Sonnet)
 
@@ -1047,7 +1175,9 @@ item); reject handles (`@name`, `u/name`). Opportunities save as themes of kind 
 
 ### 8.5 Preview (Haiku)
 
-A lighter draft (name, one-liner, 8 terms), Hacker News and Bluesky only, last 7 days, classified with the
+A lighter draft (name, one-liner, 8 terms) from the pasted page alone, with no extra pages (8.3), read
+through `fetchOwnSite()`, so platform, third-party and profile links are refused there too.
+Hacker News and Bluesky only, last 7 days, classified with the
 schema above, top 5 kept, plus one starter theme (`{ title, summary }`, same quote and handle checks). No
 Reddit or X in the preview: they cost money per record. The URL must not be a platform host (2.1.10).
 Results pass the same filters as ingest before they are shown or stored: relevance 40 or more, suppressed
@@ -1199,19 +1329,31 @@ Server actions rely on Next's origin check. Cookie-authenticated route handlers 
 
 ### 12.3 `fetchOwnSite()` (`src/server/net/own-site.ts`)
 
-The only other file allowed to open connections. It uses `node:https` with a custom `lookup` that resolves
+The only other file allowed to open connections. It fetches one URL per call; the site reader (8.3) calls
+it for the pasted page, `robots.txt` and at most 5 more pages on the same site, one at a time, so one
+onboarding makes at most 7 requests to the user's site plus redirects. A URL whose path or query names a
+platform domain (a reader proxy or archive link) is refused whatever its host. So is a third-party host
+(`isThirdPartyHost()` in `src/server/net/third-party-hosts.ts`, every subdomain included): app stores and
+extension stores, package registries and code hosts (GitHub, GitLab, npm, PyPI and the like), review and
+listing sites (G2, Capterra, Trustpilot, AlternativeTo, AppSumo and the like), and publishing and profile
+sites (Medium, Substack, Quora, Mastodon, Linktree and the like), because each is someone else's site full
+of other people's names. So is a profile path on any host (`/@name`, `/u/`, `/user/`, `/users/`,
+`/profile/`, `/in/`, `/people/`). It uses `node:https` with a custom `lookup` that resolves
 the host and refuses loopback, private, link-local, CGNAT, multicast, reserved, IPv6 unique-local and
 link-local, and IPv4-mapped forms of them, on every connection including redirects (no DNS-rebinding gap).
 https and port 443 only, at most 3 redirects within the same host or its `www` twin, 10 second timeout,
-2 MB body cap, `text/html` or `text/plain` only, no cookies or credentials. It refuses any host for which
+2 MB body cap, `text/html` or `text/plain` only, no cookies or credentials, and a descriptive User-Agent
+naming AskedFor with a contact link. It refuses any host for which
 `isPlatformHost()` in `src/server/net/platform-hosts.ts` is true (2.1.10): every platform domain and all its
 subdomains, API hosts included, because a user's product site is never one of them. The list covers at
 least `reddit.com`, `redd.it`, `redditmedia.com`, `x.com`, `twitter.com`, `t.co`, `linkedin.com`, `lnkd.in`,
 `facebook.com`, `fb.com`, `fb.me`, `instagram.com`, `threads.net`, `threads.com`, `tiktok.com`,
 `youtube.com`, `youtu.be`, `discord.com`, `discord.gg`, `bsky.app`, `bsky.social`, `ycombinator.com`,
-`hn.algolia.com`, `hacker-news.firebaseio.com`, `producthunt.com`, `indiehackers.com`, the vendor's host,
-and the proxies and caches that would reach a platform page indirectly: `translate.goog`,
-`web.archive.org`, `archive.org`, `archive.ph`, `archive.today`, `webcache.googleusercontent.com`. It
+`hn.algolia.com`, `hacker-news.firebaseio.com`, `producthunt.com`, `indiehackers.com`, the vendor's host
+(added in M3, imported from the Reddit module), the proxies and caches that would reach a platform page
+indirectly (`translate.goog`, `web.archive.org`, `archive.org`, `archive.ph`, `archive.today` and its
+mirrors, `ghostarchive.org`, `webcache.googleusercontent.com`), and sites that republish platform posts
+(X, Reddit, YouTube, Instagram and TikTok front ends, viewers and archives). It
 checks the first URL and every redirect, and the user is asked to paste a description instead. The hosts
 test reuses the module's list of platform web hosts. The hosts gate is extended to
 allow `node:https` and `node:dns` in this file only, with a planted-violation test that the same imports
@@ -1260,7 +1402,11 @@ strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`, a minimal `
 
 The session drafts these; the founder takes them to a UK solicitor or compliance service (F15):
 `/privacy` (users, plus the Article 14 notice for post authors: what, from where including the data provider,
-why, lawful basis, retention by source, rights, how to object, the removal form, the ICO), `/terms`
+why, lawful basis, retention by source, rights, how to object, the removal form, the ICO; and that
+onboarding reads up to 6 pages of the user's own site, honoring its `robots.txt`, or takes the
+description the user types, and sends that text to Anthropic to draft the product profile; AskedFor keeps
+only the profile, and Anthropic keeps API inputs only as its DPA says; the number needs a row in
+`docs/claims.md`), `/terms`
 (subscription, trial, renewal, cancellation, refunds and cooling-off, consent, 18+), `/acceptable-use`,
 `/cookies` (essential only, listed), `/sources`, and internal `docs/legal/` files: `lia.md`, `dpia.md`
 (including vendor collection, the Reddit deletion gap, DIDs in Bluesky links, the sensitive-community
@@ -1334,8 +1480,8 @@ git-ignored.
 | `SOURCE_X_ENABLED`                           | `false`                                                                                               | yes      | no                      | M3        |
 | `X_BEARER_TOKEN`                             | only if you turn X on (F18)                                                                           | optional | no                      | M3        |
 | `X_DAILY_READS_PER_PRODUCT`                  | `0`                                                                                                   | yes      | no                      | M3        |
-| `LLM_MONTHLY_USD_CAP_PER_PRODUCT`            | `3`                                                                                                   | yes      | no                      | M4        |
-| `LLM_DAILY_USD_CAP`                          | `25`                                                                                                  | yes      | no                      | M4        |
+| `LLM_MONTHLY_USD_CAP_PER_PRODUCT`            | `3`                                                                                                   | yes      | no                      | M2        |
+| `LLM_DAILY_USD_CAP`                          | `25`                                                                                                  | yes      | no                      | M2        |
 | `PREVIEW_DAILY_CAP`                          | `200`                                                                                                 | yes      | no                      | M9        |
 | `SIGNUP_ALLOWLIST`                           | comma-separated emails allowed to sign in before launch (12.10)                                       | yes      | dev                     | M1        |
 
@@ -1413,7 +1559,7 @@ The tasks, acceptance tests and `/goal` lines are in `docs/TASKS.md`.
 | -------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | M0 Foundations | done: repo, Supabase, CI, gates, billing plumbing, deploy config, health check                                      | F1, F3, F4, F5, F17 |
 | M1 App shell   | auth, proxy, app frame, design system, copy gate for app UI, `profiles_app` migration, E2E harness                  | F12 (for E2E)       |
-| M2 Onboarding  | `fetchOwnSite`, LLM wrapper, draft, review and confirm, competitors                                                 | F13                 |
+| M2 Onboarding  | `fetchOwnSite`, site reader, LLM wrapper, draft, one-click confirm, competitors                                     | F13                 |
 | M3 Collection  | contract v2, jobs, budgets, ingest, HN, Bluesky, Reddit via the vendor, X (off), purge, deletion sync, Pro schedule | F2, F7, F8          |
 | M4 Classifier  | labels incl. rivals, highlight, dedupe, caps, eval                                                                  | F16                 |
 | M5 Reply tab   | views, filters, cards, actions, tips, search links, keyboard, daily email, first run                                | F10, F6             |
@@ -1434,14 +1580,14 @@ Per customer per month at default budgets:
 | Reddit deletion re-check      | the roughly 30 stored Reddit posts a day re-collected once by URL at about 72 hours | about $1.35     |
 | Classification (Haiku 5.5)    | about 320 candidates a day in batches of 20, cached system prompt                   | about $0.55     |
 | Weekly synthesis (Sonnet 5.5) | 2 calls a week, about 20,000 input and 2,000 output tokens each                     | about $0.55     |
-| Onboarding draft (Sonnet 5.5) | once                                                                                | about $0.03     |
+| Onboarding draft (Sonnet 5.5) | once: up to 6 pages, about 10,000 input and 3,000 output tokens                     | about $0.05     |
 | Hacker News, Bluesky          | free official APIs                                                                  | $0              |
 | X                             | off by default; $0.005 per post read when on                                        | $0              |
-| **Total variable**            |                                                                                     | **about $7.85** |
+| **Total variable**            |                                                                                     | **about $7.87** |
 
 Fixed per month: Vercel Pro $20 per seat, Supabase Pro $25, Resend free tier then $20, the domain. Merchant
 of record fees: check Managed Payments' current rate. At $29 a month the variable margin is about $21 before
-those fees ($29 minus about $7.85), so fixed costs are covered at roughly 3 paying customers. The Reddit
+those fees ($29 minus about $7.87), so fixed costs are covered at roughly 3 paying customers. The Reddit
 budget is the lever: halving it saves about $3.40 per customer, re-checks included.
 
 ---
@@ -1453,6 +1599,7 @@ budget is the lever: halving it saves about $3.40 per customer, re-checks includ
 | Reddit objects to vendor-collected data (letter or lawsuit) | Kill switch in minutes; excerpts only with links back; 7-day retention; no republishing; low volume; licensed request in parallel (F9); provider port to swap in a licensed feed; DPIA records the decision |
 | Vendor quality or latency                                   | Budgets and caps; first run streams HN and Bluesky while Reddit finishes; health in `/admin`; provider port                                                                                                 |
 | Thin or noisy feed                                          | Terms written like real posts; rotation; threshold control; eval at 0.8 precision; per-term stats so users prune                                                                                            |
+| One-click setup guesses wrong                               | "Here's what we found" before anything is collected; "Change something" and "Not my product?"; the draft reads up to 6 pages, not one; Rivals' Discovered list adds the competitors the draft missed        |
 | Cost overrun                                                | Per-product daily budgets, vendor monthly cap, model spend caps, vendor-side spend limit, `/admin` costs                                                                                                    |
 | Personal data complaints                                    | Minimal fields, no handles, removal in one click, suppression, retention, Article 14 notice, DPIA                                                                                                           |
 | Vercel plan limits                                          | Hobby-safe config until F2; Pro required before launch                                                                                                                                                      |

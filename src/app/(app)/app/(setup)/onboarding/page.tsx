@@ -11,8 +11,8 @@ export default async function OnboardingPage() {
     <>
       <h1 className="mb-6 font-serif text-3xl tracking-tight">Set up your product</h1>
       <EmptyState title="Product setup is on the way">
-        You will paste your product URL here, check the search terms and competitors we draft, and
-        confirm them.
+        You will paste your website here. We read your site, figure out who it&apos;s for and show
+        you what we found. One click confirms it.
       </EmptyState>
     </>
   );
