@@ -3,11 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDenylist } from "../../compliance/lib/denylist.mjs";
 import { formatFindings, isTestFile, walk } from "../../compliance/lib/finding";
 import {
+  OWN_SITE_FILE,
   findNetworkPrimitives,
   findRemoteFonts,
   findUnexpectedHosts,
 } from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
+import { fetchOwnSite } from "@/server/net/own-site";
+import { PLATFORM_DOMAINS, PLATFORM_WEB_HOSTS } from "@/server/net/platform-hosts";
 import { SafeFetchError } from "@/server/net/safe-fetch";
 import { safeFetch } from "@/server/net";
 import { allowedHosts, declaredHosts, sources } from "@/sources/registry";
@@ -29,6 +32,7 @@ describe("compliance:hosts (static)", () => {
   it("scans real files", () => {
     expect(files.length).toBeGreaterThan(10);
     expect(files).toContain("src/server/net/safe-fetch.ts");
+    expect(files).toContain(OWN_SITE_FILE);
   });
 
   it("fonts and styles are self-hosted: no font CDN, no remote stylesheet URL", () => {
@@ -106,19 +110,17 @@ describe("compliance:hosts (runtime)", () => {
     );
     const NEVER =
       /reddit|redd\.it|linkedin|facebook|instagram|tiktok|threads|youtube|discord|producthunt/i;
-    // Web hosts of platforms we collect through an API: links point there, requests never do.
-    const PLATFORM_WEB_HOSTS = new Set([
-      "x.com",
-      "www.x.com",
-      "twitter.com",
-      "www.twitter.com",
-      "mobile.twitter.com",
-      "bsky.app",
-      "news.ycombinator.com",
-      "indiehackers.com",
-      "www.indiehackers.com",
-    ]);
+    // Web hosts where posts live: links point there, requests never do.
+    const webHosts = new Set(PLATFORM_WEB_HOSTS);
     const hosts = [...allowedHosts(everythingOn), ...sources.flatMap((s) => s.allowedHosts)];
-    expect(hosts.filter((h) => NEVER.test(h) || PLATFORM_WEB_HOSTS.has(h))).toEqual([]);
+    expect(hosts.filter((h) => NEVER.test(h) || webHosts.has(h))).toEqual([]);
+  });
+
+  it("fetchOwnSite() refuses every platform host and every platform web host, before any lookup", async () => {
+    for (const host of [...PLATFORM_DOMAINS, ...PLATFORM_WEB_HOSTS]) {
+      await expect(fetchOwnSite(`https://${host}/`), host).rejects.toMatchObject({
+        code: "platform_host",
+      });
+    }
   });
 });

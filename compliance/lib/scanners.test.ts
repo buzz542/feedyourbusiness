@@ -18,6 +18,7 @@ import {
 import { findBlockedPackages, lockfileName } from "./scan-deps";
 import {
   FETCH_WRAPPER_FILE,
+  OWN_SITE_FILE,
   findNetworkPrimitives,
   findRemoteFonts,
   findUnexpectedHosts,
@@ -85,6 +86,41 @@ describe("network scanner", () => {
     const code = `export const f = opts.fetchImpl ?? globalThis.fetch;`;
     expect(scan(code, FETCH_WRAPPER_FILE)).toEqual([]);
     expect(rules(scan(code, "src/other.ts"))).toContain("global-fetch");
+  });
+
+  it("lets fetchOwnSite's file, and only that file, import node:https and node:dns", () => {
+    const code = `import https from "node:https";\nimport dns from "node:dns";`;
+    expect(scan(code, OWN_SITE_FILE)).toEqual([]);
+    for (const file of [
+      "src/server/net/other.ts",
+      "src/server/onboarding/site-reader.ts",
+      "src/server/net/own-site.test.ts",
+      "src/server/net/own-site.tsx",
+      FETCH_WRAPPER_FILE,
+    ]) {
+      expect(rules(scan(code, file)), file).toEqual([
+        "banned-network-module",
+        "banned-network-module",
+      ]);
+    }
+  });
+
+  it.each([
+    ["node:http", `import http from "node:http"`],
+    ["node:net", `import net from "node:net"`],
+    ["node:tls", `import tls from "node:tls"`],
+    ["https without the node: prefix", `import https from "https"`],
+    ["dns/promises", `import dns from "node:dns/promises"`],
+    ["child_process", `import { exec } from "node:child_process"`],
+    ["undici", `import { request } from "undici"`],
+  ])("still flags %s in fetchOwnSite's file", (_label, code) => {
+    expect(rules(scan(code, OWN_SITE_FILE))).toContain("banned-network-module");
+  });
+
+  it("still flags the global fetch in fetchOwnSite's file", () => {
+    expect(rules(scan(`await fetch("https://acme.example/")`, OWN_SITE_FILE))).toContain(
+      "global-fetch",
+    );
   });
 
   it("reports the line number", () => {

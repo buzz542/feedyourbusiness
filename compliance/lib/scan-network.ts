@@ -13,6 +13,13 @@ import type { Finding } from "./finding";
 /** The single file allowed to reference the global fetch: it is the wrapper itself. */
 export const FETCH_WRAPPER_FILE = "src/server/net/safe-fetch.ts";
 
+/**
+ * fetchOwnSite() reads the user's own site with a DNS check at connect time, which the global
+ * fetch cannot do (docs/PLAN.md 12.3). Its file, and no other, may import exactly these.
+ */
+export const OWN_SITE_FILE = "src/server/net/own-site.ts";
+const OWN_SITE_MODULES = new Set(["node:https", "node:dns"]);
+
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self", "global"]);
 const NETWORK_CONSTRUCTORS = new Set([
   "XMLHttpRequest",
@@ -76,6 +83,7 @@ export function findNetworkPrimitives(
     });
 
   const checkModule = (node: ts.Node, specifier: string) => {
+    if (file === OWN_SITE_FILE && OWN_SITE_MODULES.has(specifier)) return;
     if (banned.has(moduleName(specifier))) {
       add(
         node,
