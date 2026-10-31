@@ -35,7 +35,15 @@ export interface CollectHandlerDeps {
     now: Date;
     since: Date;
     terms: readonly CollectTerm[];
-  }): Promise<{ stored: number; refused?: number; capped?: SpendCap }>;
+    timeLeft?: () => number;
+  }): Promise<{
+    stored: number;
+    refused?: number;
+    capped?: SpendCap;
+    invalid?: number;
+    unavailable?: boolean;
+    deferred?: boolean;
+  }>;
   /**
    * The model spend cap this product has reached (Llm.capReached), or null. Checked before a new
    * run reserves budget, so no paid fetch starts whose posts could not be classified (8.1).
@@ -188,21 +196,31 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     await deps.budget.settle(job.id, used, used * unitCost);
     if (!collectable)
       return { status: "done", payload: { result: "not_collectable", units: used } };
-    const {
-      stored,
-      refused = 0,
-      capped,
-    } = await deps.process({
+    const out = await deps.process({
       job,
       source,
       posts: state.posts,
       now: now(),
       since: ctx.since,
       terms: ctx.terms,
+      timeLeft: () => deadline - now().getTime(),
     });
+    const summary = {
+      stored: out.stored,
+      refused: out.refused ?? 0,
+      units: used,
+      ...(out.capped ? { capped: out.capped } : {}),
+      ...(out.invalid ? { invalid: out.invalid } : {}),
+      ...(out.unavailable ? { unavailable: true } : {}),
+    };
+    // Out of time between batches: a free source runs again on the next run (posts it already
+    // linked are skipped); a paid one is never read twice (2.1.3), so what is left waits for
+    // tomorrow's overlapping window.
+    if (out.deferred && !paid)
+      return { status: "waiting", runAfter: now(), payload: { result: "deferred", ...summary } };
     return {
       status: "done",
-      payload: { result: "ok", stored, refused, units: used, ...(capped ? { capped } : {}) },
+      payload: { result: out.deferred ? "partial" : "ok", ...summary },
     };
   };
   handler.onFailed = abandon;
