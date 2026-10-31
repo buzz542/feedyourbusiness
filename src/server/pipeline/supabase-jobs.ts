@@ -105,9 +105,11 @@ export function createSupabaseBudgetStore(db: AdminClient): BudgetStore {
   };
 }
 
-export async function collectableProducts(db: AdminClient): Promise<string[]> {
-  const rows = must(await db.rpc("collectable_products"));
-  return (rows ?? []).map((r) => r.id);
+/** Confirmed, active products of entitled accounts, with their owners (collectable_products). */
+export async function collectableRows(
+  db: AdminClient,
+): Promise<{ id: string; owner_id: string }[]> {
+  return must(await db.rpc("collectable_products")) ?? [];
 }
 
 export async function purgeExpired(db: AdminClient, now: Date): Promise<Record<string, number>> {
