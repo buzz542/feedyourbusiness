@@ -730,6 +730,7 @@ describe("after the migration", () => {
       return id;
     };
     const profile = {
+      url: "https://acme.example/",
       name: "Acme",
       one_liner: "Invoices from your phone",
       description: "Acme turns receipts into invoices.",
@@ -737,7 +738,7 @@ describe("after the migration", () => {
       subreddits: ["freelance", "smallbusiness"],
     };
 
-    it("starts one draft product per owner and reuses it", async () => {
+    it("starts one draft product per owner and reuses it, keeping its url until a save", async () => {
       const user = await newUser();
       const first = await start(user, "https://acme.example/", "acme.example");
       const again = await start(user, null, "Acme");
@@ -746,7 +747,21 @@ describe("after the migration", () => {
         "select url, name, status from public.products where id = $1",
         [first],
       );
-      expect(rows).toEqual([{ url: null, name: "Acme", status: "draft" }]);
+      expect(rows).toEqual([
+        { url: "https://acme.example/", name: "acme.example", status: "draft" },
+      ]);
+      await save(first, user, { ...profile, url: null }, [], []);
+      const saved = await db.query("select url, name from public.products where id = $1", [first]);
+      expect(saved.rows).toEqual([{ url: null, name: "Acme" }]);
+    });
+
+    it("survives a double-click on the first paste: both get the same product", async () => {
+      const user = await newUser();
+      const [a, b] = await Promise.all([
+        start(user, "https://acme.example/", "acme.example"),
+        start(user, "https://acme.example/", "acme.example"),
+      ]);
+      expect(a).toBe(b);
     });
 
     it("saves the profile, terms and competitors, replacing an earlier draft", async () => {
@@ -869,5 +884,58 @@ describe("after the migration", () => {
         }
       },
     );
+  });
+});
+
+describe("the draft store's JSON reaches save_product_draft intact", () => {
+  it("saves a cleaned draft through draftRpcArgs", async () => {
+    const { draftRpcArgs } = await import("@/server/onboarding/supabase-draft-store");
+    const db = await createDb();
+    const owner = newId();
+    await db.query("insert into auth.users (id) values ($1)", [owner]);
+    const id = await withRole(db, "service_role", null, () =>
+      db.query<{ id: string }>("select public.start_product_draft($1, $2, 'acme.example') as id", [
+        owner,
+        "https://acme.example/",
+      ]),
+    ).then((r) => r.rows[0]!.id);
+    const args = draftRpcArgs(id, owner, {
+      profile: {
+        url: "https://acme.example/",
+        name: "Acme",
+        one_liner: "Invoices from receipts",
+        description: "Acme turns receipts into invoices.",
+        audience: "Freelancers",
+        subreddits: ["freelance"],
+      },
+      terms: [{ term: "how do I chase an invoice", intent: "problem" }],
+      competitors: [{ name: "Rival", domain: "rival.example", aliases: ["Rival App"] }],
+    });
+    await withRole(db, "service_role", null, () =>
+      db.query("select public.save_product_draft($1, $2, $3, $4, $5)", [
+        args.p_product_id,
+        args.p_owner_id,
+        JSON.stringify(args.p_profile),
+        JSON.stringify(args.p_terms),
+        JSON.stringify(args.p_competitors),
+      ]),
+    );
+    const { rows } = await db.query(
+      `select p.url, p.name, p.subreddits, t.term, c.name as rival, c.aliases
+         from public.products p
+         join public.search_terms t on t.product_id = p.id
+         join public.competitors c on c.product_id = p.id`,
+    );
+    expect(rows).toEqual([
+      {
+        url: "https://acme.example/",
+        name: "Acme",
+        subreddits: ["freelance"],
+        term: "how do I chase an invoice",
+        rival: "Rival",
+        aliases: ["Rival App"],
+      },
+    ]);
+    await db.close();
   });
 });

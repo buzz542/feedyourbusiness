@@ -345,16 +345,15 @@ as $$
 declare
   existing public.products;
 begin
-  select * into existing from public.products where owner_id = p_owner_id for update;
-  if found then
-    if existing.status <> 'draft' then
-      raise exception 'the product is already confirmed' using errcode = 'check_violation';
-    end if;
-    update public.products set url = p_url, name = p_name where id = existing.id;
-    return existing.id;
-  end if;
+  -- A double-click on the first paste: both requests insert, one does nothing (D9's unique index).
   insert into public.products (owner_id, url, name) values (p_owner_id, p_url, p_name)
-    returning id into existing.id;
+    on conflict (owner_id) do nothing;
+  select * into existing from public.products where owner_id = p_owner_id for update;
+  if existing.status <> 'draft' then
+    raise exception 'the product is already confirmed' using errcode = 'check_violation';
+  end if;
+  -- An existing draft keeps its url and name until a new draft is saved, so a redraft that fails
+  -- never leaves one site's url next to another site's terms.
   return existing.id;
 end;
 $$;
@@ -386,6 +385,7 @@ begin
   end if;
 
   update public.products set
+    url = p_profile ->> 'url',
     name = p_profile ->> 'name',
     one_liner = p_profile ->> 'one_liner',
     description = p_profile ->> 'description',
