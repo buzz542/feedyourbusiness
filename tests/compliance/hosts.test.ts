@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDenylist } from "../../compliance/lib/denylist.mjs";
 import { formatFindings, isTestFile, walk } from "../../compliance/lib/finding";
@@ -7,6 +7,7 @@ import {
   findServerTools,
   findRemoteFonts,
   findUnexpectedHosts,
+  findVendorHostOutsideReddit,
 } from "../../compliance/lib/scan-network";
 import { OWN_HOSTS, PROCESSOR_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
 import { createOwnSiteFetch, OwnSiteError } from "@/server/net/own-site";
@@ -173,5 +174,25 @@ describe("compliance:hosts (runtime)", () => {
     }
     expect(resolve).not.toHaveBeenCalled();
     expect(transport).not.toHaveBeenCalled();
+  });
+});
+
+describe("compliance:hosts (vendor host)", () => {
+  // Code, config, fixtures and the gates themselves: everything but the docs.
+  const roots = ["src", "emails", "scripts", "supabase", "tests", "compliance", ".github"];
+  const TEXT = /\.(ts|tsx|mts|js|mjs|cjs|json|sql|md|ya?ml|toml|html|css|txt)$/;
+  const everything = [
+    ...roots.flatMap((root) => walk(root)),
+    ...readdirSync(".", { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name),
+  ].filter((f) => TEXT.test(f) && f !== "package-lock.json");
+
+  it("names the data vendor's host only in src/sources/reddit*.ts (docs/PLAN.md 2.1.9)", () => {
+    expect(everything).toContain("src/sources/reddit-vendor.ts");
+    const findings = everything.flatMap((file) =>
+      findVendorHostOutsideReddit(readFileSync(file, "utf8"), file),
+    );
+    expect(formatFindings(findings)).toBe("");
   });
 });

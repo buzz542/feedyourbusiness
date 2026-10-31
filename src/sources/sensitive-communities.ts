@@ -179,7 +179,7 @@ const PATTERNS: readonly RegExp[] = [
   /relig|church|christian|catholic|protestant|mormon|jehovah|bible|gospel|jesus/,
   /islam|muslim|quran|koran|jewish|judaism|torah|hindu|buddhis|sikh|pagan|wicca|atheis|satanis/,
   // Politics
-  /politic|(^|[^s])election|democrat|republican|conservativ|liberal|labourparty|libdem|socialis|communis/,
+  /politic|(^|[^s]|us)election|democrat|republican|conservativ|liberal|labourparty|libdem|socialis|communis/,
   /marxis|anarchis|fascis|nazi|leftist|rightwing|leftwing|biden|farage|starmer|donaldtrump/,
   /brexit|feminis|mensrights|redpill|incel|activis|protest|abolition/,
   // Racial or ethnic origin, nationality, immigration
@@ -228,6 +228,7 @@ export function isProfileCommunity(name: string): boolean {
   const n = name
     .trim()
     .toLowerCase()
-    .replace(/^\/?r\//, "");
-  return n.startsWith("u_") || n.startsWith("u/") || n.startsWith("/u/") || n.startsWith("user/");
+    .replace(/^\/?r\//, "")
+    .replace(/^\//, "");
+  return n.startsWith("u_") || n.startsWith("u/") || n.startsWith("user/");
 }

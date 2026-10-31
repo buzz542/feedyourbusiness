@@ -331,3 +331,25 @@ export function findServerTools(code: string, file: string): Finding[] {
   visit(sf);
   return findings;
 }
+
+/** The only files that may name the data vendor's host (docs/PLAN.md 2.1.9). */
+const VENDOR_HOST_FILES = /^src\/sources\/reddit[^/]*\.ts$/;
+// Also catches the host written with escaped dots, as in a regex literal.
+const VENDOR_HOST = /brightdata\\?\.com/i;
+
+/** Every line outside src/sources/reddit*.ts that names the vendor's host, comments included. */
+export function findVendorHostOutsideReddit(text: string, file: string): Finding[] {
+  if (VENDOR_HOST_FILES.test(file.replaceAll("\\", "/"))) return [];
+  return text.split("\n").flatMap((line, i) =>
+    VENDOR_HOST.test(line)
+      ? [
+          {
+            file,
+            line: i + 1,
+            rule: "vendor-host",
+            detail: "The data vendor's host may appear only in src/sources/reddit*.ts",
+          },
+        ]
+      : [],
+  );
+}

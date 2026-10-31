@@ -1,0 +1,401 @@
+[
+  {
+    "post_id": "1exa001",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa001/example_post_1exa001/",
+    "user_posted": "example_maker_one",
+    "title": "How do you chase unpaid invoices without sounding rude?",
+    "description": "Looking for a tool that sends reminders for me. Spreadsheets are not cutting it.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa002",
+    "url": "https://old.reddit.com/r/smallbusiness/comments/1exa002/late_fees_on_invoices/?utm_source=share#c1",
+    "user_posted": "example_maker_two",
+    "title": "Late fees on invoices",
+    "description": "Does anyone automate late fees?",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "smallbusiness",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/smallbusiness/",
+    "discovery_input": {
+      "keyword": "late fees",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "error": "Page not found",
+    "error_code": "dead_page",
+    "input": {
+      "keyword": "invoice reminders"
+    }
+  },
+  {
+    "post_id": "1exa004",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa004/example_post_1exa004/",
+    "user_posted": "example_adult_one",
+    "title": "An adult post",
+    "description": "Invented adult text that must never be kept.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "over_18": true
+  },
+  {
+    "post_id": "1exa005",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa005/example_post_1exa005/",
+    "user_posted": "example_adult_two",
+    "title": "Another adult post",
+    "description": "Invented text tagged NSFW.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": ["NSFW"],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa006",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa006/example_post_1exa006/",
+    "user_posted": "[deleted]",
+    "title": "A post whose author is gone",
+    "description": "Invented text.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa007",
+    "url": "https://www.reddit.com/user/example_profile_one/comments/1exa007/a_profile_post/",
+    "user_posted": "example_profile_one",
+    "title": "A profile post",
+    "description": "Invented text on a profile.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "u_example_profile",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/u_example_profile/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa008",
+    "url": "https://www.reddit.com/u/example_profile_two/comments/1exa008/a_profile_post/",
+    "user_posted": "example_profile_two",
+    "title": "A profile post by URL",
+    "description": "Invented text.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa009",
+    "url": "https://www.reddit.com/r/depression/comments/1exa009/example_post_1exa009/",
+    "user_posted": "example_person_three",
+    "title": "A post in a sensitive community",
+    "description": "Invented text.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "depression",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/depression/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa010",
+    "url": "https://www.reddit.com.evil.example/r/SaaS/comments/1exa010/lookalike/",
+    "user_posted": "example_person_four",
+    "title": "A lookalike link",
+    "description": "Invented text.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "SaaS",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/SaaS/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa011",
+    "url": "https://example.com/r/SaaS/comments/1exa011/off_reddit/",
+    "user_posted": "example_person_five",
+    "title": "A link off Reddit",
+    "description": "Invented text.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "SaaS",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/SaaS/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa012",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa012/example_post_1exa012/",
+    "user_posted": "example_person_six",
+    "title": "An old post",
+    "description": "Outside the window.",
+    "num_comments": 2,
+    "date_posted": "2026-10-01T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa001",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa001/example_post_1exa001/",
+    "user_posted": "example_maker_one",
+    "title": "How do you chase unpaid invoices without sounding rude?",
+    "description": "Looking for a tool that sends reminders for me. Spreadsheets are not cutting it.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T06:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "late fees",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa014",
+    "url": "https://www.reddit.com/r/Entrepreneur/comments/1exa014/example_post_1exa014/",
+    "user_posted": "example_maker_three",
+    "title": "Invoice reminder software",
+    "description": "[removed]",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T05:00:00.000Z",
+    "community_name": "Entrepreneur",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/Entrepreneur/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  },
+  {
+    "post_id": "1exa015",
+    "url": "https://www.reddit.com/r/freelance/comments/1exa015/example_post_1exa015/",
+    "user_posted": "example_maker_four",
+    "title": "Long story about invoices",
+    "description": "I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late. I send about forty invoices a month and roughly a third are late.",
+    "num_comments": 2,
+    "date_posted": "2026-10-17T04:00:00.000Z",
+    "community_name": "freelance",
+    "num_upvotes": 5,
+    "photos": null,
+    "videos": null,
+    "tags": [],
+    "comments": [
+      {
+        "user_commenting": "example_other_person",
+        "comment": "An invented reply that must never be kept."
+      }
+    ],
+    "community_url": "https://www.reddit.com/r/freelance/",
+    "discovery_input": {
+      "keyword": "invoice reminders",
+      "date": "Past week",
+      "num_of_posts": 10,
+      "sort_by": "New"
+    },
+    "nsfw": false
+  }
+]

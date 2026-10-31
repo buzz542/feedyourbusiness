@@ -23,6 +23,7 @@ import {
   findRemoteFonts,
   findUnexpectedHosts,
   moduleName,
+  findVendorHostOutsideReddit,
 } from "./scan-network";
 import { findSchemaViolations, parseAddedColumns, parseCreateTables } from "./scan-schema";
 
@@ -719,5 +720,34 @@ describe("logo scanner", () => {
       "public/Bluesky.PNG",
       "public/img/stripe-badge.webp",
     ]);
+  });
+});
+
+describe("vendor host scanner (docs/PLAN.md 2.1.9)", () => {
+  // Built from parts, so this file does not name the host itself.
+  const host = ["api", "bright" + "data", "com"].join(".");
+  const planted = `const url = "https://${host}/datasets/v3/trigger";`;
+  const count = (file: string, text = planted) => findVendorHostOutsideReddit(text, file).length;
+
+  it("flags the vendor host anywhere outside src/sources/reddit*.ts (planted)", () => {
+    for (const file of [
+      "src/server/pipeline/collect.ts",
+      "src/sources/hackernews.ts",
+      "src/sources/reddit/evil.ts",
+      "src/sources/x-reddit.ts",
+      "tests/fixtures/x/search.json",
+      "docs-copy.md",
+    ])
+      expect(count(file), file).toBe(1);
+    expect(count("src/x.ts", `// see ${host.toUpperCase()}`)).toBe(1);
+  });
+
+  it("allows it in the Reddit modules", () => {
+    for (const file of [
+      "src/sources/reddit.ts",
+      "src/sources/reddit-vendor.ts",
+      "src/sources/reddit-brightdata.ts",
+    ])
+      expect(count(file), file).toBe(0);
   });
 });

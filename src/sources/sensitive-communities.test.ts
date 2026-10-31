@@ -73,6 +73,8 @@ describe("isSensitiveCommunity", () => {
     "DUI",
     "sexoffendersupport",
     "tories",
+    "USElections",
+    "uselection2024",
   ])("drops r/%s", (name) => {
     expect(isSensitiveCommunity(name)).toBe(true);
   });
@@ -140,10 +142,15 @@ describe("isSensitiveCommunity", () => {
 });
 
 describe("isProfileCommunity", () => {
-  it.each(["u_someone", "r/u_someone", "U_Someone", "u/someone", "user/someone"])(
-    "%s is a profile",
-    (n) => expect(isProfileCommunity(n)).toBe(true),
-  );
+  it.each([
+    "u_someone",
+    "r/u_someone",
+    "U_Someone",
+    "u/someone",
+    "user/someone",
+    "/user/someone",
+    "/u/someone",
+  ])("%s is a profile", (n) => expect(isProfileCommunity(n)).toBe(true));
   it.each(["SaaS", "r/SaaS", "startups", "userexperience"])("%s is not", (n) =>
     expect(isProfileCommunity(n)).toBe(false),
   );
