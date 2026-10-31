@@ -1,5 +1,6 @@
 import { isHostAllowed } from "@/server/net/safe-fetch";
 import { isPlatformWebHost } from "@/server/net/platform-hosts";
+import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import { VENDOR_DOMAINS } from "./reddit-vendor";
 import type { CollectSource, LinkSource, Source } from "./types";
@@ -12,6 +13,7 @@ import type { CollectSource, LinkSource, Source } from "./types";
  * every collect source is off, no host is allowed and safeFetch() refuses every request.
  */
 export const sources: readonly Source[] = [
+  hackernews,
   redditLinks,
   linkedin,
   facebook,
