@@ -1,0 +1,42 @@
+{
+  "posts": [
+    {
+      "uri": "at://did:plc:examplemakerone/app.bsky.feed.post/3kexamplea1",
+      "cid": "bafyreiexample3kexamplea1",
+      "author": {
+        "did": "did:plc:examplemakerone",
+        "handle": "maker-one.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Is there an app that sends invoice reminders automatically? Tired of chasing clients.",
+        "createdAt": "2026-10-17T07:00:00.000Z",
+        "langs": ["en"]
+      },
+      "indexedAt": "2026-10-17T07:00:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0
+    },
+    {
+      "uri": "at://did:plc:examplewritertwo/app.bsky.feed.post/3kexampleb1",
+      "cid": "bafyreiexample3kexampleb1",
+      "author": {
+        "did": "did:plc:examplewritertwo",
+        "handle": "writer-two.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees and more late fees ",
+        "createdAt": "2026-10-17T08:00:00.000Z",
+        "langs": ["en"]
+      },
+      "indexedAt": "2026-10-17T08:00:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0
+    }
+  ]
+}

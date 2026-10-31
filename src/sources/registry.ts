@@ -1,5 +1,6 @@
 import { isHostAllowed } from "@/server/net/safe-fetch";
 import { isPlatformWebHost } from "@/server/net/platform-hosts";
+import { bluesky } from "./bluesky";
 import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
 import { VENDOR_DOMAINS } from "./reddit-vendor";
@@ -14,6 +15,7 @@ import type { CollectSource, LinkSource, Source } from "./types";
  */
 export const sources: readonly Source[] = [
   hackernews,
+  bluesky,
   redditLinks,
   linkedin,
   facebook,
