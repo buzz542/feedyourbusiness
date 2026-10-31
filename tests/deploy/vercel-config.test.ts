@@ -139,6 +139,19 @@ describe("vercel.json", () => {
 });
 
 describe("Node version", () => {
+  it("schedules the job routes daily on Hobby and keeps the tick route unscheduled until Pro (D6)", () => {
+    const paths = (config.crons ?? []).map((c) => c.path);
+    expect(paths).toContain("/api/cron/daily");
+    expect(paths).toContain("/api/cron/weekly");
+    expect(paths).not.toContain("/api/cron/tick");
+    for (const route of ["daily", "tick", "weekly"]) {
+      const code = readFileSync(`src/app/api/cron/${route}/route.ts`, "utf8");
+      expect(code, route).toContain("isCronAuthorized(request, process.env.CRON_SECRET)");
+      expect(code, route).toMatch(/export const maxDuration = 300;/);
+      expect(code, route).toMatch(/export async function GET\(/);
+    }
+  });
+
   it("pins Vercel (engines) to the .nvmrc major, no lower than vitest and vite need", () => {
     const major = Number(readFileSync(".nvmrc", "utf8").trim());
     const match = /^>=(\d+)\.(\d+)\.(\d+) <(\d+)$/.exec(pkg.engines?.node ?? "");
