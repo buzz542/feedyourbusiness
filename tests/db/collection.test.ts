@@ -852,3 +852,38 @@ describe("collection review fixes", () => {
     );
   });
 });
+
+describe("re-checks have their own ledger key, inside the vendor's monthly cap (2.3.6, 7.7)", () => {
+  const newJob = async (source: string) =>
+    (
+      await one<{ id: string }>(
+        "insert into public.jobs (kind, product_id, source) values ('deletion_sync', $1, $2) returning id",
+        [alice, source],
+      )
+    ).id;
+  const reserve = (job: string, source: string, units: number, limit: number, cap: number | null) =>
+    asService(() =>
+      one<{ r: string }>(
+        "select public.reserve_job_budget($1, $2, $3, '2026-10-17', $4, $5, $6) as r",
+        [job, alice, source, units, limit, cap],
+      ),
+    ).then((x) => x.r);
+
+  it("never uses the product's daily room for collection, but counts toward the monthly cap", async () => {
+    expect(
+      await reserve(await newJob("reddit_recheck"), "reddit_recheck", 40, 1_000_000, 100),
+    ).toBe("reserved");
+    // The product's daily Reddit budget (50) is untouched by the re-check.
+    expect(await reserve(await newJob("reddit"), "reddit", 50, 50, 100)).toBe("reserved");
+    // The month now holds 90 of 100 across both keys: 20 more is over the cap, for either key.
+    expect(await reserve(await newJob("reddit"), "reddit", 20, 1000, 100)).toBe("monthly_cap");
+    expect(
+      await reserve(await newJob("reddit_recheck"), "reddit_recheck", 20, 1_000_000, 100),
+    ).toBe("monthly_cap");
+    expect(
+      await asService(() =>
+        one<{ n: number }>("select public.vendor_usage('reddit', '2026-10-01') as n"),
+      ),
+    ).toEqual({ n: 90 });
+  });
+});

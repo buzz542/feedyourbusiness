@@ -327,7 +327,9 @@ begin
 end;
 $$;
 
--- Records a source used this month across every product (the vendor's monthly cap).
+-- Records a source used this month across every product (the vendor's monthly cap), its deletion
+-- re-checks included: they reserve under "<source>_recheck", so they never use a product's daily
+-- room for collection (7.7) but always count toward the vendor's monthly records.
 create function public.vendor_usage(p_source text, p_month_start date)
 returns integer
 language sql
@@ -337,7 +339,7 @@ set search_path = ''
 as $$
   select coalesce(sum(reads), 0)::integer
   from public.usage_ledger
-  where source = p_source and usage_date >= p_month_start
+  where source in (p_source, p_source || '_recheck') and usage_date >= p_month_start
 $$;
 
 -- A collect job's budget, reserved exactly once per job: the reservation is written into the job's
@@ -373,8 +375,11 @@ begin
     return 'already';
   end if;
   if p_monthly_cap is not null then
-    perform pg_advisory_xact_lock(hashtext('vendor_monthly_cap:' || p_source));
-    if public.vendor_usage(p_source, date_trunc('month', p_day)::date) + p_units > p_monthly_cap then
+    -- One lock and one count per vendor source, its re-checks included.
+    perform pg_advisory_xact_lock(
+      hashtext('vendor_monthly_cap:' || regexp_replace(p_source, '_recheck$', '')));
+    if public.vendor_usage(regexp_replace(p_source, '_recheck$', ''), date_trunc('month', p_day)::date)
+       + p_units > p_monthly_cap then
       return 'monthly_cap';
     end if;
   end if;
