@@ -12,6 +12,13 @@ const fail = (error: { code?: string } | null) => {
   if (error) throw new CollectStoreError(`Supabase error ${error.code ?? "unknown"}`);
 };
 
+/** `.in()` lists go in the query string: chunks of 50 keep each URL well under gateway limits. */
+const CHUNK = 50;
+const chunks = <T>(items: readonly T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / CHUNK) }, (_, i) =>
+    items.slice(i * CHUNK, (i + 1) * CHUNK),
+  );
+
 /**
  * The collect step's store through the service role (docs/PLAN.md 7.3). Posts go in only through
  * ingest_post, which checks the suppression list in the same statement; links use on conflict do
@@ -21,30 +28,36 @@ const fail = (error: { code?: string } | null) => {
 export function createSupabaseCollectStore(admin: AdminClient): CollectStore {
   return {
     async suppressed(source, hashes) {
-      if (hashes.length === 0) return new Set();
-      const { data, error } = await admin
-        .from("suppression")
-        .select("author_hash")
-        .eq("source", source)
-        .in("author_hash", [...hashes]);
-      fail(error);
-      return new Set((data ?? []).map((r) => r.author_hash));
+      const found = new Set<string>();
+      for (const part of chunks(hashes)) {
+        const { data, error } = await admin
+          .from("suppression")
+          .select("author_hash")
+          .eq("source", source)
+          .in("author_hash", part);
+        fail(error);
+        for (const r of data ?? []) found.add(r.author_hash);
+      }
+      return found;
     },
 
     async linked(productId, source, externalIds) {
-      if (externalIds.length === 0) return new Set();
-      const { data, error } = await admin
-        .from("product_posts")
-        .select("posts!inner(external_id, source)")
-        .eq("product_id", productId)
-        .eq("posts.source", source)
-        .in("posts.external_id", [...externalIds]);
-      fail(error);
-      const ids = (data ?? []).flatMap((row) => {
-        const post = (row as { posts: { external_id: string } | { external_id: string }[] }).posts;
-        return Array.isArray(post) ? post.map((p) => p.external_id) : [post.external_id];
-      });
-      return new Set(ids);
+      const found = new Set<string>();
+      for (const part of chunks(externalIds)) {
+        const { data, error } = await admin
+          .from("product_posts")
+          .select("posts!inner(external_id, source)")
+          .eq("product_id", productId)
+          .eq("posts.source", source)
+          .in("posts.external_id", part);
+        fail(error);
+        for (const row of data ?? []) {
+          const post = (row as { posts: { external_id: string } | { external_id: string }[] })
+            .posts;
+          for (const p of Array.isArray(post) ? post : [post]) found.add(p.external_id);
+        }
+      }
+      return found;
     },
 
     async ingest(post, now) {
