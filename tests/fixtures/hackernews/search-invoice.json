@@ -1,0 +1,38 @@
+{
+  "hits": [
+    {
+      "objectID": "90000001",
+      "author": "example_maker_one",
+      "created_at_i": 1792216800,
+      "title": "Ask HN: Is there a tool that chases unpaid invoices for you?",
+      "story_text": "<p>I freelance and spend &gt; 2 hours a week sending polite reminders.</p><p>Anything that does it <i>automatically</i>?</p>",
+      "comment_text": null,
+      "story_title": null,
+      "_tags": ["story", "author_example_maker_one", "story_90000001", "ask_hn"]
+    },
+    {
+      "objectID": "90000002",
+      "author": "example_freelancer_two",
+      "created_at_i": 1792220400,
+      "title": null,
+      "story_text": null,
+      "comment_text": "We tried three invoicing apps &amp; none of them let us set late fees. <a href=\"https://example.com/x\" rel=\"nofollow\">link</a>",
+      "story_title": "Ask HN: Is there a tool that chases unpaid invoices for you?",
+      "_tags": ["comment", "author_example_freelancer_two", "story_90000001"]
+    },
+    {
+      "objectID": "90000003",
+      "author": "example_old_poster",
+      "created_at_i": 1791000000,
+      "title": "An old post outside the window",
+      "story_text": null,
+      "comment_text": null,
+      "story_title": null,
+      "_tags": ["story", "author_example_old_poster", "story_90000003"]
+    }
+  ],
+  "nbHits": 3,
+  "page": 0,
+  "nbPages": 1,
+  "hitsPerPage": 20
+}
