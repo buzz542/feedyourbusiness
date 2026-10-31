@@ -29,6 +29,9 @@ export function tidy(text: string): string {
     .trim();
 }
 
+/** True when text has a handle, an email address, a URL or a profile link anywhere in it. */
+export const hasPersonOrLink = (text: string): boolean => PERSON_OR_LINK.test(text);
+
 /** Longer text with every sentence that names a person, an email or a link removed. */
 export function withoutPeopleOrLinks(text: string, max: number): string {
   const kept = tidy(text)

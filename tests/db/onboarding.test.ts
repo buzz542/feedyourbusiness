@@ -939,3 +939,109 @@ describe("the draft store's JSON reaches save_product_draft intact", () => {
     await db.close();
   });
 });
+
+describe("apply_onboarding_edits: every edit in one transaction, as the owner", () => {
+  async function setupDraft() {
+    const db = await createDb();
+    const owner = newId();
+    const other = newId();
+    await db.query("insert into auth.users (id) values ($1), ($2)", [owner, other]);
+    const id = await withRole(db, "service_role", null, () =>
+      db.query<{ id: string }>("select public.start_product_draft($1, null, 'Acme') as id", [
+        owner,
+      ]),
+    ).then((r) => r.rows[0]!.id);
+    await db.query(
+      "insert into public.search_terms (product_id, term) values ($1, 'how do i invoice'), ($1, 'old term')",
+      [id],
+    );
+    await db.query(
+      "insert into public.competitors (product_id, name, aliases) values ($1, 'Billfast', array['Billfast App']), ($1, 'Gone Tool', '{}')",
+      [id],
+    );
+    return { db, owner, other, id };
+  }
+  const profile = {
+    name: "Acme Pro",
+    one_liner: "Invoices",
+    description: "Acme turns receipts into invoices.",
+    audience: "Freelancers",
+    relevance_threshold: 70,
+    subreddits: ["freelance"],
+  };
+  const apply = (db: PGlite, user: string, id: string, terms: string[], rivals: object[]) =>
+    withRole(db, "authenticated", user, () =>
+      db.query("select public.apply_onboarding_edits($1, $2, $3, $4)", [
+        id,
+        JSON.stringify(profile),
+        terms,
+        JSON.stringify(rivals),
+      ]),
+    );
+
+  it("applies the profile, terms and competitors, keeps aliases, and updates case-only edits", async () => {
+    const { db, owner, id } = await setupDraft();
+    await apply(
+      db,
+      owner,
+      id,
+      ["How do I invoice", "new term"],
+      [
+        { name: "BillFast", domain: "billfast.example" },
+        { name: "New Tool", domain: null },
+      ],
+    );
+    const terms = await db.query<{ term: string }>(
+      "select term from public.search_terms where product_id = $1 order by term",
+      [id],
+    );
+    expect(terms.rows.map((r) => r.term)).toEqual(["How do I invoice", "new term"]);
+    const rivals = await db.query(
+      "select name, domain, aliases from public.competitors where product_id = $1 order by name",
+      [id],
+    );
+    expect(rivals.rows).toEqual([
+      { name: "BillFast", domain: "billfast.example", aliases: ["Billfast App"] },
+      { name: "New Tool", domain: null, aliases: [] },
+    ]);
+    const product = await db.query(
+      "select name, relevance_threshold from public.products where id = $1",
+      [id],
+    );
+    expect(product.rows).toEqual([{ name: "Acme Pro", relevance_threshold: 70 }]);
+    await db.close();
+  });
+
+  it("rolls everything back when one value is refused (planted Bluesky domain)", async () => {
+    const { db, owner, id } = await setupDraft();
+    await expect(
+      apply(db, owner, id, ["new term"], [{ name: "Foo", domain: "foo.bsky.social" }]),
+    ).rejects.toThrow(/check constraint/);
+    const terms = await db.query(
+      "select term from public.search_terms where product_id = $1 order by term",
+      [id],
+    );
+    expect(terms.rows).toEqual([{ term: "how do i invoice" }, { term: "old term" }]);
+    const product = await db.query("select name from public.products where id = $1", [id]);
+    expect(product.rows).toEqual([{ name: "Acme" }]);
+    await db.close();
+  });
+
+  it("refuses another user's product and a confirmed product", async () => {
+    const { db, owner, other, id } = await setupDraft();
+    await expect(apply(db, other, id, ["x term"], [])).rejects.toThrow(/no draft/);
+    await db.query("update public.products set status = 'active' where id = $1", [id]);
+    await expect(apply(db, owner, id, ["x term"], [])).rejects.toThrow(/no draft/);
+    await db.close();
+  });
+
+  it("is refused to anon", async () => {
+    const { db, id } = await setupDraft();
+    await expect(
+      withRole(db, "anon", null, () =>
+        db.query("select public.apply_onboarding_edits($1, '{}', '{}', '[]')", [id]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await db.close();
+  });
+});

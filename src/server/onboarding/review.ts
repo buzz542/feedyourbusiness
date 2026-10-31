@@ -1,5 +1,6 @@
 import { isProfileCommunity, isSensitiveCommunity } from "@/sources/sensitive-communities";
-import { isProductLabel, tidy } from "./labels";
+import { cleanDomain } from "./draft";
+import { hasPersonOrLink, isProductLabel, tidy } from "./labels";
 
 /**
  * "Here's what we found" (docs/PLAN.md 4.3 steps 4 and 5). Editing is optional, folded away under
@@ -51,33 +52,51 @@ const lines = (raw: string): string[] => {
     });
 };
 
-export function parseEdits(form: FormData): ParsedEdits {
+export function parseEdits(form: FormData, ownHost: string | null = null): ParsedEdits {
   const errors: Partial<Record<EditField, string>> = {};
 
   const name = tidy(text(form, "name"));
   if (!isProductLabel(name, 120))
     errors.name = "Give your product a name, without links or handles.";
+  // Describe products and groups, never a person (8.3): no handles, emails or links here either.
+  const NO_PEOPLE = "Describe the product and who it's for, without handles, emails or links.";
   const one_liner = tidy(text(form, "one_liner"));
   if (one_liner.length > 160) errors.one_liner = "Keep the summary to 160 characters.";
+  else if (hasPersonOrLink(one_liner)) errors.one_liner = NO_PEOPLE;
   const description = tidy(text(form, "description"));
   if (description.length > 2000) errors.description = "Keep the description to 2,000 characters.";
+  else if (hasPersonOrLink(description)) errors.description = NO_PEOPLE;
   const audience = tidy(text(form, "audience"));
   if (audience.length > 1000) errors.audience = "Keep the audience to 1,000 characters.";
+  else if (hasPersonOrLink(audience)) errors.audience = NO_PEOPLE;
 
   const threshold = Number(text(form, "relevance_threshold"));
   if (!Number.isInteger(threshold) || threshold < 40 || threshold > 95)
     errors.relevance_threshold = "Pick a match threshold from 40 to 95.";
 
   const terms = lines(text(form, "terms"));
-  if (terms.length > MAX_TERMS) errors.terms = `Keep it to ${MAX_TERMS} search terms.`;
+  if (terms.length === 0) errors.terms = "Keep at least one search term.";
+  else if (terms.length > MAX_TERMS) errors.terms = `Keep it to ${MAX_TERMS} search terms.`;
   else if (terms.some((t) => t.length < 2 || !isProductLabel(t, 120)))
     errors.terms = "Search terms are phrases people write, without handles, emails or links.";
 
   const competitors: Edits["competitors"] = [];
   for (const line of lines(text(form, "competitors"))) {
-    const [rawName = "", rawDomain = ""] = line.split(",").map((part) => part.trim());
-    const domain = rawDomain.toLowerCase().replace(/^www\./, "") || null;
-    if (!isProductLabel(rawName, 80) || (domain !== null && !DOMAIN.test(domain))) {
+    // "Name, domain": split at the last comma, and only when what follows looks like a domain, so
+    // "Acme, Inc." stays one name.
+    const cut = line.lastIndexOf(",");
+    const tail = cut >= 0 ? line.slice(cut + 1).trim() : "";
+    const hasDomain = /^\S+\.\S+$/.test(tail) && !/^(inc|ltd|llc|co|corp)\.?$/i.test(tail);
+    const rawName = (hasDomain ? line.slice(0, cut) : line).trim();
+    const rawDomain = hasDomain ? tail.replace(/^https?:\/\//i, "").replace(/\/.*$/, "") : "";
+    const typed = rawDomain.toLowerCase().replace(/^www\./, "") || null;
+    // The draft's rules: no platform, store, review or profile site, never the product's own.
+    const domain = typed === null ? null : cleanDomain(typed, ownHost);
+    if (typed !== null && domain === null && DOMAIN.test(typed)) {
+      errors.competitors = `${typed} is not a competitor's own site. Leave the domain out, or use theirs.`;
+      break;
+    }
+    if (!isProductLabel(rawName, 80) || (typed !== null && domain === null)) {
       errors.competitors =
         "Write one competitor a line: a product name, then a comma and its domain if you like.";
       break;
@@ -125,49 +144,4 @@ export function parseEdits(form: FormData): ParsedEdits {
       competitors,
     },
   };
-}
-
-/** What the draft holds now, to diff against. */
-export interface ReviewSnapshot {
-  terms: { id: string; term: string }[];
-  competitors: { id: string; name: string; domain: string | null }[];
-}
-
-/** Writes through the signed-in user's client, so RLS and column grants apply. */
-export interface ReviewStore {
-  updateProfile(profile: ProfileEdits): Promise<void>;
-  addTerms(terms: string[]): Promise<void>;
-  removeTerms(ids: string[]): Promise<void>;
-  addCompetitors(competitors: { name: string; domain: string | null }[]): Promise<void>;
-  updateCompetitorDomain(id: string, domain: string | null): Promise<void>;
-  removeCompetitors(ids: string[]): Promise<void>;
-}
-
-/** Only what changed: removals first, so the caps (40 terms, 20 competitors) never block a swap. */
-export async function applyEdits(
-  store: ReviewStore,
-  current: ReviewSnapshot,
-  edits: Edits,
-): Promise<void> {
-  await store.updateProfile(edits.profile);
-
-  const wanted = new Set(edits.terms.map((t) => t.toLowerCase()));
-  const have = new Set(current.terms.map((t) => t.term.toLowerCase()));
-  const goneTerms = current.terms.filter((t) => !wanted.has(t.term.toLowerCase()));
-  const newTerms = edits.terms.filter((t) => !have.has(t.toLowerCase()));
-  if (goneTerms.length) await store.removeTerms(goneTerms.map((t) => t.id));
-  if (newTerms.length) await store.addTerms(newTerms);
-
-  const byName = new Map(current.competitors.map((c) => [c.name.toLowerCase(), c]));
-  const keep = new Set(edits.competitors.map((c) => c.name.toLowerCase()));
-  const goneRivals = current.competitors.filter((c) => !keep.has(c.name.toLowerCase()));
-  if (goneRivals.length) await store.removeCompetitors(goneRivals.map((c) => c.id));
-  const added: Edits["competitors"] = [];
-  for (const c of edits.competitors) {
-    const existing = byName.get(c.name.toLowerCase());
-    if (!existing) added.push(c);
-    else if (existing.domain !== c.domain)
-      await store.updateCompetitorDomain(existing.id, c.domain);
-  }
-  if (added.length) await store.addCompetitors(added);
 }

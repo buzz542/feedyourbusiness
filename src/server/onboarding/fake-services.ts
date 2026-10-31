@@ -1,3 +1,4 @@
+import "server-only";
 import type { LlmClient, LlmReply } from "@/server/llm/ports";
 import type { OwnSitePage } from "@/server/net/own-site";
 import { OwnSiteError } from "@/server/net/own-site";

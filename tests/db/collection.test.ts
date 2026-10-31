@@ -791,7 +791,7 @@ describe("review fixes", () => {
         where has_function_privilege(r.role, p.oid, 'execute')`,
     );
     // Functions written for a signed-in user on purpose, from earlier migrations.
-    const forUsers = new Set<string>();
+    const forUsers = new Set<string>(["apply_onboarding_edits(uuid,jsonb,text[],jsonb)"]);
     expect(open.filter((o) => !forUsers.has(o.fn))).toEqual([]);
   });
 });

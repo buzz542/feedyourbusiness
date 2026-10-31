@@ -532,3 +532,67 @@ grant execute on function public.llm_begin_call(uuid, text, timestamptz, integer
   to service_role;
 grant execute on function public.llm_finish_call(uuid, uuid, text, text, integer, integer, integer, integer, numeric, timestamptz)
   to service_role;
+
+-- "Change something" (4.3 step 4): every edit in one transaction, so a value the database refuses
+-- (a Bluesky handle as a domain, a handle in a term) or a lost connection never leaves half an
+-- edit behind for the user to confirm unseen. SECURITY INVOKER: it runs as the signed-in owner, so
+-- RLS and the column grants above still decide what may be written. Terms and competitors are
+-- matched ignoring case; a case-only change updates the row, and a competitor keeps its aliases.
+create function public.apply_onboarding_edits(
+  p_product_id uuid,
+  p_profile jsonb,
+  p_terms text[],
+  p_competitors jsonb
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  updated integer;
+begin
+  update public.products set
+    name = p_profile ->> 'name',
+    one_liner = p_profile ->> 'one_liner',
+    description = p_profile ->> 'description',
+    audience = p_profile ->> 'audience',
+    relevance_threshold = (p_profile ->> 'relevance_threshold')::smallint,
+    subreddits = coalesce(
+      (select array_agg(value) from jsonb_array_elements_text(p_profile -> 'subreddits')), '{}')
+  where id = p_product_id and status = 'draft';
+  get diagnostics updated = row_count;
+  if updated = 0 then
+    raise exception 'no draft product to edit' using errcode = 'P0002';
+  end if;
+
+  -- Removals first, so the caps (40 terms, 20 competitors) never block a swap.
+  delete from public.search_terms t
+   where t.product_id = p_product_id
+     and lower(t.term) <> all (select lower(x) from unnest(p_terms) as x);
+  update public.search_terms t set term = x.term
+    from unnest(p_terms) as x (term)
+   where t.product_id = p_product_id and lower(t.term) = lower(x.term) and t.term <> x.term;
+  insert into public.search_terms (product_id, term)
+    select p_product_id, x.term from unnest(p_terms) as x (term)
+     where not exists (select 1 from public.search_terms t
+                        where t.product_id = p_product_id and lower(t.term) = lower(x.term));
+
+  delete from public.competitors c
+   where c.product_id = p_product_id
+     and c.name_key <> all (select lower(e ->> 'name') from jsonb_array_elements(p_competitors) as e);
+  update public.competitors c
+     set name = e ->> 'name', domain = nullif(e ->> 'domain', '')
+    from jsonb_array_elements(p_competitors) as e
+   where c.product_id = p_product_id and c.name_key = lower(e ->> 'name')
+     and (c.name <> e ->> 'name' or c.domain is distinct from nullif(e ->> 'domain', ''));
+  insert into public.competitors (product_id, name, domain)
+    select p_product_id, e ->> 'name', nullif(e ->> 'domain', '')
+      from jsonb_array_elements(p_competitors) as e
+     where not exists (select 1 from public.competitors c
+                        where c.product_id = p_product_id and c.name_key = lower(e ->> 'name'));
+end;
+$$;
+
+revoke all on function public.apply_onboarding_edits(uuid, jsonb, text[], jsonb) from public, anon;
+grant execute on function public.apply_onboarding_edits(uuid, jsonb, text[], jsonb) to authenticated;

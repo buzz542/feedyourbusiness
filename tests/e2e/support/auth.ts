@@ -6,7 +6,8 @@ import { assertDevSupabase } from "./guard";
  * development project, then follow a generated magic link through our own callback.
  */
 
-function adminClient(): SupabaseClient {
+/** The service-role client for the development project only (assertDevSupabase). */
+export function adminClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   assertDevSupabase(url);
   return createClient(url, process.env.SUPABASE_SECRET_KEY ?? "", {

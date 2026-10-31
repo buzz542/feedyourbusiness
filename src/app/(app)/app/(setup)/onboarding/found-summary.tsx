@@ -17,7 +17,9 @@ export function FoundSummary({
     <Card className="space-y-6 p-5">
       <section>
         <h2 className="font-serif text-2xl tracking-tight">{product.name}</h2>
-        {product.one_liner ? <p className="mt-2">{product.one_liner}</p> : null}
+        {product.one_liner || product.description ? (
+          <p className="mt-2">{product.one_liner || product.description}</p>
+        ) : null}
         {product.audience ? (
           <p className="mt-2 text-muted">
             <span className="font-medium text-ink">For: </span>

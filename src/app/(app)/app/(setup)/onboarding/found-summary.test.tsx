@@ -14,6 +14,7 @@ const view = {
     subreddits: ["freelance", "smallbusiness"],
     relevance_threshold: 60,
     status: "draft",
+    updated_at: "2026-10-31T12:00:00Z",
   },
   terms: Array.from({ length: 11 }, (_, i) => ({ id: `t${i}`, term: `invoice term ${i}` })),
   competitors: [

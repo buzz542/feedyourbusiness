@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "./support/test";
-import { createConfirmedUser, deleteUserByEmail, magicLinkPath } from "./support/auth";
+import { E2E_ONBOARDING_EMAIL } from "../../playwright.config";
+import { adminClient, createConfirmedUser, deleteUserByEmail, magicLinkPath } from "./support/auth";
 import { e2eSkipReason } from "./support/guard";
 
 /**
@@ -8,12 +8,8 @@ import { e2eSkipReason } from "./support/guard";
  * invented draft for any site and reads no real site. The database is the development project.
  */
 
-const EMAIL = "e2e-onboarding@example.test";
-
-const admin = () =>
-  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
-    auth: { persistSession: false },
-  });
+const EMAIL = E2E_ONBOARDING_EMAIL;
+const admin = adminClient;
 
 /** This test user's one product (D9), never another account's. */
 async function product(columns: string) {
@@ -45,7 +41,7 @@ test.describe("onboarding with fake services", () => {
     await page.getByLabel("Paste your website.").fill("invoicer.example");
     await page.getByRole("button", { name: "Read my product" }).click();
     await expect(page.getByRole("heading", { name: "Here's what we found" })).toBeVisible();
-    await expect(page.getByText("Billfast")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Competitors" })).toContainText("Billfast");
     await expect(page.getByText(/and \d+ more terms/)).toBeVisible();
     await page.getByRole("button", { name: "Looks right" }).click();
     await expect(page).toHaveURL(/\/app\/billing$/);
@@ -62,7 +58,9 @@ test.describe("onboarding with fake services", () => {
     await expect(page.getByRole("heading", { name: "Here's what we found" })).toBeVisible();
   });
 
-  test("a platform link shows the refusal and fetches nothing", async ({ page }) => {
+  test("a platform link shows the refusal (that nothing is fetched is proven in draft.test.ts)", async ({
+    page,
+  }) => {
     await page.getByLabel("Paste your website.").fill("https://www.reddit.com/r/SaaS");
     await page.getByRole("button", { name: "Read my product" }).click();
     await expect(page.getByText("We can only read your own website.")).toBeVisible();
@@ -72,22 +70,34 @@ test.describe("onboarding with fake services", () => {
     await page.getByLabel("Paste your website.").fill("invoicer.example");
     await page.getByRole("button", { name: "Read my product" }).click();
     await page.getByText("Change something").click();
-    await page.getByLabel(/Communities/).fill("freelance, depression");
+    await page.getByRole("textbox", { name: /Communities/ }).fill("freelance, depression");
     await page.getByRole("button", { name: "Save and confirm" }).click();
     await expect(page.getByText("We don't search r/depression")).toBeVisible();
-    await page.getByLabel(/Communities/).fill("freelance");
-    await page.getByLabel("Name").fill("Invoicer Pro");
+    // A refused save keeps what was typed (React resets the form; the action echoes the values).
+    await expect(page.getByRole("textbox", { name: /Communities/ })).toHaveValue(
+      "freelance, depression",
+    );
+    await page.getByRole("textbox", { name: /Communities/ }).fill("freelance");
+    await page.getByLabel("Name", { exact: true }).fill("Invoicer Pro");
+    await page.getByRole("textbox", { name: /Search terms/ }).fill("chase late invoices\nnew term");
     await page.getByRole("button", { name: "Save and confirm" }).click();
     await expect(page).toHaveURL(/\/app\/billing$/);
     expect(await product("name, subreddits")).toEqual({
       name: "Invoicer Pro",
       subreddits: ["freelance"],
     });
+    const { data: terms } = await admin()
+      .from("search_terms")
+      .select("term")
+      .eq("product_id", String((await product("id"))?.id))
+      .order("term");
+    expect(terms?.map((t) => t.term)).toEqual(["chase late invoices", "new term"]);
   });
 
   test("'Not my product?' drafts again into the same product", async ({ page }) => {
     await page.getByLabel("Paste your website.").fill("invoicer.example");
     await page.getByRole("button", { name: "Read my product" }).click();
+    await expect(page.getByRole("heading", { name: "Here's what we found" })).toBeVisible();
     const first = await product("id");
     await page.getByRole("link", { name: "Not my product?" }).click();
     await expect(page.getByLabel("Paste your website.")).toHaveValue("https://invoicer.example/");
@@ -105,5 +115,10 @@ test.describe("onboarding with fake services", () => {
     await page.getByLabel("Paste your website.").fill("invoicer.example");
     await page.getByRole("button", { name: "Read my product" }).click();
     await expect(page.getByRole("button", { name: "Looks right" })).toBeInViewport();
+    // No sideways scroll at 375px.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflow).toBe(false);
   });
 });
