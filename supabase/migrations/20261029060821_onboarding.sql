@@ -411,3 +411,124 @@ revoke all on function public.save_product_draft(uuid, uuid, jsonb, jsonb, jsonb
   from public, anon, authenticated;
 grant execute on function public.start_product_draft(uuid, text, text) to service_role;
 grant execute on function public.save_product_draft(uuid, uuid, jsonb, jsonb, jsonb) to service_role;
+
+-- Model call reservations (8.1, 8.3). Usage is written when a call ends, 20 to 60 seconds after it
+-- starts, so a check on llm_usage alone lets parallel requests all pass the drafting limit and the
+-- spend caps. Every call therefore reserves its place first, under one lock: llm_begin_call counts
+-- today's calls and this month's and today's spend plus the open reservations, refuses at a limit,
+-- and records the reservation; llm_finish_call writes the usage row and drops the reservation in
+-- one statement. A reservation left by a crashed call lapses when its lease ends. Server only.
+create table public.llm_reservations (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid references public.products (id) on delete cascade,
+  task text not null check (task in ('draft', 'classify', 'synthesize', 'preview')),
+  reserve_usd numeric(10, 6) not null check (reserve_usd >= 0),
+  created_at timestamptz not null,
+  expires_at timestamptz not null check (expires_at > created_at)
+);
+create index llm_reservations_expires_idx on public.llm_reservations (expires_at);
+revoke all on public.llm_reservations from anon, authenticated;
+alter table public.llm_reservations enable row level security;
+create policy llm_reservations_deny_all on public.llm_reservations
+  for all to anon, authenticated using (false) with check (false);
+
+-- Status 'ok' with the reservation id, or the limit that refused: 'task_daily' (p_task_daily_calls
+-- calls of this task for this product in the UTC day, null for no limit), 'product_monthly' or
+-- 'global_daily'. A cap refuses once what is spent plus what is reserved reaches it.
+create function public.llm_begin_call(
+  p_product_id uuid,
+  p_task text,
+  p_now timestamptz,
+  p_task_daily_calls integer,
+  p_product_monthly_usd numeric,
+  p_global_daily_usd numeric,
+  p_reserve_usd numeric,
+  p_lease_seconds integer
+)
+returns table (status text, reservation_id uuid)
+language plpgsql
+set search_path = ''
+as $$
+declare
+  day_start timestamptz := date_trunc('day', p_now at time zone 'utc') at time zone 'utc';
+  month_start timestamptz := date_trunc('month', p_now at time zone 'utc') at time zone 'utc';
+  used numeric;
+  calls integer;
+  id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtext('llm_spend'));
+
+  if p_product_id is not null and p_task_daily_calls is not null then
+    select (select count(*) from public.llm_usage u
+             where u.product_id = p_product_id and u.task = p_task and u.created_at >= day_start)
+         + (select count(*) from public.llm_reservations r
+             where r.product_id = p_product_id and r.task = p_task and r.expires_at > p_now)
+      into calls;
+    if calls >= p_task_daily_calls then
+      return query select 'task_daily'::text, null::uuid;
+      return;
+    end if;
+  end if;
+
+  if p_product_id is not null then
+    select (select coalesce(sum(u.cost_usd), 0) from public.llm_usage u
+             where u.product_id = p_product_id and u.created_at >= month_start)
+         + (select coalesce(sum(r.reserve_usd), 0) from public.llm_reservations r
+             where r.product_id = p_product_id and r.expires_at > p_now)
+      into used;
+    if used >= p_product_monthly_usd then
+      return query select 'product_monthly'::text, null::uuid;
+      return;
+    end if;
+  end if;
+
+  select (select coalesce(sum(u.cost_usd), 0) from public.llm_usage u where u.created_at >= day_start)
+       + (select coalesce(sum(r.reserve_usd), 0) from public.llm_reservations r
+           where r.expires_at > p_now)
+    into used;
+  if used >= p_global_daily_usd then
+    return query select 'global_daily'::text, null::uuid;
+    return;
+  end if;
+
+  insert into public.llm_reservations (product_id, task, reserve_usd, created_at, expires_at)
+  values (p_product_id, p_task, greatest(p_reserve_usd, 0), p_now,
+          p_now + make_interval(secs => greatest(p_lease_seconds, 1)))
+  returning llm_reservations.id into id;
+  return query select 'ok'::text, id;
+end;
+$$;
+
+create function public.llm_finish_call(
+  p_reservation_id uuid,
+  p_product_id uuid,
+  p_task text,
+  p_model text,
+  p_input_tokens integer,
+  p_output_tokens integer,
+  p_cache_read_tokens integer,
+  p_cache_write_tokens integer,
+  p_cost_usd numeric,
+  p_now timestamptz
+)
+returns void
+language sql
+set search_path = ''
+as $$
+  with dropped as (
+    delete from public.llm_reservations where id = p_reservation_id
+  )
+  insert into public.llm_usage (product_id, task, model, input_tokens, output_tokens,
+    cache_read_tokens, cache_write_tokens, cost_usd, created_at)
+  values (p_product_id, p_task, p_model, p_input_tokens, p_output_tokens, p_cache_read_tokens,
+    p_cache_write_tokens, p_cost_usd, p_now);
+$$;
+
+revoke all on function public.llm_begin_call(uuid, text, timestamptz, integer, numeric, numeric, numeric, integer)
+  from public, anon, authenticated;
+revoke all on function public.llm_finish_call(uuid, uuid, text, text, integer, integer, integer, integer, numeric, timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.llm_begin_call(uuid, text, timestamptz, integer, numeric, numeric, numeric, integer)
+  to service_role;
+grant execute on function public.llm_finish_call(uuid, uuid, text, text, integer, integer, integer, integer, numeric, timestamptz)
+  to service_role;

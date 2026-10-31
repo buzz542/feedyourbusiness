@@ -17,10 +17,16 @@ import { PRICES, type LlmModel } from "./prices";
  *   * a plain request with our own system text and input and a JSON schema output; no tools,
  *     server tools included (8.1);
  *   * the answer is validated with zod, retried once if it does not match, then rejected;
- *   * a refusal raises LlmRefusalError and is not retried;
- *   * every call, failed or not, writes one llm_usage row with its tokens and cost;
- *   * the per-product monthly cap and the global daily cap are checked before every call,
- *     the retry included.
+ *   * a refusal raises LlmRefusalError and is not retried; any other failure (a timeout, a 5xx after
+ *     the SDK's retries, a network error) raises LlmUnavailableError, which carries no message from
+ *     the API;
+ *   * every attempt reserves its place first (UsageStore.begin), under one lock, against the
+ *     per-product monthly cap, the global daily cap and, when the call sets one, a per-task daily
+ *     call limit, so parallel requests cannot all pass a limit; the retry reserves again;
+ *   * every attempt, failed or not, writes one llm_usage row: the reported tokens and cost, or for a
+ *     call that failed without an answer, an estimate of its input (it may still be billed);
+ *   * a deadline, when given, covers both attempts: each gets what is left (at most 60 seconds, no
+ *     SDK retries), and the retry is skipped when less than 10 seconds remain.
  *
  * Nothing here logs prompts, inputs or answers.
  */
@@ -45,7 +51,14 @@ export class LlmSchemaError extends Error {
   }
 }
 
-export type SpendCap = "product_monthly" | "global_daily";
+export class LlmUnavailableError extends Error {
+  constructor() {
+    super("The model did not answer");
+    this.name = "LlmUnavailableError";
+  }
+}
+
+export type SpendCap = "product_monthly" | "global_daily" | "task_daily";
 
 export class LlmCapError extends Error {
   constructor(readonly cap: SpendCap) {
@@ -76,8 +89,27 @@ export interface StructuredCall<S extends z.ZodType> {
   system: readonly SystemBlock[];
   input: string;
   schema: S;
+  /**
+   * Validates the answer when set; `schema` still shapes the JSON schema sent. The API treats
+   * lengths, counts and patterns as hints, so a caller that enforces them itself can parse leniently
+   * instead of losing a whole answer to one long item.
+   */
+  parseSchema?: z.ZodType<z.infer<S>>;
   maxTokens: number;
+  /** Calls of this task for this product per UTC day, a retry included (8.3: 6 for drafts). */
+  dailyCallLimit?: number;
+  /** Milliseconds for the whole call, both attempts included (8.3: 45 seconds for a draft). */
+  deadlineMs?: number;
 }
+
+/** Per request, the SDK's retries included (8.1). */
+export const CALL_TIMEOUT_MS = 60_000;
+/** The retry is skipped when less than this is left of a deadline. */
+export const MIN_ATTEMPT_MS = 10_000;
+/** A reservation outlives the longest call: 60 seconds, three times over, with room to spare. */
+const LEASE_SECONDS = 600;
+/** A cautious token count for text we send (about 3 characters a token). */
+const tokensFor = (chars: number) => Math.ceil(chars / 3);
 
 /** Dollars for one call at the recorded prices, rounded to the column's 6 decimals. */
 export function costUsd(model: LlmModel, usage: TokenUsage): number {
@@ -109,41 +141,80 @@ function parse<S extends z.ZodType>(schema: S, reply: LlmReply): z.infer<S> | un
 }
 
 export function createLlm(deps: LlmDeps) {
-  async function checkCaps(productId: string | null): Promise<void> {
-    const now = deps.clock.now();
-    if (productId !== null) {
-      const month = await deps.usage.usageSince(productId, startOfUtcMonth(now));
-      if (month.costUsd >= deps.caps.productMonthlyUsd) throw new LlmCapError("product_monthly");
-    }
-    const today = await deps.usage.usageSince(null, startOfUtcDay(now));
-    if (today.costUsd >= deps.caps.dailyUsd) throw new LlmCapError("global_daily");
-  }
-
-  async function attempt<S extends z.ZodType>(call: StructuredCall<S>): Promise<LlmReply> {
-    await checkCaps(call.productId);
-    const reply = await deps.client.complete({
-      model: call.model,
-      system: call.system,
-      input: call.input,
-      schema: call.schema,
-      maxTokens: call.maxTokens,
-    });
-    await deps.usage.record({
+  async function attempt<S extends z.ZodType>(
+    call: StructuredCall<S>,
+    timeoutMs: number,
+    maxRetries: number,
+  ): Promise<LlmReply> {
+    const inputTokens = tokensFor(
+      call.input.length + call.system.reduce((n, b) => n + b.text.length, 0),
+    );
+    const begun = await deps.usage.begin({
       productId: call.productId,
       task: call.task,
-      model: call.model,
-      ...reply.usage,
-      costUsd: costUsd(call.model, reply.usage),
       at: deps.clock.now(),
+      taskDailyCalls: call.dailyCallLimit ?? null,
+      productMonthlyUsd: deps.caps.productMonthlyUsd,
+      dailyUsd: deps.caps.dailyUsd,
+      reserveUsd: costUsd(call.model, {
+        inputTokens,
+        outputTokens: call.maxTokens,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      }),
+      leaseSeconds: LEASE_SECONDS,
     });
+    if (begun.kind === "refused") throw new LlmCapError(begun.limit);
+
+    const record = (usage: TokenUsage) =>
+      deps.usage.finish(begun.reservationId, {
+        productId: call.productId,
+        task: call.task,
+        model: call.model,
+        ...usage,
+        costUsd: costUsd(call.model, usage),
+        at: deps.clock.now(),
+      });
+
+    let reply: LlmReply;
+    try {
+      reply = await deps.client.complete({
+        model: call.model,
+        system: call.system,
+        input: call.input,
+        schema: call.schema,
+        maxTokens: call.maxTokens,
+        timeoutMs,
+        maxRetries,
+      });
+    } catch {
+      await record({ inputTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+      throw new LlmUnavailableError();
+    }
+    await record(reply.usage);
     if (reply.stopReason === "refusal") throw new LlmRefusalError();
     return reply;
   }
 
   return {
     async callStructured<S extends z.ZodType>(call: StructuredCall<S>): Promise<z.infer<S>> {
+      const started = deps.clock.now().getTime();
       for (let tries = 0; tries < 2; tries++) {
-        const parsed = parse(call.schema, await attempt(call));
+        let timeoutMs = CALL_TIMEOUT_MS;
+        let maxRetries = 2;
+        if (call.deadlineMs !== undefined) {
+          const left = call.deadlineMs - (deps.clock.now().getTime() - started);
+          if (left < MIN_ATTEMPT_MS) {
+            if (tries === 0) throw new LlmUnavailableError();
+            break;
+          }
+          timeoutMs = Math.min(CALL_TIMEOUT_MS, left);
+          maxRetries = 0;
+        }
+        const parsed = parse(
+          call.parseSchema ?? call.schema,
+          await attempt(call, timeoutMs, maxRetries),
+        );
         if (parsed !== undefined) return parsed;
       }
       throw new LlmSchemaError();
