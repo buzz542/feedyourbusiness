@@ -21,8 +21,8 @@ export default async function OnboardingPage({
 }: {
   searchParams: Promise<{ again?: string }>;
 }) {
-  await requireAppUser("/app/onboarding");
-  const view = await loadOnboardingView(await createSupabaseServerClient());
+  const user = await requireAppUser("/app/onboarding");
+  const view = await loadOnboardingView(await createSupabaseServerClient(), user.id);
   if (view && view.product.status !== "draft") redirect("/app");
   const again = (await searchParams).again === "1";
 
@@ -44,6 +44,7 @@ export default async function OnboardingPage({
       <h1 className="mb-6 font-serif text-3xl tracking-tight">Here&apos;s what we found</h1>
       <FoundSummary view={view} />
       <form action={confirmAction} className="mt-6 flex flex-wrap items-center gap-4">
+        <input type="hidden" name="seen" value={view.product.updated_at} />
         <Button type="submit">Looks right</Button>
         <Link href="/app/onboarding?again=1" className={buttonClass("quiet")}>
           Not my product?

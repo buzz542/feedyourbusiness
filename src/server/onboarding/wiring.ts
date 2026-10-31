@@ -6,9 +6,10 @@ import { createSupabaseUsageStore } from "@/server/llm/supabase-usage";
 import { fetchOwnSite } from "@/server/net/own-site";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
+import type { Json } from "@/types/database";
 import type { OnboardingDeps } from "./draft";
 import { fakeFetchPage, fakeLlmClient, fakeServicesAllowed } from "./fake-services";
-import type { ReviewSnapshot, ReviewStore } from "./review";
+import type { Edits } from "./review";
 import { createSupabaseDraftStore } from "./supabase-draft-store";
 
 /**
@@ -47,6 +48,7 @@ export interface OnboardingView {
     subreddits: string[];
     relevance_threshold: number;
     status: string;
+    updated_at: string;
   };
   terms: { id: string; term: string }[];
   competitors: { id: string; name: string; domain: string | null; aliases: string[] }[];
@@ -59,12 +61,16 @@ class OnboardingReadError extends Error {
 }
 
 /** The owner's product with its terms and competitors, read through RLS. Null before a draft. */
-export async function loadOnboardingView(client: UserClient): Promise<OnboardingView | null> {
+export async function loadOnboardingView(
+  client: UserClient,
+  ownerId: string,
+): Promise<OnboardingView | null> {
   const { data: product, error } = await client
     .from("products")
     .select(
-      "id, url, name, one_liner, description, audience, subreddits, relevance_threshold, status",
+      "id, url, name, one_liner, description, audience, subreddits, relevance_threshold, status, updated_at",
     )
+    .eq("owner_id", ownerId)
     .maybeSingle();
   if (error) throw new OnboardingReadError();
   if (!product) return null;
@@ -80,69 +86,42 @@ export async function loadOnboardingView(client: UserClient): Promise<Onboarding
   return { product, terms: terms.data, competitors: competitors.data };
 }
 
-export const snapshotOf = (view: OnboardingView): ReviewSnapshot => ({
-  terms: view.terms,
-  competitors: view.competitors.map(({ id, name, domain }) => ({ id, name, domain })),
-});
-
 class OnboardingWriteError extends Error {
   override name = "OnboardingWriteError";
 }
 
-const check = ({ error }: { error: unknown }) => {
+/** "Change something": every edit in one transaction, as the owner (apply_onboarding_edits). */
+export async function saveOnboardingEdits(
+  client: UserClient,
+  productId: string,
+  edits: Edits,
+): Promise<void> {
+  const { error } = await client.rpc("apply_onboarding_edits", {
+    p_product_id: productId,
+    p_profile: edits.profile as unknown as Json,
+    p_terms: edits.terms,
+    p_competitors: edits.competitors as unknown as Json,
+  });
   if (error) throw new OnboardingWriteError();
-};
-
-/** Review edits through the user's own client: owner only, permitted columns only. */
-export function createSupabaseReviewStore(client: UserClient, productId: string): ReviewStore {
-  return {
-    async updateProfile(profile) {
-      check(
-        await client.from("products").update(profile).eq("id", productId).eq("status", "draft"),
-      );
-    },
-    async addTerms(terms) {
-      check(
-        await client.from("search_terms").upsert(
-          terms.map((term) => ({ product_id: productId, term })),
-          { onConflict: "product_id,term", ignoreDuplicates: true },
-        ),
-      );
-    },
-    async removeTerms(ids) {
-      check(await client.from("search_terms").delete().eq("product_id", productId).in("id", ids));
-    },
-    async addCompetitors(competitors) {
-      check(
-        await client.from("competitors").upsert(
-          competitors.map((c) => ({ product_id: productId, name: c.name, domain: c.domain })),
-          { onConflict: "product_id,name_key", ignoreDuplicates: true },
-        ),
-      );
-    },
-    async updateCompetitorDomain(id, domain) {
-      check(
-        await client
-          .from("competitors")
-          .update({ domain })
-          .eq("product_id", productId)
-          .eq("id", id),
-      );
-    },
-    async removeCompetitors(ids) {
-      check(await client.from("competitors").delete().eq("product_id", productId).in("id", ids));
-    },
-  };
 }
 
-/** "Looks right": the draft becomes active, and the database stamps confirmed_at. */
-export async function confirmDraft(client: UserClient, productId: string): Promise<boolean> {
-  const { data, error } = await client
+/**
+ * "Looks right": the draft becomes active, and the database stamps confirmed_at. With `seen`, only
+ * the version the user looked at (its updated_at), so a redraft or edit in another tab is never
+ * confirmed unseen.
+ */
+export async function confirmDraft(
+  client: UserClient,
+  productId: string,
+  seen?: string,
+): Promise<boolean> {
+  let query = client
     .from("products")
     .update({ status: "active" })
     .eq("id", productId)
-    .eq("status", "draft")
-    .select("id");
+    .eq("status", "draft");
+  if (seen) query = query.eq("updated_at", seen);
+  const { data, error } = await query.select("id");
   if (error) throw new OnboardingWriteError();
   return (data ?? []).length === 1;
 }

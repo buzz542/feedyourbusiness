@@ -733,6 +733,10 @@ export type Database = {
         Args: { p_now: string }
         Returns: Json
       }
+      apply_onboarding_edits: {
+        Args: { p_product_id: string; p_profile: Json; p_terms: string[]; p_competitors: Json }
+        Returns: undefined
+      }
       llm_begin_call: {
         Args: {
           p_product_id: string | null

@@ -18,6 +18,13 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL) assertDevSupabase(process.env.NEXT_PUB
 
 /** The one address the sign-in test uses; it is added to the dev server's allowlist. */
 export const E2E_EMAIL = "e2e-signin@example.test";
+/** The onboarding E2E's address (tests/e2e/onboarding.spec.ts); also on the allowlist. */
+export const E2E_ONBOARDING_EMAIL = "e2e-onboarding@example.test";
+
+// The onboarding E2E must never call the real model or a real site: refuse to run when the
+// server's env would turn the fakes off (a VERCEL_ENV pulled into .env.local, for instance).
+if (process.env.VERCEL_ENV !== undefined)
+  throw new Error("E2E: unset VERCEL_ENV; the onboarding fakes are refused when it is set");
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -39,7 +46,9 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       // A fake model and site for onboarding; honored only on a local run (fake-services.ts).
       E2E_FAKE_SERVICES: "1",
-      SIGNUP_ALLOWLIST: [process.env.SIGNUP_ALLOWLIST, E2E_EMAIL].filter(Boolean).join(","),
+      SIGNUP_ALLOWLIST: [process.env.SIGNUP_ALLOWLIST, E2E_EMAIL, E2E_ONBOARDING_EMAIL]
+        .filter(Boolean)
+        .join(","),
     },
   },
 });

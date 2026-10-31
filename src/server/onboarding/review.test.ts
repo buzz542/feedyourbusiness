@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEdits, parseEdits, type ReviewStore, type ReviewSnapshot } from "./review";
+import { parseEdits } from "./review";
 
 /** "Here's what we found" (docs/PLAN.md 4.3 steps 4 and 5): edits under "Change something". */
 
@@ -66,6 +66,26 @@ describe("parseEdits", () => {
     if (!out.ok) expect(Object.keys(out.errors)).toEqual([field]);
   });
 
+  it.each([
+    ["a platform", "Reddit, reddit.com"],
+    ["a publishing site", "Jane, jane.substack.com"],
+    ["a Bluesky handle", "Jane, jane.bsky.social"],
+  ])("refuses %s as a competitor's domain, with a message (planted)", (_, line) => {
+    const out = parseEdits(form({ competitors: line }));
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.errors.competitors).toBeTruthy();
+  });
+
+  it.each(["one_liner", "description", "audience"])(
+    "refuses a handle, email or link in %s (planted)",
+    (field) => {
+      for (const value of ["Made by @someone", "Write to a@example.com", "See x.com/someone"]) {
+        const out = parseEdits(form({ [field]: value }));
+        expect(out.ok, value).toBe(false);
+      }
+    },
+  );
+
   it("keeps the limits: 40 terms, 20 competitors, 10 subreddits, threshold 40 to 95", () => {
     const many = (n: number, f: (i: number) => string) => Array.from({ length: n }, (_, i) => f(i));
     expect(parseEdits(form({ terms: many(41, (i) => `term ${i}`).join("\n") })).ok).toBe(false);
@@ -86,57 +106,19 @@ describe("parseEdits", () => {
   });
 });
 
-class FakeReviewStore implements ReviewStore {
-  calls: string[] = [];
-  async updateProfile() {
-    this.calls.push("profile");
-  }
-  async addTerms(terms: string[]) {
-    this.calls.push(`add terms ${terms.join("|")}`);
-  }
-  async removeTerms(ids: string[]) {
-    this.calls.push(`remove terms ${ids.join("|")}`);
-  }
-  async addCompetitors(c: { name: string; domain: string | null }[]) {
-    this.calls.push(`add rivals ${c.map((x) => `${x.name}:${x.domain ?? ""}`).join("|")}`);
-  }
-  async updateCompetitorDomain(id: string, domain: string | null) {
-    this.calls.push(`domain ${id}:${domain ?? ""}`);
-  }
-  async removeCompetitors(ids: string[]) {
-    this.calls.push(`remove rivals ${ids.join("|")}`);
-  }
-}
-
-describe("applyEdits", () => {
-  const snapshot: ReviewSnapshot = {
-    terms: [
-      { id: "t1", term: "how do I chase an invoice" },
-      { id: "t2", term: "old term" },
-    ],
-    competitors: [
-      { id: "c1", name: "Rival", domain: null },
-      { id: "c2", name: "Gone Tool", domain: null },
-    ],
-  };
-
-  it("adds and removes only what changed, ignoring case, and keeps a rival's aliases", async () => {
-    const parsed = parseEdits(
-      form({
-        terms: "How do I chase an invoice\nnew term",
-        competitors: "rival, rival.example\nNew Tool",
-      }),
+describe("parseEdits, after review", () => {
+  it("keeps a comma inside a competitor's name, and takes a pasted link's domain", () => {
+    const out = parseEdits(
+      form({ competitors: "Acme, Inc.\nRival, https://rival.example/pricing" }),
     );
-    if (!parsed.ok) throw new Error("expected valid edits");
-    const store = new FakeReviewStore();
-    await applyEdits(store, snapshot, parsed.edits);
-    expect(store.calls).toEqual([
-      "profile",
-      "remove terms t2",
-      "add terms new term",
-      "remove rivals c2",
-      "domain c1:rival.example",
-      "add rivals New Tool:",
+    expect(out.ok && out.edits.competitors).toEqual([
+      { name: "Acme, Inc.", domain: null },
+      { name: "Rival", domain: "rival.example" },
     ]);
+  });
+
+  it("needs at least one search term", () => {
+    const out = parseEdits(form({ terms: "  \n " }));
+    expect(out.ok).toBe(false);
   });
 });

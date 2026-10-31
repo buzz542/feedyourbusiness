@@ -15,12 +15,19 @@ export function EditForm({ view }: { view: OnboardingView }) {
   });
   const error = (name: EditField) =>
     state.kind === "invalid" && state.errors[name] ? (
-      <p id={`${name}-error`} className="text-sm text-negative">
+      <p id={`${name}-error`} role="alert" className="text-sm text-negative">
         {state.errors[name]}
       </p>
     ) : null;
   const described = (name: EditField) =>
     state.kind === "invalid" && state.errors[name] ? `${name}-error` : undefined;
+  const invalid = (name: EditField) =>
+    state.kind === "invalid" && state.errors[name] ? true : undefined;
+  /** What the user typed last, or what is saved: a refused save never wipes an edit. */
+  const typed = (
+    name: keyof NonNullable<Extract<EditState, { values: unknown }>["values"]>,
+    saved: string,
+  ) => (state.kind === "idle" ? saved : (state.values[name] ?? saved));
   const { product } = view;
 
   return (
@@ -41,8 +48,9 @@ export function EditForm({ view }: { view: OnboardingView }) {
             id={`edit-${name}`}
             name={name}
             rows={rows}
-            defaultValue={value}
+            defaultValue={typed(name, value)}
             aria-describedby={described(name)}
+            aria-invalid={invalid(name)}
             className={field}
           />
           {error(name)}
@@ -56,8 +64,9 @@ export function EditForm({ view }: { view: OnboardingView }) {
           id="edit-terms"
           name="terms"
           rows={8}
-          defaultValue={view.terms.map((t) => t.term).join("\n")}
+          defaultValue={typed("terms", view.terms.map((t) => t.term).join("\n"))}
           aria-describedby={described("terms")}
+          aria-invalid={invalid("terms")}
           className={field}
         />
         {error("terms")}
@@ -70,10 +79,12 @@ export function EditForm({ view }: { view: OnboardingView }) {
           id="edit-competitors"
           name="competitors"
           rows={4}
-          defaultValue={view.competitors
-            .map((c) => (c.domain ? `${c.name}, ${c.domain}` : c.name))
-            .join("\n")}
+          defaultValue={typed(
+            "competitors",
+            view.competitors.map((c) => (c.domain ? `${c.name}, ${c.domain}` : c.name)).join("\n"),
+          )}
           aria-describedby={described("competitors")}
+          aria-invalid={invalid("competitors")}
           className={field}
         />
         {error("competitors")}
@@ -85,8 +96,9 @@ export function EditForm({ view }: { view: OnboardingView }) {
         <input
           id="edit-subreddits"
           name="subreddits"
-          defaultValue={product.subreddits.join(", ")}
+          defaultValue={typed("subreddits", product.subreddits.join(", "))}
           aria-describedby={described("subreddits")}
+          aria-invalid={invalid("subreddits")}
           className={field}
         />
         {error("subreddits")}
@@ -101,8 +113,9 @@ export function EditForm({ view }: { view: OnboardingView }) {
           type="number"
           min={40}
           max={95}
-          defaultValue={product.relevance_threshold}
+          defaultValue={typed("relevance_threshold", String(product.relevance_threshold))}
           aria-describedby={described("relevance_threshold")}
+          aria-invalid={invalid("relevance_threshold")}
           className={`${field} max-w-24`}
         />
         {error("relevance_threshold")}
@@ -111,7 +124,11 @@ export function EditForm({ view }: { view: OnboardingView }) {
         Save and confirm
       </Button>
       <p role="status" aria-live="polite" className="min-h-6 text-sm">
-        {state.kind === "error" ? "Something went wrong. Try again." : ""}
+        {state.kind === "error"
+          ? "Something went wrong, and nothing was saved. Try again."
+          : state.kind === "invalid"
+            ? "Nothing was saved yet. Check the fields marked below."
+            : ""}
       </p>
     </form>
   );

@@ -146,7 +146,7 @@ export class DraftLimitError extends Error {
 
 const DOMAIN = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
 
-function cleanDomain(raw: string | null, ownHost: string | null): string | null {
+export function cleanDomain(raw: string | null, ownHost: string | null): string | null {
   if (!raw) return null;
   const domain = raw
     .trim()
