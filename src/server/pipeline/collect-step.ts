@@ -1,5 +1,6 @@
 import { charLength } from "@/lib/highlight-range";
 import { LlmCapError, LlmRefusalError, type SpendCap } from "@/server/llm/llm";
+import { hasPersonOrLink } from "@/server/onboarding/labels";
 import type { AuthorHasher } from "@/server/privacy/author-hash";
 import { normalizeAuthorKey } from "@/server/privacy/author-hash";
 import type { CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
@@ -131,7 +132,10 @@ function toPostLabel(label: Label, category: Category, post: Hashed): PostLabel 
     h.end <= charLength(post.excerpt)
       ? { start: h.start, end: h.end }
       : null;
-  const toolMentioned = label.toolMentioned?.slice(0, MAX_TOOL) || null;
+  // A product or company, never a person (8.2, D5): a handle, an email or a link is dropped here
+  // too, whatever the classifier let through, and so is a blank value.
+  const tool = label.toolMentioned?.trim().slice(0, MAX_TOOL) ?? "";
+  const toolMentioned = tool && !hasPersonOrLink(tool) ? tool : null;
   const rival =
     label.rival && (toolMentioned || label.competitorId)
       ? { ...label.rival, summary: label.rival.summary.slice(0, MAX_SUMMARY) }
@@ -185,7 +189,8 @@ export function createCollectStep(deps: {
     for (const { authorKey, ...post } of input.posts) {
       if (seen.has(post.externalId)) continue;
       seen.add(post.externalId);
-      if (post.nsfw || post.postedAt <= since) continue;
+      // An invalid date never passes the window (NaN compares false both ways).
+      if (post.nsfw || !(post.postedAt.getTime() > since.getTime())) continue;
       if (!post.excerpt || post.excerpt.length > MAX_EXCERPT) continue;
       if (!onLinkHost(post.url, source.linkHosts)) continue;
       if (PLACEHOLDER_AUTHORS.has(normalizeAuthorKey(authorKey))) continue;

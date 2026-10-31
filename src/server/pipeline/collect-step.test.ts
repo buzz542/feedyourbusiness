@@ -386,3 +386,28 @@ describe("the collect step", () => {
     expect(classifier.classify).not.toHaveBeenCalled();
   });
 });
+
+describe("backstops after review (8.2, D5)", () => {
+  const rival = {
+    issue: "support" as const,
+    sentiment: "mixed" as const,
+    switching: false,
+    summary: "Slow support replies.",
+  };
+
+  it.each(["@someone", "u/someone", "a@example.test", "https://x.example/a", "   "])(
+    "never keeps %j as the tool mentioned, nor a rival label next to it",
+    async (tool) => {
+      const { store, run } = setup(fakeClassifier(() => ({ toolMentioned: tool, rival })));
+      await run([post("1")]);
+      expect(store.links[0]!.toolMentioned).toBeNull();
+      expect(store.links[0]!.rival).toBeNull();
+    },
+  );
+
+  it("drops a post with an invalid date before the model", async () => {
+    const { classifier, run } = setup();
+    await run([post("1", { postedAt: new Date("not a date") })]);
+    expect(classifier.classify).not.toHaveBeenCalled();
+  });
+});
