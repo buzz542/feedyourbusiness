@@ -1,4 +1,5 @@
 import { BillingConfigError, loadBillingConfig, type BillingConfig } from "@/server/billing/config";
+import { checkSources } from "./sources";
 import { HANDLED_EVENT_TYPES } from "@/server/billing/events";
 import type { BillingStripe, WebhookEndpointInfo } from "@/server/billing/ports";
 import { isCronAuthorized } from "@/server/http/cron";
@@ -320,6 +321,7 @@ export async function runHealthChecks(deps: HealthDeps): Promise<HealthReport> {
     stripe_webhook: stripeWebhook,
     email: checkEmail(env),
     cron_secret: checkCronSecret(env),
+    sources: checkSources(env, now),
   };
   return {
     ok: Object.values(checks).every((c) => c.status === "ok"),

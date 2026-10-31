@@ -80,6 +80,7 @@ describe("runHealthChecks", () => {
         "cron_secret",
         "email",
         "site_url",
+        "sources",
         "stripe_config",
         "stripe_price",
         "stripe_webhook",
