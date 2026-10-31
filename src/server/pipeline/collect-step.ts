@@ -1,6 +1,6 @@
 import { charLength } from "@/lib/highlight-range";
 import { LlmCapError, LlmRefusalError, type SpendCap } from "@/server/llm/llm";
-import { hasPersonOrLink } from "@/server/onboarding/labels";
+import { hasPersonOrLink, withoutPeopleOrLinks } from "@/server/onboarding/labels";
 import type { AuthorHasher } from "@/server/privacy/author-hash";
 import { normalizeAuthorKey } from "@/server/privacy/author-hash";
 import type { CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
@@ -120,6 +120,13 @@ const PLACEHOLDER_AUTHORS = new Set(["", "[deleted]", "[removed]", "deleted", "r
 
 type Hashed = Omit<CollectedPost, "authorKey"> & { authorHash: string };
 
+/** Cut to `n` code points, as the database counts (char_length), never inside a surrogate pair. */
+const cut = (text: string, n: number) => Array.from(text).slice(0, n).join("");
+/** Our own fallback when a reason named a person or a link and nothing else was left (D5). */
+const FALLBACK_REASON = "Matches one of your search terms.";
+/** One full classifier call with its retry: a batch starts only when this much time is left. */
+export const MIN_BATCH_MS = 75_000;
+
 /** The classifier checks its labels; this keeps what reaches the database inside its constraints. */
 function toPostLabel(label: Label, category: Category, post: Hashed): PostLabel {
   const h = label.highlight;
@@ -134,16 +141,16 @@ function toPostLabel(label: Label, category: Category, post: Hashed): PostLabel 
       : null;
   // A product or company, never a person (8.2, D5): a handle, an email or a link is dropped here
   // too, whatever the classifier let through, and so is a blank value.
-  const tool = label.toolMentioned?.trim().slice(0, MAX_TOOL) ?? "";
+  const tool = cut(label.toolMentioned?.trim() ?? "", MAX_TOOL);
   const toolMentioned = tool && !hasPersonOrLink(tool) ? tool : null;
   const rival =
-    label.rival && (toolMentioned || label.competitorId)
-      ? { ...label.rival, summary: label.rival.summary.slice(0, MAX_SUMMARY) }
+    label.rival && (toolMentioned || label.competitorId) && !hasPersonOrLink(label.rival.summary)
+      ? { ...label.rival, summary: cut(label.rival.summary, MAX_SUMMARY) }
       : null;
   return {
     relevance: label.relevance,
     category,
-    reason: label.reason.slice(0, MAX_REASON),
+    reason: cut(withoutPeopleOrLinks(label.reason, MAX_REASON * 2) || FALLBACK_REASON, MAX_REASON),
     highlight,
     toolMentioned,
     competitorId: label.competitorId,
@@ -176,7 +183,19 @@ export function createCollectStep(deps: {
     since: Date;
     /** The terms the run asked about: each is counted, found posts or not, so rotation moves on. */
     terms?: readonly CollectTerm[];
-  }): Promise<{ stored: number; refused: number; capped?: SpendCap }> {
+    /** Milliseconds left in the runner's budget; no batch starts without MIN_BATCH_MS of it. */
+    timeLeft?: () => number;
+  }): Promise<{
+    stored: number;
+    refused: number;
+    capped?: SpendCap;
+    /** Batches whose answer never matched the schema: skipped and counted, like refusals. */
+    invalid?: number;
+    /** The model did not answer: classification stopped; the next run picks the rest up. */
+    unavailable?: boolean;
+    /** The time budget ran out between batches: the rest is left for a later run. */
+    deferred?: boolean;
+  }> {
     const { job, source, now, since } = input;
     const productId = job.productId;
     if (!productId) throw new Error("A collect job needs a product");
@@ -214,7 +233,14 @@ export function createCollectStep(deps: {
     let stored = 0;
     let refused = 0;
     let capped: SpendCap | undefined;
+    let invalid = 0;
+    let unavailable = false;
+    let deferred = false;
     for (let start = 0; start < todo.length; start += BATCH_SIZE) {
+      if (input.timeLeft && input.timeLeft() < MIN_BATCH_MS) {
+        deferred = true;
+        break;
+      }
       const batch = todo.slice(start, start + BATCH_SIZE);
       const items: ClassifyItem[] = batch.map((p, i) => ({
         id: String(i),
@@ -232,6 +258,17 @@ export function createCollectStep(deps: {
           break;
         }
         // A refusal skips this batch: nothing is linked, so the next run sends it again.
+        const name = error instanceof Error ? error.name : "";
+        // An answer that never fits the schema skips this batch, like a refusal.
+        if (name === "LlmSchemaError") {
+          invalid++;
+          continue;
+        }
+        // The model did not answer: stop, keep what is stored; tomorrow's window covers the rest.
+        if (name === "LlmUnavailableError") {
+          unavailable = true;
+          break;
+        }
         if (!(error instanceof LlmRefusalError)) throw error;
         refused++;
         continue;
@@ -278,6 +315,13 @@ export function createCollectStep(deps: {
       relevant: kept.get(termId) ?? 0,
     }));
     if (stats.length > 0) await store.recordTermStats(job.id, day, source.id, stats);
-    return { stored, refused, ...(capped ? { capped } : {}) };
+    return {
+      stored,
+      refused,
+      ...(capped ? { capped } : {}),
+      ...(invalid ? { invalid } : {}),
+      ...(unavailable ? { unavailable } : {}),
+      ...(deferred ? { deferred } : {}),
+    };
   };
 }

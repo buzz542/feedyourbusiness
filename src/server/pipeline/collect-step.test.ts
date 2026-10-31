@@ -411,3 +411,71 @@ describe("backstops after review (8.2, D5)", () => {
     expect(classifier.classify).not.toHaveBeenCalled();
   });
 });
+
+describe("the runner's time budget and model failures (review)", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => post(String(i + 1)));
+
+  it("stops between batches when too little time is left, and says the rest is deferred", async () => {
+    let left = 200_000;
+    const classifier = fakeClassifier();
+    const slow = vi.fn<Classifier["classify"]>(async (productId, items) => {
+      left -= 130_000; // each batch takes about two minutes
+      return classifier.classify(productId, items);
+    });
+    const store = new FakeCollectStore();
+    const step = createCollectStep({ store, classifier: { classify: slow }, hash });
+    const result = await step({
+      job: job(),
+      source: hn,
+      posts: many(60),
+      now: NOW,
+      since: SINCE,
+      terms: [{ id: "t-invoice", term: "invoice tool" }],
+      timeLeft: () => left,
+    });
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ stored: 20, deferred: true });
+  });
+
+  it("skips and counts a batch whose answer never matches the schema, and carries on", async () => {
+    const classifier = fakeClassifier();
+    let calls = 0;
+    const flaky = vi.fn<Classifier["classify"]>(async (productId, items) => {
+      if (calls++ === 0) throw Object.assign(new Error("schema"), { name: "LlmSchemaError" });
+      return classifier.classify(productId, items);
+    });
+    const store = new FakeCollectStore();
+    const step = createCollectStep({ store, classifier: { classify: flaky }, hash });
+    const result = await step({ job: job(), source: hn, posts: many(40), now: NOW, since: SINCE });
+    expect(result).toMatchObject({ stored: 20, invalid: 1 });
+  });
+
+  it("stops at a model outage, keeps what it stored, and reports it", async () => {
+    const outage = vi.fn<Classifier["classify"]>(async () => {
+      throw Object.assign(new Error("529"), { name: "LlmUnavailableError" });
+    });
+    const store = new FakeCollectStore();
+    const step = createCollectStep({ store, classifier: { classify: outage }, hash });
+    const result = await step({ job: job(), source: hn, posts: many(40), now: NOW, since: SINCE });
+    expect(outage).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ stored: 0, unavailable: true });
+  });
+
+  it("drops a rival summary or a reason that names a person or a link (D5)", async () => {
+    const { store, run } = setup(
+      fakeClassifier(() => ({
+        toolMentioned: "Billfast",
+        reason: "Asked by u/someone about invoices.",
+        rival: {
+          issue: "pricing" as const,
+          sentiment: "negative" as const,
+          switching: false,
+          summary: "u/someone finds Billfast too pricey",
+        },
+      })),
+    );
+    await run([post("1")]);
+    expect(store.links[0]!.rival).toBeNull();
+    expect(store.links[0]!.reason).not.toMatch(/u\/someone/);
+  });
+});
