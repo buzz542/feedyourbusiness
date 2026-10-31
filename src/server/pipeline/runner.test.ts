@@ -324,18 +324,21 @@ describe("settling a vendor run that never finishes", () => {
     expect(budget.costs.get(KEY)).toBeCloseTo(0.03, 6);
   });
 
-  it("counts the whole reservation when the run fails for good after the trigger", async () => {
+  it("counts the whole reservation when a paid run fails after the trigger, and does not retry it", async () => {
     const { store, budget, handlers, enqueue } = vendorSetup(async () => ({
       kind: "failed",
       errorClass: "VendorRunFailed",
     }));
     await enqueue();
     const clock = clockFrom(T0);
-    for (let i = 0; i < 6 && store.jobs[0]!.status !== "failed"; i++) {
+    for (let i = 0; i < 6; i++) {
       await runJobs({ store, handlers, clock: clock.now });
       clock.advance(60 * 60_000);
     }
-    expect(store.jobs[0]!.status).toBe("failed");
+    expect(store.jobs[0]).toMatchObject({
+      status: "done",
+      payload: { result: "source_failed", errorClass: "VendorRunFailed" },
+    });
     expect(budget.ledger.get(KEY)).toBe(20);
     expect(budget.costs.get(KEY)).toBeCloseTo(0.03, 6);
   });
@@ -761,5 +764,87 @@ describe("collecting Reddit through the vendor (the real module, a fake vendor)"
     await runJobs({ store, handlers, clock: clockFrom(T0).now });
     expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "monthly_cap" } });
     expect(http).not.toHaveBeenCalled();
+  });
+});
+
+describe("paid sources are never charged twice and never go unrecorded (review)", () => {
+  const paid = (over: Partial<CollectSource> = {}) =>
+    source({ id: "x", retentionDays: 7, costPerUnitUsd: 0.005, dailyBudget: 20, ...over });
+  const setupPaid = (src: CollectSource) => {
+    const s = setup(src);
+    return s;
+  };
+  const enqueueX = (store: FakeJobStore) =>
+    store.enqueue([
+      { kind: "collect", productId: "p1", source: "x", dedupeKey: `collect:p1:x:${DAY}` },
+    ]);
+  const ledger = (budget: FakeBudget) => budget.ledger.get(`p1:x:${DAY}`);
+
+  it("records the units a paid run read before classification failed, and never starts it again", async () => {
+    const src = paid();
+    const { store, budget, process, handlers } = setupPaid(src);
+    process.mockRejectedValue(
+      Object.assign(new Error("model down"), { name: "LlmUnavailableError" }),
+    );
+    await enqueueX(store);
+    const clock = clockFrom(T0);
+    for (let run = 0; run < 4; run++) {
+      await runJobs({ store, handlers, clock: clock.now });
+      clock.advance(60 * 60_000);
+    }
+    expect(src.start).toHaveBeenCalledTimes(1);
+    expect(ledger(budget)).toBe(2); // the two posts read, recorded once
+    expect(budget.costs.get(`p1:x:${DAY}`)).toBeCloseTo(0.01, 6);
+    expect(store.jobs[0]!.status).toBe("done");
+    expect(store.jobs[0]!.payload.result).toBe("interrupted");
+  });
+
+  it("settles what a failed paid run read, and does not retry it", async () => {
+    const src = paid({
+      start: vi.fn(async (): Promise<RunState> => ({
+        kind: "failed",
+        errorClass: "Http503",
+        units: 7,
+      })),
+    });
+    const { store, budget, handlers } = setupPaid(src);
+    await enqueueX(store);
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    clock.advance(60 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(src.start).toHaveBeenCalledTimes(1);
+    expect(ledger(budget)).toBe(7);
+    expect(store.jobs[0]!.payload).toMatchObject({
+      result: "source_failed",
+      errorClass: "Http503",
+    });
+  });
+
+  it("counts the whole reservation when a paid run crashed after it was reserved", async () => {
+    const src = paid({
+      start: vi.fn(async (): Promise<RunState> => {
+        throw Object.assign(new Error("killed"), { name: "FunctionTimeout" });
+      }),
+    });
+    const { store, budget, handlers } = setupPaid(src);
+    await enqueueX(store);
+    const clock = clockFrom(T0);
+    for (let run = 0; run < 3; run++) {
+      await runJobs({ store, handlers, clock: clock.now });
+      clock.advance(60 * 60_000);
+    }
+    expect(src.start).toHaveBeenCalledTimes(1);
+    expect(ledger(budget)).toBe(20);
+    expect(budget.costs.get(`p1:x:${DAY}`)).toBeCloseTo(0.1, 6);
+  });
+});
+
+describe("monthly caps for paid official sources (2.1.8)", () => {
+  it("gives a paid source with no approved monthly cap a cap of 0, and a free one none", async () => {
+    const { monthlyCapFor } = await import("./config");
+    expect(monthlyCapFor({ access: "official_api", costPerUnitUsd: 0.005 }, {})).toBe(0);
+    expect(monthlyCapFor({ access: "official_api", costPerUnitUsd: 0 }, {})).toBeNull();
+    expect(monthlyCapFor({ access: "vendor_api", costPerUnitUsd: 0.0015 }, {})).toBe(18_000);
   });
 });

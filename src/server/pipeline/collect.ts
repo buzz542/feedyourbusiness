@@ -1,7 +1,14 @@
 import "server-only";
 import type { SpendCap } from "@/server/llm/llm";
-import type { CollectContext, CollectedPost, CollectSource, CollectTerm } from "@/sources/types";
+import type {
+  CollectContext,
+  CollectedPost,
+  CollectSource,
+  CollectTerm,
+  RunState,
+} from "@/sources/types";
 import type { BudgetStore, Job, JobHandler } from "./ports";
+import { errorName } from "./runner";
 
 /**
  * One collect job (docs/PLAN.md 7.3) as resumable steps: reserve the budget (once per job), start
@@ -117,6 +124,18 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     if (reserved === "refused") return { status: "done", payload: { result: "budget" } };
     if (reserved === "monthly_cap") return { status: "done", payload: { result: "monthly_cap" } };
 
+    const handle = typeof job.payload.handle === "string" ? job.payload.handle : null;
+    const paid = unitCost > 0;
+    const reservedUnits = Number(job.payload.reserved ?? units);
+    // The reservation is written in the same transaction that charges the budget, so it is the
+    // checkpoint: a paid job that comes back reserved but with no vendor handle may already have
+    // been read and billed (a crash, a lost answer, a failure after the reads). It is never started
+    // again; the whole reservation counts, in the safe direction for the caps (2.1.3, 2.1.8, 7.2).
+    if (paid && reserved === "already" && !handle) {
+      await deps.budget.settle(job.id, reservedUnits, reservedUnits * unitCost);
+      return { status: "done", payload: { result: "interrupted" } };
+    }
+
     const ctx: CollectContext = {
       fetch: deps.fetchFor(source),
       terms: terms ?? [],
@@ -128,8 +147,16 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       // Only the names the source declares; any other secret reads as unset.
       credential: (name) => (source.credentials.includes(name) ? readEnv(name) : undefined),
     };
-    const handle = typeof job.payload.handle === "string" ? job.payload.handle : null;
-    const state = handle && source.poll ? await source.poll(ctx, handle) : await source.start(ctx);
+    let state: RunState;
+    try {
+      state = handle && source.poll ? await source.poll(ctx, handle) : await source.start(ctx);
+    } catch (error) {
+      // A paid source that throws may have read and billed already: count the whole reservation
+      // and end, rather than retry into a second bill.
+      if (!paid) throw error;
+      await deps.budget.settle(job.id, reservedUnits, reservedUnits * unitCost);
+      return { status: "done", payload: { result: "source_failed", errorClass: errorName(error) } };
+    }
 
     if (state.kind === "pending") {
       const startedAt =
@@ -144,14 +171,23 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
         payload: { handle: state.handle, startedAt, unitCost },
       };
     }
-    if (state.kind === "failed") throw new SourceError(state.errorClass);
+    if (state.kind === "failed") {
+      if (!paid) throw new SourceError(state.errorClass);
+      // What a paid run read before it failed is recorded; it is not retried into a second bill.
+      const read = Math.max(0, state.units ?? reservedUnits);
+      await deps.budget.settle(job.id, read, read * unitCost);
+      return {
+        status: "done",
+        payload: { result: "source_failed", errorClass: new SourceError(state.errorClass).name },
+      };
+    }
 
     // Every unit the source reports, beyond the reservation too: the monthly cap must see them.
+    // Settled before classification, so a failure after the reads never hides them.
     const used = Math.max(0, state.units);
-    if (!collectable) {
-      await deps.budget.settle(job.id, used, used * unitCost);
+    await deps.budget.settle(job.id, used, used * unitCost);
+    if (!collectable)
       return { status: "done", payload: { result: "not_collectable", units: used } };
-    }
     const {
       stored,
       refused = 0,
@@ -164,7 +200,6 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       since: ctx.since,
       terms: ctx.terms,
     });
-    await deps.budget.settle(job.id, used, used * unitCost);
     return {
       status: "done",
       payload: { result: "ok", stored, refused, units: used, ...(capped ? { capped } : {}) },

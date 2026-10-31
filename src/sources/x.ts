@@ -117,7 +117,8 @@ async function collectRecent(ctx: CollectContext): Promise<RunState> {
       }
     }
   } catch (error) {
-    return { kind: "failed", errorClass: error instanceof Error ? error.name : "Error" };
+    // The reads already made are billed: report them, so they are recorded (7.6, 2.1.3).
+    return { kind: "failed", errorClass: error instanceof Error ? error.name : "Error", units };
   }
   return { kind: "done", posts: [...posts.values()], units };
 }

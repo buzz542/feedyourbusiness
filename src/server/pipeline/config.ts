@@ -9,11 +9,14 @@ export const SOURCE_USER_AGENT = "AskedFor/1.0 (+https://askedfor.app; hello@ask
  * which may use the whole cap.
  */
 export function monthlyCapFor(
-  source: Pick<CollectSource, "access">,
+  source: Pick<CollectSource, "access" | "costPerUnitUsd">,
   env: Readonly<Record<string, string | undefined>> = process.env,
   purpose: "collect" | "recheck" = "collect",
 ): number | null {
-  if (source.access !== "vendor_api") return null;
+  // 2.1.8: every paid source has a global monthly cap. The plan approves one only for the vendor
+  // (BRIGHTDATA_MONTHLY_RECORD_CAP); a paid official API (X) gets 0, so it spends nothing until the
+  // founder approves a cap and its env var (a section 14 change).
+  if (source.access !== "vendor_api") return source.costPerUnitUsd > 0 ? 0 : null;
   const raw = env.BRIGHTDATA_MONTHLY_RECORD_CAP?.trim();
   // A value that is not a whole number stops vendor calls rather than lifting the cap.
   const cap = raw === undefined || raw === "" ? 20_000 : /^\d+$/.test(raw) ? Number(raw) : 0;
