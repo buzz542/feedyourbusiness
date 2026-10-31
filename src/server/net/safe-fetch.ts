@@ -45,6 +45,12 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 const normalizeHost = (host: string): string => host.toLowerCase().replace(/\.$/, "");
 
+/** The host check every request goes through: an exact match, case and trailing dot ignored. */
+export function isHostAllowed(host: string, allowed: readonly string[]): boolean {
+  const h = normalizeHost(host);
+  return allowed.some((a) => normalizeHost(a) === h);
+}
+
 export function assertAllowedUrl(raw: string | URL, allowed: readonly string[]): URL {
   let url: URL;
   try {
@@ -62,7 +68,7 @@ export function assertAllowedUrl(raw: string | URL, allowed: readonly string[]):
   if (url.port && url.port !== "443") {
     throw new SafeFetchError("non_default_port", host, "Non-default ports are not allowed");
   }
-  if (!allowed.some((a) => normalizeHost(a) === host)) {
+  if (!isHostAllowed(host, allowed)) {
     throw new SafeFetchError("host_not_allowed", host, `Host is not on the allowlist: ${host}`);
   }
   return url;

@@ -1,3 +1,5 @@
+import { VENDOR_DOMAINS } from "@/sources/reddit-vendor";
+
 /**
  * Platform hosts (docs/PLAN.md 2.1.10 and 12.3).
  *
@@ -61,7 +63,11 @@ const PLATFORM_SITE_DOMAINS = [
 ] as const;
 
 /** API hosts of platforms on other domains. */
-const PLATFORM_API_DOMAINS = ["hn.algolia.com", "hacker-news.firebaseio.com"] as const;
+/**
+ * Official API hosts of platforms we collect, and the Reddit data vendor's domain (imported from the
+ * Reddit module, the only file allowed to name it, 12.3): never a user's own site.
+ */
+const PLATFORM_API_DOMAINS = ["hn.algolia.com", "hacker-news.firebaseio.com", ...VENDOR_DOMAINS];
 
 /** Proxies, readers, translators, archives and caches that would fetch a page for us. */
 const PLATFORM_PROXY_DOMAINS = [
@@ -160,6 +166,39 @@ export function isPlatformHost(host: string): boolean {
     const hyphenated = d.replace(/\./g, "-");
     return labels.some((l) => l === hyphenated || l.endsWith(`-${hyphenated}`));
   });
+}
+
+/**
+ * Site domains whose every host is a platform's own site: no official API we use lives under them.
+ * X and Bluesky are left out because their official APIs live on their own domains (api.x.com,
+ * bsky.social); their web hosts are in PLATFORM_WEB_HOSTS.
+ */
+const NO_API_SITE_DOMAINS: readonly string[] = PLATFORM_SITE_DOMAINS.filter(
+  (d) =>
+    ![
+      "x.com",
+      "twitter.com",
+      "t.co",
+      "twimg.com",
+      "bsky.app",
+      "bsky.social",
+      "bsky.network",
+    ].includes(d),
+);
+
+/**
+ * True for a platform's own web site (a page people read), as opposed to an official API host a
+ * collect source may call (docs/PLAN.md 7.1: no `allowedHosts` entry is a platform's own site).
+ */
+export function isPlatformWebHost(host: string): boolean {
+  const h = normalize(host);
+  return (
+    PLATFORM_WEB_HOSTS.includes(h) ||
+    matchesDomain(h, NO_API_SITE_DOMAINS) ||
+    // Proxies, caches and mirrors that reach a platform's pages indirectly are never a source.
+    matchesDomain(h, PLATFORM_PROXY_DOMAINS) ||
+    matchesDomain(h, PLATFORM_MIRROR_DOMAINS)
+  );
 }
 
 const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

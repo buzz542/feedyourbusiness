@@ -1,13 +1,15 @@
+import { isHostAllowed } from "@/server/net/safe-fetch";
+import { isPlatformWebHost } from "@/server/net/platform-hosts";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
+import { VENDOR_DOMAINS } from "./reddit-vendor";
 import type { CollectSource, LinkSource, Source } from "./types";
 
 /**
  * The only allowlist (docs/PLAN.md, "Sources").
  *
- * Link-mode sources only so far. The collect sources (hackernews, bluesky, reddit through the data
- * vendor, x through the official API) are added by the Collection milestone, each after its hosts,
- * auth and terms are confirmed against the current docs. Until then no host is allowed, and
- * safeFetch() refuses every request.
+ * Collect sources are added in the Collection milestone (M3), each after its hosts, auth and terms
+ * are confirmed against the current docs, and stay off until SOURCE_<ID>_ENABLED is "true". While
+ * every collect source is off, no host is allowed and safeFetch() refuses every request.
  */
 export const sources: readonly Source[] = [
   redditLinks,
@@ -24,14 +26,76 @@ export function killSwitchName(source: Pick<Source, "id">): string {
   return `SOURCE_${source.id.toUpperCase()}_ENABLED`;
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A real calendar day as YYYY-MM-DD (2026-02-30 and 2026-13-01 are not). */
+function isIsoDay(value: string | undefined): value is string {
+  if (!value || !ISO_DAY.test(value)) return false;
+  const day = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
+}
+
 /**
- * Kill switch. Collect sources are off unless SOURCE_<ID>_ENABLED is exactly "true".
- * Link sources are on unless it is exactly "false". A source can be paused in minutes by
- * changing an env var if its terms change.
+ * docs/PLAN.md 2.1.7: on a deployment (anything but a local run), a vendor source stays off until the
+ * env var its vendor names holds the date the DPA, transfer mechanism and DPIA were done, and until
+ * the module states how long the vendor keeps snapshots (2.3.12), which the notice then shows. Local
+ * runs (development, and the founder's capture script) are not held back.
+ */
+export function vendorClearance(
+  source: Source,
+  env: Env = process.env,
+  now: Date = new Date(),
+): "not_vendor" | "cleared" | "dpa_missing" | "notice_missing" {
+  if (source.mode !== "collect" || source.access !== "vendor_api") return "not_vendor";
+  if (isLocalRun(env)) return "cleared";
+  if (!dpaSignedOn(source, env, now)) return "dpa_missing";
+  return snapshotRetention(source) ? "cleared" : "notice_missing";
+}
+
+/**
+ * How long the vendor keeps the snapshots it delivers, as the privacy notice states it (docs/PLAN.md
+ * 2.3.12): set in the module, in the commit that records the vendor's written answer (with
+ * docs/legal/processors.md and a docs/claims.md row). Null until then, which keeps the source off
+ * on deployments.
+ */
+export function snapshotRetention(source: Source): string | null {
+  if (source.mode !== "collect" || !source.vendor) return null;
+  return source.vendor.snapshotRetention;
+}
+
+/**
+ * Only a run that says it is local skips the DPA gate: Vercel's development env, or no Vercel env
+ * at all outside a production build. Anything else (a production server off Vercel, an unknown
+ * VERCEL_ENV) is held back like a deployment.
+ */
+function isLocalRun(env: Env): boolean {
+  if (env.VERCEL_ENV !== undefined) return env.VERCEL_ENV === "development";
+  return env.NODE_ENV !== "production";
+}
+
+/**
+ * The vendor's DPA date when it is a valid day no later than today (UTC), for the gate and the
+ * notice; null otherwise, so a date set ahead of signing clears nothing.
+ */
+export function dpaSignedOn(
+  source: Source,
+  env: Env = process.env,
+  now: Date = new Date(),
+): string | null {
+  if (source.mode !== "collect" || !source.vendor) return null;
+  const value = env[source.vendor.dpaSignedOnEnv];
+  return isIsoDay(value) && value <= now.toISOString().slice(0, 10) ? value : null;
+}
+
+/**
+ * Kill switch. Collect sources are off unless SOURCE_<ID>_ENABLED is exactly "true" (and, for a
+ * vendor source on a deployment, it is cleared by vendorClearance). Link sources are on unless it is exactly
+ * "false". A source can be paused in minutes by changing an env var if its terms change.
  */
 export function isEnabled(source: Source, env: Env = process.env): boolean {
   const value = env[killSwitchName(source)];
-  return source.mode === "collect" ? value === "true" : value !== "false";
+  if (source.mode === "link") return value !== "false";
+  const clearance = vendorClearance(source, env);
+  return value === "true" && (clearance === "cleared" || clearance === "not_vendor");
 }
 
 export function enabledSources(env: Env = process.env): Source[] {
@@ -55,8 +119,101 @@ export function allowedHosts(env: Env = process.env): string[] {
 export function declaredHosts(): string[] {
   const hosts = sources.flatMap((s) => [
     ...s.allowedHosts,
-    ...(s.mode === "link" ? s.linkHosts : []),
+    ...s.linkHosts,
     new URL(s.termsUrl).hostname,
   ]);
   return [...new Set(hosts)];
+}
+
+/** Platforms the hard rules say are never collected, by us or by a vendor (docs/PLAN.md 2.1). */
+export const NEVER_COLLECTED = [
+  "indiehackers",
+  "linkedin",
+  "facebook",
+  "instagram",
+  "tiktok",
+  "threads",
+  "youtube",
+  "discord",
+  "producthunt",
+] as const;
+
+const isHttps = (raw: string) => {
+  try {
+    return new URL(raw).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const isVendorHost = (host: string) => {
+  const h = host.toLowerCase().replace(/\.$/, "");
+  return VENDOR_DOMAINS.some((domain) => h === domain || h.endsWith(`.${domain}`));
+};
+
+/** D4: Reddit and X posts are kept 7 days, the rest 30. */
+const SEVEN_DAY_SOURCES = new Set(["reddit", "x"]);
+
+/**
+ * Every rule of the source contract (docs/PLAN.md 7.1, 2.1.9) that code can check, as messages.
+ * Empty for a valid registry; the registry test runs it on the real list and on planted ones.
+ */
+export function registryProblems(list: readonly Source[]): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  const collect = list.filter((s): s is CollectSource => s.mode === "collect");
+  const fetchable = collect.flatMap((s) => s.allowedHosts);
+
+  for (const source of list) {
+    if (seen.has(source.id)) problems.push(`duplicate id ${source.id}`);
+    seen.add(source.id);
+    // safeFetch's own host check: a link host must be refused for every source's fetch.
+    for (const host of source.linkHosts)
+      if (isHostAllowed(host, fetchable))
+        problems.push(`${source.id}: link host ${host} is fetchable`);
+  }
+  for (const source of collect) {
+    const id = source.id;
+    // By the platform name inside the id too: "linkedin_jobs" is LinkedIn.
+    if (NEVER_COLLECTED.some((platform) => id.replaceAll("_", "").includes(platform)))
+      problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);
+    // D1 and 2.1.9 by what a source calls, not by the label it gives itself.
+    const vendorHosts = source.allowedHosts.filter(isVendorHost);
+    if (vendorHosts.length > 0 && (id !== "reddit" || source.access !== "vendor_api"))
+      problems.push(`${id}: only reddit, with access vendor_api, may call the vendor`);
+    if (id === "reddit" && (source.access !== "vendor_api" || !source.vendor))
+      problems.push(`reddit: must declare access vendor_api and its vendor (D1, D12)`);
+    if (source.access === "vendor_api" && vendorHosts.length !== source.allowedHosts.length)
+      problems.push(`${id}: a vendor source may call only the vendor's hosts`);
+    if (source.access === "vendor_api") {
+      if (id !== "reddit") problems.push(`${id}: only reddit may use a vendor (D1)`);
+      if (!source.vendor) problems.push(`${id}: vendor_api needs a vendor`);
+      else {
+        if (!isHttps(source.vendor.dpaUrl))
+          problems.push(`${id}: the vendor's DPA link must be https`);
+        if (!/^[A-Z][A-Z0-9_]*_DPA_SIGNED_ON$/.test(source.vendor.dpaSignedOnEnv))
+          problems.push(
+            `${id}: the vendor's DPA date must live in an env var named <NAME>_DPA_SIGNED_ON`,
+          );
+      }
+    }
+    const days = SEVEN_DAY_SOURCES.has(id) ? 7 : 30;
+    if (source.retentionDays !== days) problems.push(`${id}: retention must be ${days} days (D4)`);
+    for (const host of source.allowedHosts)
+      if (isPlatformWebHost(host)) problems.push(`${id}: ${host} is a platform's own site`);
+    // A source may read only its own env names: "<ID>_..." or "<VENDOR>_..." (2.1.9).
+    const prefixes = [id, ...(source.vendor ? [source.vendor.name] : [])].map(
+      (name) => `${name.toUpperCase().replace(/[^A-Z0-9]/g, "")}_`,
+    );
+    for (const name of source.credentials)
+      if (!/^[A-Z][A-Z0-9_]*$/.test(name) || !prefixes.some((p) => name.startsWith(p)))
+        problems.push(`${id}: credential ${name} is not its own`);
+    for (const name of source.requiredCredentials ?? [])
+      if (!source.credentials.includes(name))
+        problems.push(`${id}: required credential ${name} is not in its credentials`);
+    const finite = (n: number) => Number.isFinite(n) && n >= 0;
+    if (!finite(source.costPerUnitUsd) || !finite(source.dailyBudget))
+      problems.push(`${id}: cost and budget must be finite and not negative`);
+  }
+  return problems;
 }
