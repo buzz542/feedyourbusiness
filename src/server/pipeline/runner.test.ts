@@ -848,3 +848,38 @@ describe("monthly caps for paid official sources (2.1.8)", () => {
     expect(monthlyCapFor({ access: "vendor_api", costPerUnitUsd: 0.0015 }, {})).toBe(18_000);
   });
 });
+
+describe("the vendor's monthly cap (docs/PLAN.md 7.3 step 3, 7.7)", () => {
+  it("stops a Reddit run before any vendor call and shows monthly_cap in the job result", async () => {
+    const start = vi.fn(async (): Promise<RunState> => ({ kind: "pending", handle: "snap-1" }));
+    const src = source({
+      id: "reddit",
+      access: "vendor_api",
+      retentionDays: 7,
+      costPerUnitUsd: 0.0015,
+      start,
+    });
+    const store = new FakeJobStore();
+    const budget = new FakeBudget(store);
+    // Another product already used 15 of a 30-record month.
+    budget.ledger.set(`p2:reddit:${DAY.slice(0, 8)}02`, 15);
+    const handlers: Record<string, JobHandler> = {
+      collect: createCollectHandler({
+        sourceFor: () => src,
+        fetchFor: () => vi.fn(),
+        budget,
+        terms: async () => [{ id: "t1", term: "invoice tool" }],
+        process: vi.fn(),
+        monthlyCap: () => 30,
+        userAgent: "AskedFor/test",
+        sleep: async () => {},
+      }),
+    };
+    await store.enqueue([
+      { kind: "collect", productId: "p1", source: "reddit", dedupeKey: `collect:p1:reddit:${DAY}` },
+    ]);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(start).not.toHaveBeenCalled();
+    expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "monthly_cap" } });
+  });
+});
