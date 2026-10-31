@@ -164,11 +164,13 @@ describe("x source", () => {
     expect(await x.start(ctx(bad))).toEqual({
       kind: "failed",
       errorClass: "InvalidResponse",
+      units: 0,
     });
     const none = fakeHttp(ROUTES);
     expect(await x.start(ctx(none, { credential: () => undefined }))).toEqual({
       kind: "failed",
       errorClass: "MissingCredentials",
+      units: 0,
     });
     expect(none).not.toHaveBeenCalled();
   });
@@ -279,5 +281,32 @@ describe("deletion compliance gate (docs/PLAN.md 7.6)", () => {
     expect(http).not.toHaveBeenCalled();
     expect(notReady.configProblems?.(() => undefined)).not.toEqual([]);
     expect(x.configProblems?.(() => undefined)).toEqual([]);
+  });
+});
+
+describe("a failure after some reads (7.6)", () => {
+  it("reports the posts already read, so they are recorded", async () => {
+    let calls = 0;
+    const http = vi.fn(async () => {
+      calls++;
+      if (calls === 1)
+        return new Response(readFileSync("tests/fixtures/x/search-invoice.json", "utf8"));
+      return new Response("", { status: 503 });
+    });
+    const state = await x.start({
+      fetch: http as never,
+      terms: [
+        { id: "t1", term: "invoice tool" },
+        { id: "t2", term: "late fees" },
+      ],
+      since: new Date("2026-10-10T00:00:00Z"),
+      budget: 40,
+      now: new Date("2026-10-17T12:00:00Z"),
+      userAgent: "AskedFor/test",
+      sleep: async () => {},
+      credential: () => "token",
+    });
+    expect(state.kind).toBe("failed");
+    expect(state.kind === "failed" && state.units).toBeGreaterThan(0);
   });
 });

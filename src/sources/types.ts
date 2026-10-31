@@ -67,7 +67,8 @@ export interface CollectContext {
 export type RunState =
   | { kind: "done"; posts: CollectedPost[]; units: number }
   | { kind: "pending"; handle: string }
-  | { kind: "failed"; errorClass: string };
+  /** `units`: what a paid source already read before it failed, so it is still recorded. */
+  | { kind: "failed"; errorClass: string; units?: number };
 
 /**
  * A vendor source's one-time deletion re-check (docs/PLAN.md 2.3.6, 7.7): stored links re-collected

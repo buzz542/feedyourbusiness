@@ -66,14 +66,16 @@ describe("runDailyCron", () => {
 });
 
 describe("runTickCron", () => {
-  it("purges once an hour (every tick on Pro) and runs the due jobs", async () => {
+  it("purges every tick on Pro (one per 10-minute slot) and runs the due jobs", async () => {
     let now = NOW;
     const d = deps({ clock: () => now });
     expect((await runTickCron(d)).body).toMatchObject({ enqueued: 1, claimed: 1, done: 1 });
-    expect(d.store.jobs.map((j) => j.dedupeKey)).toEqual(["purge:2026-10-17T06"]);
-    now = new Date("2026-10-17T06:10:00Z");
+    expect(d.store.jobs.map((j) => j.dedupeKey)).toEqual(["purge:2026-10-17T06:0"]);
+    // A second call inside the same slot (a retry of the same tick) adds nothing.
+    now = new Date("2026-10-17T06:09:00Z");
     expect((await runTickCron(d)).body).toMatchObject({ enqueued: 0, claimed: 0 });
-    now = new Date("2026-10-17T07:00:00Z");
+    // The next tick purges again.
+    now = new Date("2026-10-17T06:10:00Z");
     expect((await runTickCron(d)).body).toMatchObject({ enqueued: 1 });
   });
 

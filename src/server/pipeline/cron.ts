@@ -43,8 +43,8 @@ export async function runDailyCron(deps: CronDeps): Promise<CronResult> {
 }
 
 /**
- * Every 10 minutes on Pro: purge once an hour ("every tick" in 7.2, deduped by the hour so the
- * jobs table stays small), then advance due jobs (pending vendor runs, retries). On Hobby this route
+ * Every 10 minutes on Pro: purge every tick (2.3.4, 7.2; deduped per 10-minute slot), then advance
+ * due jobs (pending vendor runs, retries). On Hobby this route
  * is not scheduled, and the daily cron purges.
  */
 export async function runTickCron(deps: CronDeps): Promise<CronResult> {
@@ -55,7 +55,8 @@ export async function runTickCron(deps: CronDeps): Promise<CronResult> {
           kind: "purge",
           productId: null,
           source: null,
-          dedupeKey: `purge:${now.toISOString().slice(0, 13)}`,
+          // One purge per 10-minute tick slot: "every tick" on Pro (2.3.4, 7.2).
+          dedupeKey: `purge:${now.toISOString().slice(0, 15)}`,
           runAfter: now,
         },
       ])
