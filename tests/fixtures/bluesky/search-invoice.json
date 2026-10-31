@@ -1,0 +1,98 @@
+{
+  "posts": [
+    {
+      "uri": "at://did:plc:examplemakerone/app.bsky.feed.post/3kexamplea1",
+      "cid": "bafyreiexample3kexamplea1",
+      "author": {
+        "did": "did:plc:examplemakerone",
+        "handle": "maker-one.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Is there an app that sends invoice reminders automatically? Tired of chasing clients.",
+        "createdAt": "2026-10-17T07:00:00.000Z",
+        "langs": ["en"]
+      },
+      "indexedAt": "2026-10-17T07:00:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0
+    },
+    {
+      "uri": "at://did:plc:exampleadultlabel/app.bsky.feed.post/3kexamplea2",
+      "cid": "bafyreiexample3kexamplea2",
+      "author": {
+        "did": "did:plc:exampleadultlabel",
+        "handle": "adult.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "An adult post that must never be kept.",
+        "createdAt": "2026-10-17T07:10:00.000Z",
+        "langs": ["en"],
+        "labels": {
+          "$type": "com.atproto.label.defs#selfLabels",
+          "values": [
+            {
+              "val": "porn"
+            }
+          ]
+        }
+      },
+      "indexedAt": "2026-10-17T07:10:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0
+    },
+    {
+      "uri": "at://did:plc:examplelabeled/app.bsky.feed.post/3kexamplea3",
+      "cid": "bafyreiexample3kexamplea3",
+      "author": {
+        "did": "did:plc:examplelabeled",
+        "handle": "labeled.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Another post labeled by its author in the post view.",
+        "createdAt": "2026-10-17T07:20:00.000Z",
+        "langs": ["en"]
+      },
+      "indexedAt": "2026-10-17T07:20:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0,
+      "labels": [
+        {
+          "src": "did:plc:examplelabeled",
+          "uri": "at://did:plc:examplelabeled/app.bsky.feed.post/3kexamplea3",
+          "cid": "bafy",
+          "val": "graphic-media",
+          "cts": "2026-10-17T07:20:00.000Z"
+        }
+      ]
+    },
+    {
+      "uri": "at://did:plc:exampleold/app.bsky.feed.post/3kexamplea4",
+      "cid": "bafyreiexample3kexamplea4",
+      "author": {
+        "did": "did:plc:exampleold",
+        "handle": "old.example.test",
+        "displayName": "Example person"
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "An old post outside the window.",
+        "createdAt": "2026-10-01T07:00:00.000Z",
+        "langs": ["en"]
+      },
+      "indexedAt": "2026-10-01T07:00:00.000Z",
+      "likeCount": 0,
+      "replyCount": 0,
+      "repostCount": 0
+    }
+  ],
+  "cursor": "next-page"
+}
