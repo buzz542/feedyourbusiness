@@ -37,6 +37,8 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SITE_URL: baseURL,
       NEXT_TELEMETRY_DISABLED: "1",
+      // A fake model and site for onboarding; honored only on a local run (fake-services.ts).
+      E2E_FAKE_SERVICES: "1",
       SIGNUP_ALLOWLIST: [process.env.SIGNUP_ALLOWLIST, E2E_EMAIL].filter(Boolean).join(","),
     },
   },
