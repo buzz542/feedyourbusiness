@@ -21,6 +21,10 @@ export interface LlmRequest {
   input: string;
   schema: z.ZodType;
   maxTokens: number;
+  /** For this request, the SDK's own retries included. */
+  timeoutMs: number;
+  /** The SDK's retries of 429 and 5xx: 2 normally, 0 when a deadline leaves no room. */
+  maxRetries: number;
 }
 
 export interface TokenUsage {
@@ -55,8 +59,32 @@ export interface UsageSince {
   costUsd: number;
 }
 
+export interface BeginCall {
+  productId: string | null;
+  task: LlmTask;
+  at: Date;
+  /** Calls of this task for this product per UTC day, or null for no such limit. */
+  taskDailyCalls: number | null;
+  productMonthlyUsd: number;
+  dailyUsd: number;
+  /** The most the call can cost, held against the caps until it ends. */
+  reserveUsd: number;
+  /** How long the reservation holds if the call never ends (a crash). */
+  leaseSeconds: number;
+}
+
+export type BeginResult =
+  | { kind: "ok"; reservationId: string }
+  | { kind: "refused"; limit: "task_daily" | "product_monthly" | "global_daily" };
+
+/**
+ * llm_usage and its reservations (docs/PLAN.md 8.1). `begin` counts, checks and reserves under one
+ * lock, so parallel calls cannot all pass a limit; `finish` writes the usage row and drops the
+ * reservation together.
+ */
 export interface UsageStore {
-  record(row: UsageRow): Promise<void>;
+  begin(call: BeginCall): Promise<BeginResult>;
+  finish(reservationId: string, row: UsageRow): Promise<void>;
   /** Calls and dollars since `since`, for one product (or all when null), one task (or all). */
   usageSince(productId: string | null, since: Date, task?: LlmTask): Promise<UsageSince>;
 }

@@ -573,6 +573,34 @@ export type Database = {
         Args: { p_name: string; p_owner_id: string; p_url: string | null }
         Returns: string
       }
+      llm_begin_call: {
+        Args: {
+          p_product_id: string | null
+          p_task: string
+          p_now: string
+          p_task_daily_calls: number | null
+          p_product_monthly_usd: number
+          p_global_daily_usd: number
+          p_reserve_usd: number
+          p_lease_seconds: number
+        }
+        Returns: { status: string; reservation_id: string | null }[]
+      }
+      llm_finish_call: {
+        Args: {
+          p_reservation_id: string
+          p_product_id: string | null
+          p_task: string
+          p_model: string
+          p_input_tokens: number
+          p_output_tokens: number
+          p_cache_read_tokens: number
+          p_cache_write_tokens: number
+          p_cost_usd: number
+          p_now: string
+        }
+        Returns: undefined
+      }
       llm_usage_since: {
         Args: { p_product_id: string | null; p_since: string; p_task?: string | null }
         Returns: { calls: number; cost_usd: number }[]

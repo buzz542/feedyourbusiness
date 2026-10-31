@@ -4,6 +4,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import {
   createAnthropicClient,
   createAnthropicClientFromEnv,
+  createAnthropicSdk,
   toMessageParams,
 } from "./anthropic-client";
 
@@ -17,6 +18,8 @@ const request = {
   input: "Describe Acme.",
   schema: Answer,
   maxTokens: 2000,
+  timeoutMs: 45_000,
+  maxRetries: 0,
 };
 
 describe("toMessageParams", () => {
@@ -85,5 +88,30 @@ describe("createAnthropicClient", () => {
 
   it("refuses to build without an API key", () => {
     expect(() => createAnthropicClientFromEnv({})).toThrow(/ANTHROPIC_API_KEY/);
+  });
+});
+
+describe("createAnthropicSdk", () => {
+  it("ignores env vars that would move the host, log bodies or trace content (planted)", () => {
+    const planted = {
+      ANTHROPIC_BASE_URL: "https://proxy.evil.example",
+      ANTHROPIC_LOG: "debug",
+      ANTHROPIC_OPEN_TELEMETRY_TRACES_CONTENT_MODE: "content",
+    };
+    const saved = Object.fromEntries(Object.keys(planted).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, planted);
+    try {
+      const sdk = createAnthropicSdk("sk-ant-test");
+      expect(sdk.baseURL).toBe("https://api.anthropic.com");
+      expect(sdk.logLevel).toBe("off");
+      expect(sdk.openTelemetry).toMatchObject({
+        propagation: false,
+        traces: { enabled: false, contentMode: "metadata_only" },
+      });
+    } finally {
+      for (const [k, v] of Object.entries(saved))
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+    }
   });
 });

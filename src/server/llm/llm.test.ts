@@ -7,6 +7,7 @@ import {
   LlmCapError,
   LlmRefusalError,
   LlmSchemaError,
+  LlmUnavailableError,
   NEVER_INFER,
 } from "./llm";
 import { PRICES } from "./prices";
@@ -114,10 +115,12 @@ describe("callStructured", () => {
     await call();
     expect(Object.keys(client.requests[0] ?? {}).sort()).toEqual([
       "input",
+      "maxRetries",
       "maxTokens",
       "model",
       "schema",
       "system",
+      "timeoutMs",
     ]);
   });
 });
@@ -193,5 +196,134 @@ describe("the never-infer rule", () => {
   it("is a fixed sentence every system prompt must include", () => {
     expect(NEVER_INFER).toMatch(/never infer/i);
     expect(NEVER_INFER).toMatch(/health/);
+  });
+});
+
+describe("review fixes: failures, races and deadlines", () => {
+  it("records a call that throws, and raises LlmUnavailableError with no API message", async () => {
+    const { call, usage } = setup([new Error("529 overloaded: {body with details}")]);
+    const error = await call().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(LlmUnavailableError);
+    expect((error as Error).message).not.toMatch(/overloaded|body/);
+    expect(usage.rows).toHaveLength(1);
+    expect(usage.rows[0]!.outputTokens).toBe(0);
+    expect(usage.rows[0]!.inputTokens).toBeGreaterThan(0);
+    expect(usage.reservations.size).toBe(0);
+  });
+
+  it("refuses the call past a daily call limit before it is made, the retry included", async () => {
+    const usage = new FakeUsageStore();
+    for (let i = 0; i < 5; i++)
+      usage.seed({ productId: "product-1", costUsd: 0.01, at: NOW, task: "draft" });
+    const client = new FakeLlmClient([ok('{"bad":1}'), ok('{"name":"Acme"}')]);
+    const llm = createLlm({
+      client,
+      usage,
+      clock: { now: () => NOW },
+      caps: { productMonthlyUsd: 3, dailyUsd: 25 },
+    });
+    const call = () =>
+      llm.callStructured({
+        task: "draft",
+        productId: "product-1",
+        model: "claude-sonnet-5-5",
+        system: [{ text: "S" }],
+        input: "I",
+        schema: Answer,
+        maxTokens: 1000,
+        dailyCallLimit: 6,
+      });
+    // The sixth call is made; its retry would be the seventh and is refused before it is sent.
+    await expect(call()).rejects.toMatchObject({ name: "LlmCapError", cap: "task_daily" });
+    expect(client.requests).toHaveLength(1);
+  });
+
+  it("lets only one of two parallel calls through when one place is left", async () => {
+    const usage = new FakeUsageStore();
+    // $2.995 spent: the first call reserves about a cent (1,000 output tokens), which fills the cap.
+    usage.seed({ productId: "product-1", costUsd: 2.995, at: NOW });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow = async () => {
+      await gate;
+      return ok('{"name":"Acme"}', { input: 100, output: 10 });
+    };
+    const client = new FakeLlmClient([slow, slow]);
+    const llm = createLlm({
+      client,
+      usage,
+      clock: { now: () => NOW },
+      caps: { productMonthlyUsd: 3, dailyUsd: 25 },
+    });
+    const call = () =>
+      llm.callStructured({
+        task: "draft",
+        productId: "product-1",
+        model: "claude-sonnet-5-5",
+        system: [{ text: "S" }],
+        input: "I",
+        schema: Answer,
+        maxTokens: 1000,
+      });
+    const both = Promise.allSettled([call(), call()]);
+    await new Promise((r) => setTimeout(r, 0));
+    release();
+    const results = await both;
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(client.requests).toHaveLength(1);
+  });
+
+  it("gives each attempt what is left of the deadline, with no SDK retries, and skips a retry that cannot fit", async () => {
+    let now = NOW.getTime();
+    const usage = new FakeUsageStore();
+    const client = new FakeLlmClient([
+      (request) => {
+        now += 40_000;
+        expect(request).toMatchObject({ timeoutMs: 45_000, maxRetries: 0 });
+        return ok('{"bad":1}');
+      },
+    ]);
+    const llm = createLlm({
+      client,
+      usage,
+      clock: { now: () => new Date(now) },
+      caps: { productMonthlyUsd: 3, dailyUsd: 25 },
+    });
+    await expect(
+      llm.callStructured({
+        task: "draft",
+        productId: "product-1",
+        model: "claude-sonnet-5-5",
+        system: [{ text: "S" }],
+        input: "I",
+        schema: Answer,
+        maxTokens: 1000,
+        deadlineMs: 45_000,
+      }),
+    ).rejects.toBeInstanceOf(LlmSchemaError);
+    expect(client.requests).toHaveLength(1);
+    expect(now - NOW.getTime()).toBeLessThanOrEqual(45_000);
+  });
+
+  it("validates with a lenient parse schema when one is given", async () => {
+    const usage = new FakeUsageStore();
+    const client = new FakeLlmClient([ok('{"name":"a name far longer than twenty characters"}')]);
+    const llm = createLlm({
+      client,
+      usage,
+      clock: { now: () => NOW },
+      caps: { productMonthlyUsd: 3, dailyUsd: 25 },
+    });
+    const out = await llm.callStructured({
+      task: "draft",
+      productId: "product-1",
+      model: "claude-sonnet-5-5",
+      system: [{ text: "S" }],
+      input: "I",
+      schema: Answer,
+      parseSchema: z.object({ name: z.string() }),
+      maxTokens: 1000,
+    });
+    expect(out.name).toMatch(/far longer/);
   });
 });

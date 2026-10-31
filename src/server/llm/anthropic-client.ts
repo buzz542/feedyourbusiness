@@ -11,7 +11,10 @@ import type { LlmClient, LlmReply, LlmRequest } from "./ports";
 
 /** The part of the SDK this adapter uses, so tests can pass a fake. */
 export interface MessagesApi {
-  create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
+  create(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    options?: { timeout?: number; maxRetries?: number },
+  ): Promise<Anthropic.Message>;
 }
 
 export function toMessageParams(request: LlmRequest): Anthropic.MessageCreateParamsNonStreaming {
@@ -48,17 +51,41 @@ export function fromMessage(message: Anthropic.Message): LlmReply {
 export function createAnthropicClient(messages: MessagesApi): LlmClient {
   return {
     async complete(request) {
-      return fromMessage(await messages.create(toMessageParams(request)));
+      return fromMessage(
+        await messages.create(toMessageParams(request), {
+          timeout: request.timeoutMs,
+          maxRetries: request.maxRetries,
+        }),
+      );
     },
   };
 }
 
-/** The wired client. Needs ANTHROPIC_API_KEY (F13); the session's tests never build it. */
+/**
+ * The SDK, pinned against its environment variables: ANTHROPIC_BASE_URL could send site text and
+ * excerpts to another host, ANTHROPIC_LOG=debug would log request bodies, and OpenTelemetry could
+ * put prompt content in spans (docs/PLAN.md 2.3.10, 12.4). Only api.anthropic.com, no SDK logging,
+ * no tracing. (ANTHROPIC_CUSTOM_HEADERS can still add request headers; it cannot move the host.)
+ */
+export function createAnthropicSdk(apiKey: string): Anthropic {
+  return new Anthropic({
+    apiKey,
+    baseURL: "https://api.anthropic.com",
+    timeout: 60_000,
+    maxRetries: 2,
+    logLevel: "off",
+    openTelemetry: {
+      propagation: false,
+      traces: { enabled: false, contentMode: "metadata_only" },
+    },
+  });
+}
+
+/** The wired client. Needs ANTHROPIC_API_KEY (F13); the session's tests never call it. */
 export function createAnthropicClientFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): LlmClient {
   const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
-  const sdk = new Anthropic({ apiKey, timeout: 60_000, maxRetries: 2 });
-  return createAnthropicClient(sdk.messages);
+  return createAnthropicClient(createAnthropicSdk(apiKey).messages);
 }
