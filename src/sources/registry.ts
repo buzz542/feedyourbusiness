@@ -6,6 +6,7 @@ import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "
 import { reddit } from "./reddit";
 import { VENDOR_DOMAINS } from "./reddit-vendor";
 import type { CollectSource, LinkSource, Source } from "./types";
+import { x } from "./x";
 
 /**
  * The only allowlist (docs/PLAN.md, "Sources").
@@ -18,6 +19,7 @@ export const sources: readonly Source[] = [
   hackernews,
   bluesky,
   reddit,
+  x,
   redditLinks,
   linkedin,
   facebook,
