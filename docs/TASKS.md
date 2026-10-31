@@ -12,6 +12,28 @@ Legend: `[x]` done and verified. `[ ]` not done. `(you)` needs the founder; the 
 `docs/PLAN.md` section 15. When a box needs a key or service the session does not have, build and test it
 with fakes and fixtures, tick the build box, and leave the live check in the matching `(you)` box.
 
+## Launch order
+
+The founder set this order on 31 Oct 2026. It changes the order of the milestones below, not their scope or
+acceptance tests. Work Launch 1 first, then 2. Every subscription gets the same four collect sources: Hacker
+News, Bluesky, Reddit and X. No other platform is added (section 2 still applies).
+
+**Launch 1: the Reply tab with four sources.**
+
+1. Finish M2 (model wrapper, drafts, onboarding UI).
+2. M3: migration, contract v2, author hashing, jobs and crons, Hacker News, Bluesky, Reddit, X, the collect
+   step, purge and deletion sync, kill switches and caps, Reddit rotation, the `sources` health check.
+   Reddit goes live only when 2.1.7 holds (F8 and its paperwork). X goes live only after F18, its deletion
+   compliance in `checkDeleted`, and a founder-confirmed `X_DAILY_READS_PER_PRODUCT` (see section 18).
+3. M4: migration, schema and guard, classification, caching, dedupe, spend caps. The eval script can follow.
+4. M5: everything except keyboard shortcuts and the 200-card performance test, which can follow.
+5. M8: every build box.
+6. M9: migration `launch` only if the preview ships; landing, sources page, `/bot`, remove-my-post and its
+   admin queue, legal drafts, security headers, the launch switch. Admin metrics and the instant preview
+   can follow.
+
+**Launch 2: the upgrade.** M6 (Rivals), M7 (Build) and everything deferred above.
+
 ---
 
 ## M0 Foundations
