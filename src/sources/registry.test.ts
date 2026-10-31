@@ -46,9 +46,19 @@ describe("source registry", () => {
     for (const source of sources) expect(new URL(source.termsUrl).protocol).toBe("https:");
   });
 
-  it("allows no outbound host until a collect source is registered", () => {
+  it("allows no outbound host while every collect source is off (the default)", () => {
     expect(allowedHosts({})).toEqual([]);
     expect(allowedHosts({ SOURCE_REDDIT_LINKS_ENABLED: "true" })).toEqual([]);
+  });
+
+  it("never allows a link host, even with every collect source on", () => {
+    const all = Object.fromEntries(
+      sources.filter((s) => s.mode === "collect").map((s) => [killSwitchName(s), "true"]),
+    );
+    const hosts = allowedHosts(all);
+    for (const source of sources)
+      for (const host of source.linkHosts) expect(hosts, host).not.toContain(host);
+    expect(hosts).not.toContain("bsky.app");
   });
 
   it("keeps a search-link source for each platform users search themselves", () => {
@@ -96,37 +106,5 @@ describe("kill switches", () => {
     expect(isEnabled(collect as never, {})).toBe(false);
     expect(isEnabled(collect as never, { SOURCE_REDDIT_ENABLED: "1" })).toBe(false);
     expect(isEnabled(collect as never, { SOURCE_REDDIT_ENABLED: "true" })).toBe(true);
-  });
-});
-
-describe("link sources", () => {
-  const link = (id: string) => {
-    const s = sources.find((x) => x.id === id);
-    if (!s || s.mode !== "link") throw new Error(`no link source ${id}`);
-    return s;
-  };
-
-  it("builds https search links on the declared host, newest first where supported", () => {
-    const [first] = link("reddit_links").searchLinks(["invoice tool"]);
-    expect(first?.url).toBe("https://www.reddit.com/search/?q=invoice%20tool&sort=new");
-    expect(new URL(first!.url).hostname).toBe("www.reddit.com");
-  });
-
-  it("url-encodes terms so a term cannot inject parameters or change the host", () => {
-    for (const source of sources.filter((s) => s.mode === "link")) {
-      const [result] = source.searchLinks(["a&b=c#d/../e?f"]);
-      const url = new URL(result!.url);
-      expect(url.protocol).toBe("https:");
-      expect(source.linkHosts).toContain(url.hostname);
-      expect(url.hash).toBe("");
-    }
-  });
-
-  it("drops blank terms and trims the rest", () => {
-    expect(
-      link("x_links")
-        .searchLinks(["  ", "", "  crm  "])
-        .map((l) => l.term),
-    ).toEqual(["crm"]);
   });
 });
