@@ -124,6 +124,57 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          locked_until: string | null
+          payload: Json
+          product_id: string | null
+          run_after: string
+          source: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          last_error?: string | null
+          locked_until?: string | null
+          payload?: Json
+          product_id?: string | null
+          run_after?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          locked_until?: string | null
+          payload?: Json
+          product_id?: string | null
+          run_after?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       llm_usage: {
         Row: {
           cache_read_tokens: number
@@ -176,6 +227,7 @@ export type Database = {
           author_handle: string | null
           author_hash: string
           collected_at: string
+          community: string | null
           delete_after: string
           excerpt: string
           external_id: string
@@ -188,6 +240,7 @@ export type Database = {
           author_handle?: string | null
           author_hash: string
           collected_at?: string
+          community?: string | null
           delete_after?: string
           excerpt: string
           external_id: string
@@ -200,6 +253,7 @@ export type Database = {
           author_handle?: string | null
           author_hash?: string
           collected_at?: string
+          community?: string | null
           delete_after?: string
           excerpt?: string
           external_id?: string
@@ -467,6 +521,18 @@ export type Database = {
         }
         Relationships: []
       }
+      term_stats: {
+        Row: { day: string; fetched: number; relevant: number; source: string; term_id: string }
+        Insert: { day: string; fetched?: number; relevant?: number; source: string; term_id: string }
+        Update: {
+          day?: string
+          fetched?: number
+          relevant?: number
+          source?: string
+          term_id?: string
+        }
+        Relationships: []
+      }
       themes: {
         Row: {
           count: number
@@ -572,6 +638,100 @@ export type Database = {
       start_product_draft: {
         Args: { p_name: string; p_owner_id: string; p_url: string | null }
         Returns: string
+      }
+      ingest_post: {
+        Args: {
+          p_source: string
+          p_external_id: string
+          p_url: string
+          p_excerpt: string
+          p_posted_at: string
+          p_author_hash: string
+          p_community: string | null
+          p_now: string
+        }
+        Returns: string | null
+      }
+      claim_jobs: {
+        Args: { p_now: string; p_limit: number; p_lease_seconds: number }
+        Returns: Database["public"]["Tables"]["jobs"]["Row"][]
+      }
+      finish_job: {
+        Args: {
+          p_id: string
+          p_status: string
+          p_error_class?: string | null
+          p_payload?: Json | null
+          p_run_after?: string | null
+        }
+        Returns: undefined
+      }
+      consume_budget: {
+        Args: { p_product_id: string; p_source: string; p_day: string; p_units: number; p_limit: number }
+        Returns: boolean
+      }
+      settle_budget: {
+        Args: {
+          p_product_id: string
+          p_source: string
+          p_day: string
+          p_reserved: number
+          p_actual: number
+          p_cost_usd: number
+        }
+        Returns: undefined
+      }
+      vendor_usage: {
+        Args: { p_source: string; p_month_start: string }
+        Returns: number
+      }
+      reserve_job_budget: {
+        Args: {
+          p_job_id: string
+          p_product_id: string
+          p_source: string
+          p_day: string
+          p_units: number
+          p_limit: number
+          p_monthly_cap?: number | null
+        }
+        Returns: string
+      }
+      settle_job_budget: {
+        Args: { p_job_id: string; p_actual: number; p_cost_usd: number }
+        Returns: boolean
+      }
+      collectable_products: {
+        Args: Record<PropertyKey, never>
+        Returns: { id: string; owner_id: string }[]
+      }
+      record_term_stats: {
+        Args: { p_job_id: string; p_day: string; p_source: string; p_stats: Json }
+        Returns: boolean
+      }
+      collect_terms: {
+        Args: { p_product_id: string; p_source: string; p_limit: number }
+        Returns: { id: string; term: string }[]
+      }
+      first_linked_product: {
+        Args: { p_post_id: string }
+        Returns: string | null
+      }
+      reddit_recheck_products: {
+        Args: { p_from: string; p_to: string }
+        Returns: { id: string }[]
+      }
+      reddit_recheck_posts: {
+        Args: { p_product_id: string; p_from: string; p_to: string; p_limit: number }
+        Returns: { external_id: string; url: string }[]
+      }
+      delete_posts_at_source: {
+        Args: { p_source: string; p_external_ids: string[] }
+        Returns: number
+      }
+      purge_expired: {
+        Args: { p_now: string }
+        Returns: Json
       }
       llm_begin_call: {
         Args: {
