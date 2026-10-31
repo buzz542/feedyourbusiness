@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSensitiveCommunity } from "./sensitive-communities";
+import { isProfileCommunity, isSensitiveCommunity } from "./sensitive-communities";
 
 /** docs/PLAN.md 2.3.7. The founder reviews the list before Reddit is switched on. */
 
@@ -41,11 +41,52 @@ describe("isSensitiveCommunity", () => {
     "unionize",
     "sexualhealth",
     "onlinedating",
+    // Planted after review, one or more per category the patterns used to miss
+    "AskDocs",
+    "COVID19",
+    "Alzheimers",
+    "insomnia",
+    "Drugs",
+    "Psychonaut",
+    "stopsmoking",
+    "NoFap",
+    "raisedbynarcissists",
+    "domesticviolence",
+    "trans",
+    "GenderDysphoria",
+    "SexWorkers",
+    "latterdaysaints",
+    "Anglicanism",
+    "Orthodox",
+    "witchcraft",
+    "exjew",
+    "LabourUK",
+    "AskTrumpSupporters",
+    "LateStageCapitalism",
+    "IsraelPalestine",
+    "BlackLivesMatter",
+    "blackladies",
+    "ABCDesis",
+    "NativeAmerican",
+    "WorkReform",
+    "Teamsters",
+    "DUI",
+    "sexoffendersupport",
+    "tories",
   ])("drops r/%s", (name) => {
     expect(isSensitiveCommunity(name)).toBe(true);
   });
 
   it.each([
+    "hospitality",
+    "stories",
+    "SuccessStories",
+    "startup_stories",
+    "inventory",
+    "selection",
+    "transit",
+    "venturecapital",
+    "trumpet",
     "SaaS",
     "startups",
     "Entrepreneur",
@@ -96,4 +137,14 @@ describe("isSensitiveCommunity", () => {
     expect(isSensitiveCommunity("")).toBe(false);
     expect(isSensitiveCommunity("r/")).toBe(false);
   });
+});
+
+describe("isProfileCommunity", () => {
+  it.each(["u_someone", "r/u_someone", "U_Someone", "u/someone", "user/someone"])(
+    "%s is a profile",
+    (n) => expect(isProfileCommunity(n)).toBe(true),
+  );
+  it.each(["SaaS", "r/SaaS", "startups", "userexperience"])("%s is not", (n) =>
+    expect(isProfileCommunity(n)).toBe(false),
+  );
 });

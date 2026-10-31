@@ -4,6 +4,7 @@ import {
   LlmCapError,
   LlmRefusalError,
   LlmSchemaError,
+  LlmUnavailableError,
   NEVER_INFER,
   startOfUtcDay,
 } from "@/server/llm/llm";
@@ -19,10 +20,12 @@ import { readSite, type SiteReaderDeps } from "./site-reader";
  * The onboarding draft (docs/PLAN.md 4.3, 8.3): from what the user pasted to a saved draft product.
  *
  *   1. classify the input (no network); refuse what we must not read;
- *   2. start the owner's draft product, so the drafting limit counts from the first run;
- *   3. read the site (up to 6 pages), or use the description;
- *   4. one Sonnet call with JSON schema output, through the wrapper (caps, usage, one retry);
- *   5. clean the answer (8.3 rules) and save it in one transaction.
+ *   2. start the owner's draft product, so the drafting limit counts from the first run, and stop
+ *      at once if today's six calls are spent (before any page of the site is fetched);
+ *   3. read the site (up to 6 pages, 30 seconds), or use the description;
+ *   4. one Sonnet call with JSON schema output, through the wrapper: caps, usage, one retry, the
+ *      six-a-day limit reserved atomically before every attempt, and 45 seconds for both attempts;
+ *   5. clean the answer (8.3 rules) and save it, url included, in one transaction.
  *
  * Nothing searches the web. Nothing read or drafted is logged.
  */
@@ -30,8 +33,10 @@ import { readSite, type SiteReaderDeps } from "./site-reader";
 export const DRAFT_MODEL = "claude-sonnet-5-5";
 /** Model calls per product per UTC day for drafting, a retry included (8.3). */
 export const DRAFT_CALLS_PER_DAY = 6;
-/** One draft may take two calls (the wrapper retries once), so a draft starts only if two remain. */
-const CALLS_PER_DRAFT = 2;
+/** The model's share of the 2 minutes (8.3), both attempts included. */
+export const DRAFT_DEADLINE_MS = 45_000;
+/** About twice what a full draft needs, so a long answer is not cut off, and no more. */
+const DRAFT_MAX_TOKENS = 4_000;
 
 export const Draft = z.object({
   name: z.string().min(1).max(120),
@@ -60,9 +65,32 @@ export const Draft = z.object({
 });
 export type Draft = z.infer<typeof Draft>;
 
+/**
+ * What the answer is validated with. The API treats lengths, counts and patterns in the JSON schema
+ * as hints, so one 61-character term would fail the whole draft (and spend 2 of the 6 daily calls);
+ * cleanDraft enforces every limit instead.
+ */
+const DraftAnswer: z.ZodType<Draft> = z.object({
+  name: z.string(),
+  one_liner: z.string(),
+  description: z.string(),
+  audience: z.string(),
+  competitors: z.array(
+    z.object({ name: z.string(), domain: z.string().nullable(), aliases: z.array(z.string()) }),
+  ),
+  terms: z.array(
+    z.object({
+      term: z.string(),
+      intent: z.enum(["problem", "category", "alternative", "competitor"]),
+    }),
+  ),
+  subreddits: z.array(z.string()),
+});
+
 /** What is saved: the same shape after the 8.3 rules, which may leave fewer terms or rivals. */
 export interface CleanDraft {
   profile: {
+    url: string | null;
     name: string;
     one_liner: string;
     description: string;
@@ -101,7 +129,7 @@ Fields:
   competitors, "competitor" for a competitor's name alone. No handles, email addresses or links.
 - subreddits: up to 10 Reddit communities where this audience asks for tools or advice about the
   problem, by name only, without "r/". Never a user's profile. Never a community about health,
-  sexuality, religion, politics, ethnicity or anything similar.
+  sexuality, religion, politics, ethnicity or anything similar, and never an adult or NSFW one.
 
 Rules: describe products and companies, never people; never name founders, team members, customers
 or reviewers. ${NEVER_INFER} Write in US English. Do not use em dashes.`.replace(
@@ -143,33 +171,45 @@ const uniqueBy = <T>(items: T[], key: (item: T) => string): T[] => {
 };
 
 /** The 8.3 rules, applied to the model's answer before anything is saved. */
-export function cleanDraft(raw: Draft, ownHost: string | null): CleanDraft {
+export function cleanDraft(
+  raw: Draft,
+  ownHost: string | null,
+  url: string | null = null,
+): CleanDraft {
   const name = tidy(raw.name);
   const fallbackName = ownHost?.replace(/^www\./, "") ?? "Your product";
 
-  const competitors = uniqueBy(
-    raw.competitors
-      .map((c) => ({ ...c, name: tidy(c.name) }))
-      .filter((c) => isProductLabel(c.name, 80))
-      .map((c) => ({
-        name: c.name,
-        domain: cleanDomain(c.domain, ownHost),
-        aliases: uniqueBy(
-          c.aliases
-            .map(tidy)
-            .filter((a) => isProductLabel(a, 80) && a.toLowerCase() !== c.name.toLowerCase()),
-          (a) => a.toLowerCase(),
-        ).slice(0, 10),
-      })),
-    (c) => c.name.toLowerCase(),
-  ).slice(0, 8);
+  // Competitors with the same lowercase name are merged: the first spelling, the first domain, and
+  // every alias.
+  const merged = new Map<string, { name: string; domain: string | null; aliases: string[] }>();
+  for (const c of raw.competitors) {
+    const cName = tidy(c.name);
+    if (!isProductLabel(cName, 80)) continue;
+    const key = cName.toLowerCase();
+    const seen = merged.get(key);
+    const domain = cleanDomain(c.domain, ownHost);
+    if (seen) {
+      seen.domain ??= domain;
+      seen.aliases.push(...c.aliases);
+    } else merged.set(key, { name: cName, domain, aliases: [...c.aliases] });
+  }
+  const competitors = [...merged.values()].slice(0, 8).map((c) => ({
+    name: c.name,
+    domain: c.domain,
+    aliases: uniqueBy(
+      c.aliases
+        .map(tidy)
+        .filter((a) => isProductLabel(a, 80) && a.toLowerCase() !== c.name.toLowerCase()),
+      (a) => a.toLowerCase(),
+    ).slice(0, 10),
+  }));
 
   const terms = uniqueBy(
     raw.terms
       .map((t) => ({ term: tidy(t.term), intent: t.intent }))
-      .filter((t) => isProductLabel(t.term, 60)),
+      .filter((t) => t.term.length >= 2 && isProductLabel(t.term, 60)),
     (t) => t.term.toLowerCase(),
-  ).slice(0, 40);
+  ).slice(0, 30);
 
   const subreddits = uniqueBy(
     raw.subreddits
@@ -180,6 +220,7 @@ export function cleanDraft(raw: Draft, ownHost: string | null): CleanDraft {
 
   return {
     profile: {
+      url,
       name: isProductLabel(name, 120) ? name : fallbackName,
       one_liner: withoutPeopleOrLinks(raw.one_liner, 160),
       description: withoutPeopleOrLinks(raw.description, 2000),
@@ -210,7 +251,7 @@ export type OnboardingResult =
   | { kind: "drafted"; productId: string; draft: CleanDraft }
   | { kind: "refused"; reason: RefusalReason }
   | { kind: "need_description"; productId: string }
-  | { kind: "failed"; reason: "limit" | "cap" | "refusal" | "invalid" };
+  | { kind: "failed"; reason: "limit" | "cap" | "refusal" | "invalid" | "unavailable" };
 
 const nameFromDescription = (text: string): string => {
   const words = tidy(text).split(" ").slice(0, 6).join(" ");
@@ -236,6 +277,10 @@ export async function draftFromInput(
     input.kind === "url" ? (ownHost ?? "").replace(/^www\./, "") : nameFromDescription(input.text),
   );
 
+  // Checked again atomically before each model call; this early check spares the site's server.
+  const today = await deps.usage.usageSince(productId, startOfUtcDay(deps.clock.now()), "draft");
+  if (today.calls >= DRAFT_CALLS_PER_DAY) return { kind: "failed", reason: "limit" };
+
   let material: string;
   if (input.kind === "url") {
     const site = await readSite(input.url, deps.reader);
@@ -244,10 +289,6 @@ export async function draftFromInput(
   } else {
     material = `The maker describes the product:\n${input.text}`;
   }
-
-  const today = await deps.usage.usageSince(productId, startOfUtcDay(deps.clock.now()), "draft");
-  if (today.calls > DRAFT_CALLS_PER_DAY - CALLS_PER_DRAFT)
-    return { kind: "failed", reason: "limit" };
 
   let raw: Draft;
   try {
@@ -258,16 +299,21 @@ export async function draftFromInput(
       system: [{ text: DRAFT_SYSTEM, cache: true }],
       input: material,
       schema: Draft,
-      maxTokens: 16_000,
+      parseSchema: DraftAnswer,
+      maxTokens: DRAFT_MAX_TOKENS,
+      dailyCallLimit: DRAFT_CALLS_PER_DAY,
+      deadlineMs: DRAFT_DEADLINE_MS,
     });
   } catch (error) {
-    if (error instanceof LlmCapError) return { kind: "failed", reason: "cap" };
+    if (error instanceof LlmCapError)
+      return { kind: "failed", reason: error.cap === "task_daily" ? "limit" : "cap" };
     if (error instanceof LlmRefusalError) return { kind: "failed", reason: "refusal" };
     if (error instanceof LlmSchemaError) return { kind: "failed", reason: "invalid" };
+    if (error instanceof LlmUnavailableError) return { kind: "failed", reason: "unavailable" };
     throw error;
   }
 
-  const draft = cleanDraft(raw, ownHost);
+  const draft = cleanDraft(raw, ownHost, url);
   await deps.store.saveDraft(productId, ownerId, draft);
   return { kind: "drafted", productId, draft };
 }

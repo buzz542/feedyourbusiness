@@ -44,6 +44,7 @@ describe("cleanDraft (the 8.3 rules)", () => {
   it("keeps a good draft as it is", () => {
     const out = clean({});
     expect(out.profile).toEqual({
+      url: null,
       name: "Acme",
       one_liner: DRAFT.one_liner,
       description: DRAFT.description,
@@ -113,8 +114,25 @@ describe("cleanDraft (the 8.3 rules)", () => {
       ],
       terms: [...terms(20), { term: "HOW DO I SEND INVOICE 0", intent: "problem" }],
     });
-    expect(out.competitors).toEqual([{ name: "Rival", domain: null, aliases: ["RIVAL APP"] }]);
+    // Merged, not dropped: the second spelling's domain is kept.
+    expect(out.competitors).toEqual([
+      { name: "Rival", domain: "rival.example", aliases: ["RIVAL APP"] },
+    ]);
     expect(out.terms).toHaveLength(20);
+  });
+
+  it("enforces the limits the API only treats as hints, instead of failing the whole draft", () => {
+    const out = clean({
+      terms: [
+        ...terms(30),
+        { term: "x".repeat(61), intent: "problem" },
+        { term: "a", intent: "problem" },
+      ],
+      subreddits: ["r/SaaS", "this_name_is_far_too_long_for_reddit"],
+    });
+    expect(out.terms).toHaveLength(30);
+    expect(out.terms.every((t) => t.term.length >= 2 && t.term.length <= 60)).toBe(true);
+    expect(out.profile.subreddits).toEqual(["SaaS"]);
   });
 
   it("writes hyphens for em dashes, as our copy rules say", () => {
@@ -172,7 +190,10 @@ const SITE: Record<string, string> = {
 function setup({
   site = SITE,
   replies = [reply(DRAFT)],
-}: { site?: Record<string, string>; replies?: LlmReply[] } = {}) {
+}: {
+  site?: Record<string, string>;
+  replies?: ConstructorParameters<typeof FakeLlmClient>[0];
+} = {}) {
   const client = new FakeLlmClient(replies);
   const usage = new FakeUsageStore();
   const store = new FakeDraftStore();
@@ -248,19 +269,31 @@ describe("draftFromInput", () => {
     expect(client.requests).toEqual([]);
   });
 
-  it("refuses a seventh draft call in a UTC day, counting retries, before calling", async () => {
-    const { deps, usage, client } = setup();
-    for (let i = 0; i < 5; i++) {
+  it("refuses a seventh draft call in a UTC day before the site is read or the model called", async () => {
+    const { deps, usage, client, fetched } = setup();
+    for (let i = 0; i < 6; i++) {
       usage.seed({ productId: "product-1", costUsd: 0.01, at: NOW, task: "draft" });
     }
     const result = await draftFromInput("owner-1", "acme.example", deps);
     expect(result).toEqual({ kind: "failed", reason: "limit" });
     expect(client.requests).toEqual([]);
+    expect(fetched).toEqual([]);
   });
 
-  it("allows a draft while two calls of the six are left", async () => {
+  it("makes the sixth call, and refuses its retry as the seventh", async () => {
+    const { deps, usage, client, store } = setup({ replies: [reply({ name: "" }), reply(DRAFT)] });
+    for (let i = 0; i < 5; i++) {
+      usage.seed({ productId: "product-1", costUsd: 0.01, at: NOW, task: "draft" });
+    }
+    const result = await draftFromInput("owner-1", "acme.example", deps);
+    expect(result).toEqual({ kind: "failed", reason: "limit" });
+    expect(client.requests).toHaveLength(1);
+    expect(store.saved).toEqual([]);
+  });
+
+  it("counts only today's draft calls for this product", async () => {
     const { deps, usage } = setup();
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       usage.seed({ productId: "product-1", costUsd: 0.01, at: NOW, task: "draft" });
     }
     usage.seed({
@@ -271,6 +304,60 @@ describe("draftFromInput", () => {
     });
     usage.seed({ productId: "product-1", costUsd: 0.01, at: NOW, task: "classify" });
     expect((await draftFromInput("owner-1", "acme.example", deps)).kind).toBe("drafted");
+  });
+
+  it("lets one of two parallel drafts through when one call is left", async () => {
+    const { deps, usage, client } = setup({ replies: [reply(DRAFT), reply(DRAFT)] });
+    for (let i = 0; i < 5; i++) {
+      usage.seed({ productId: "product-1", costUsd: 0.01, at: NOW, task: "draft" });
+    }
+    const results = await Promise.all([
+      draftFromInput("owner-1", "acme.example", deps),
+      draftFromInput("owner-1", "acme.example", deps),
+    ]);
+    expect(results.map((r) => r.kind).sort()).toEqual(["drafted", "failed"]);
+    expect(client.requests).toHaveLength(1);
+  });
+
+  it("finishes within 2 minutes when the model is slow, and records the call", async () => {
+    let now = 0;
+    const clock = { now: () => new Date(NOW.getTime() + now) };
+    const { deps, usage } = setup({
+      replies: [
+        () => {
+          now += 60_000;
+          throw new Error("timeout");
+        },
+      ],
+    });
+    const slowSite = {
+      ...deps.reader,
+      now: () => now,
+      fetchPage: async (url: string) => {
+        now += 10_000;
+        return deps.reader.fetchPage(url);
+      },
+    };
+    const llm = createLlm({
+      client: new FakeLlmClient([
+        () => {
+          now += 45_000;
+          throw new Error("timeout");
+        },
+      ]),
+      usage,
+      clock,
+      caps: { productMonthlyUsd: 3, dailyUsd: 25 },
+    });
+    const result = await draftFromInput("owner-1", "acme.example", {
+      ...deps,
+      llm,
+      clock,
+      reader: slowSite,
+    });
+    expect(result).toEqual({ kind: "failed", reason: "unavailable" });
+    expect(now).toBeLessThanOrEqual(120_000);
+    expect(usage.rows).toHaveLength(1);
   });
 
   it("reports a refusal, an invalid answer and a spend cap without saving", async () => {
