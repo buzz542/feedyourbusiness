@@ -887,3 +887,45 @@ describe("re-checks have their own ledger key, inside the vendor's monthly cap (
     ).toEqual({ n: 90 });
   });
 });
+
+describe("Reddit term rotation (7.3 step 2)", () => {
+  it("collects every active term at least once over three days at 12 terms a day", async () => {
+    await db.query("delete from public.search_terms where product_id = $1", [alice]);
+    const ids: string[] = [];
+    for (let i = 0; i < 36; i++)
+      ids.push(
+        (
+          await one<{ id: string }>(
+            "insert into public.search_terms (product_id, term, created_at) values ($1, $2, $3) returning id",
+            [alice, `rotation term ${i}`, `2026-10-01T00:00:${String(i).padStart(2, "0")}Z`],
+          )
+        ).id,
+      );
+    const paused = (
+      await one<{ id: string }>(
+        "insert into public.search_terms (product_id, term, active) values ($1, 'paused rotation term', false) returning id",
+        [alice],
+      )
+    ).id;
+    const collected = new Set<string>();
+    for (const day of ["2026-10-17", "2026-10-18", "2026-10-19"]) {
+      const picked = await asService(() =>
+        rows<{ id: string }>("select id from public.collect_terms($1, 'reddit', 12)", [alice]),
+      );
+      expect(picked).toHaveLength(12);
+      for (const r of picked) collected.add(r.id);
+      const job = await one<{ id: string }>(
+        "insert into public.jobs (kind) values ('collect') returning id",
+      );
+      await asService(() =>
+        db.query("select public.record_term_stats($1, $2, 'reddit', $3)", [
+          job.id,
+          day,
+          JSON.stringify(picked.map((r) => ({ term_id: r.id, fetched: 5, relevant: 1 }))),
+        ]),
+      );
+    }
+    expect([...collected].sort()).toEqual([...ids].sort());
+    expect(collected.has(paused)).toBe(false);
+  });
+});
