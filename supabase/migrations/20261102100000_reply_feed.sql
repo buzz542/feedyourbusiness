@@ -1,7 +1,8 @@
 -- Migration `reply_feed` (docs/PLAN.md 4.4, 5.2): one view the Reply tab reads, joining a product's
 -- labels to the post's content. security_invoker, so the reader's own RLS applies to both tables:
--- an owner sees only their products' links, and only posts still inside retention (2.3.4). It
--- exposes no author column (D5), and no function is added, so API roles still execute nothing.
+-- an owner sees only their products' links, and only posts still inside retention (2.3.4). The
+-- service role bypasses RLS, so its readers (the daily email) filter delete_after themselves. It
+-- exposes no author column (D5), and no function is added.
 
 create view public.feed_items with (security_invoker = true) as
 select

@@ -19,7 +19,10 @@ export function SearchLinksPanel({
 }) {
   const shown = terms.slice(0, MAX_TERMS);
   if (shown.length === 0) return null;
-  const subLinks = subredditSearchLinks(subreddits, shown);
+  // Subreddit searches are Reddit search links: they follow the reddit_links kill switch.
+  const subLinks = sources.some((s) => s.id === "reddit_links")
+    ? subredditSearchLinks(subreddits, shown)
+    : [];
   return (
     <section aria-labelledby="search-links" className="flex flex-col gap-3">
       <h2 id="search-links" className="font-serif text-lg">

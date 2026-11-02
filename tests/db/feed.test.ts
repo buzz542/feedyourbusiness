@@ -241,6 +241,17 @@ describe("feed views and filters", () => {
   });
 });
 
+describe("retention through the view", () => {
+  it("hides a link whose post is past delete_after from its owner", async () => {
+    const [first] = await read(alice, parseFeedParams({ view: "all", min: "40" }));
+    await db.query(
+      "update public.posts set delete_after = collected_at where id = (select post_id from public.product_posts where id = $1)",
+      [first],
+    );
+    expect(await read(alice, parseFeedParams({ view: "all", min: "40" }))).not.toContain(first);
+  });
+});
+
 describe("parseFeedParams", () => {
   it("falls back to defaults on anything unreadable", () => {
     expect(

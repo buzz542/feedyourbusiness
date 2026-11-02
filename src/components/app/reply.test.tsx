@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { REPLY_TIPS } from "@/server/reply/tips";
 import { parseFeedParams, type FeedItem } from "@/server/store/feed";
 import { linkSources, sources } from "@/sources/registry";
-import { subredditSearchLinks, SUBREDDIT_LINK_HOST } from "@/sources/subreddit-links";
+import { subredditSearchLinks } from "@/sources/subreddit-links";
 import { FeedError } from "./feed-error";
 import { FirstRunProgress } from "./first-run-progress";
 import { FilterBar } from "./filter-bar";
@@ -120,12 +120,23 @@ describe("search links", () => {
     for (const href of hrefs) {
       const url = new URL(href);
       expect(url.protocol).toBe("https:");
-      expect(declared.has(url.hostname) || url.hostname === SUBREDDIT_LINK_HOST).toBe(true);
+      expect(declared.has(url.hostname)).toBe(true);
       expect(href).not.toContain("chase payments & fees");
     }
     expect(html).toContain("Say you built it.");
     expect(html).toContain("r/freelance");
     expect(html).not.toContain("u_someone");
+  });
+
+  it("shows no subreddit link when Reddit search links are switched off", () => {
+    const html = renderToStaticMarkup(
+      <SearchLinksPanel
+        terms={["late invoices"]}
+        subreddits={["freelance"]}
+        sources={linkSources().filter((s) => s.id !== "reddit_links")}
+      />,
+    );
+    expect(html).not.toContain("r/freelance");
   });
 
   it("builds subreddit searches restricted to the community, skipping profiles and sensitive ones", () => {

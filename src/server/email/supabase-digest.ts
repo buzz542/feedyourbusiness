@@ -15,6 +15,11 @@ const must = <T>(r: { data: T; error: { code?: string } | null }): T => {
 
 /** The digest's reads through the service role: links and labels only, never an excerpt. */
 export function createSupabaseDigestStore(admin: AdminClient): DigestStore {
+  // The product's own minimum match, as the Reply tab uses by default.
+  const thresholdOf = async (productId: string) =>
+    must(
+      await admin.from("products").select("relevance_threshold").eq("id", productId).maybeSingle(),
+    )?.relevance_threshold ?? 60;
   return {
     async recipient(productId) {
       const product = must(
@@ -38,33 +43,47 @@ export function createSupabaseDigestStore(admin: AdminClient): DigestStore {
       };
     },
     async newPosts(productId, since, limit) {
+      const threshold = await thresholdOf(productId);
+      // The service role bypasses RLS: retention is filtered here explicitly (2.3.4).
       const rows = must(
         await admin
-          .from("feed_items")
-          .select("id, source, community, posted_at, category, reason")
+          .from("product_posts")
+          .select("id, category, reason, posts!inner(source, community, posted_at)")
           .eq("product_id", productId)
           .eq("state", "new")
+          .gte("relevance", threshold)
           .gte("created_at", since.toISOString())
+          .gt("posts.delete_after", new Date().toISOString())
           .order("relevance", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(limit),
       );
-      return (rows ?? []).map((r) => ({
-        id: r.id,
-        source: r.source,
-        community: r.community,
-        postedAt: r.posted_at,
-        category: r.category as FeedCategory,
-        reason: r.reason,
-      }));
+      return (rows ?? []).flatMap((r) => {
+        const post = Array.isArray(r.posts) ? r.posts[0] : r.posts;
+        return post
+          ? [
+              {
+                id: r.id,
+                source: post.source,
+                community: post.community,
+                postedAt: post.posted_at,
+                category: r.category as FeedCategory,
+                reason: r.reason,
+              },
+            ]
+          : [];
+      });
     },
     async categoryCounts(productId) {
+      const threshold = await thresholdOf(productId);
       const rows = must(
         await admin
-          .from("feed_items")
-          .select("category")
+          .from("product_posts")
+          .select("category, posts!inner(delete_after)")
           .eq("product_id", productId)
           .neq("state", "hidden")
+          .gte("relevance", threshold)
+          .gt("posts.delete_after", new Date().toISOString())
           .limit(1000),
       );
       const counts = new Map<FeedCategory, number>();

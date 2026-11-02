@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { track } from "@/server/analytics/track";
 import { createSupabaseEventStore } from "@/server/analytics/supabase-events";
 import { requireAppUser } from "@/server/auth/session";
@@ -25,6 +24,6 @@ export async function setPostState(input: {
     },
     track: (name, userId) => track(createSupabaseEventStore(), name, userId),
   })(user.id, input);
-  if (result.ok) revalidatePath("/app/reply");
+  // No revalidation: the card stays on screen with its Undo; the next visit reads the new state.
   return result;
 }

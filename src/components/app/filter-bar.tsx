@@ -62,7 +62,7 @@ export function FilterBar({
           name="min"
           min={40}
           max={95}
-          step={5}
+          step={1}
           defaultValue={filter.min ?? defaultMin}
           className={`${field} w-20`}
         />

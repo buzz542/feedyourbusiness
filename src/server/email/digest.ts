@@ -73,6 +73,9 @@ export function createDigestHandler(deps: DigestDeps): JobHandler {
     if (!to?.email || !to.entitled || (!feedReady && !to.daily))
       return { status: "done", payload: { result: "skipped" } };
     const site = deps.siteUrl();
+    // Links and List-Unsubscribe must be absolute: no email without the site URL.
+    if (!/^https:\/\/[^/]+$/.test(site))
+      return { status: "done", payload: { result: "no_site_url" } };
 
     let message;
     if (feedReady) {
