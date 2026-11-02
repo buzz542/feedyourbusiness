@@ -412,6 +412,18 @@ describe("after the migration", () => {
       ],
       ["a fullwidth @", "name", "chr(65312) || 'jane'", /competitors_name_check/],
       ["a fullwidth slash", "name", "'u' || chr(65295) || 'jane'", /competitors_name_check/],
+      [
+        "a profile link with a fullwidth slash",
+        "name",
+        "'x.com' || chr(65295) || 'alice'",
+        /competitors_name_check/,
+      ],
+      [
+        "a profile path with fullwidth slashes",
+        "name",
+        "'linkedin' || chr(65295) || 'in' || chr(65295) || 'alice'",
+        /competitors_name_check/,
+      ],
       ["the same alias twice", "name, aliases", "'A', array['Acme', 'acme']", /aliases/],
       ["a t.me link", "name", "'t.me/jane'", /competitors_name_check/],
       ["a Bluesky handle as a domain", "name, domain", "'X', 'jane.bsky.social'", /domain/],
@@ -433,6 +445,42 @@ describe("after the migration", () => {
     ])("refuses %s", async (_label, cols, values, error) => {
       const { user, product } = await owner();
       await expect(insert(user, product, cols, values)).rejects.toThrow(error);
+    });
+
+    // Every invisible or odd space the label check refuses, one code point at a time.
+    const invisible = [
+      0x00a0,
+      0x1680,
+      0x180e,
+      ...Array.from({ length: 0x200f - 0x2000 + 1 }, (_, i) => 0x2000 + i),
+      ...Array.from({ length: 0x202f - 0x2028 + 1 }, (_, i) => 0x2028 + i),
+      ...Array.from({ length: 0x2064 - 0x205f + 1 }, (_, i) => 0x205f + i),
+      0x3000,
+      0xfeff,
+    ];
+    it.each(invisible.map((cp) => [`U+${cp.toString(16).toUpperCase().padStart(4, "0")}`, cp]))(
+      "refuses %s inside a name",
+      async (_label, cp) => {
+        const { user, product } = await owner();
+        await expect(
+          insert(user, product, "name", `'Acme' || chr(${cp}) || 'Inc'`),
+        ).rejects.toThrow(/competitors_name_check/);
+      },
+    );
+
+    it.each([
+      ["U+2010 (hyphen), just past the first range", 0x2010],
+      ["U+2027 (hyphenation point), just before the second", 0x2027],
+      ["U+2030 (per mille), just past the second", 0x2030],
+      ["U+205E, just before the third", 0x205e],
+      ["U+2065, just past the third", 0x2065],
+      ["U+3001 (ideographic comma), just past U+3000", 0x3001],
+      ["U+FF21 (fullwidth A), near the fullwidth @", 0xff21],
+    ])("accepts %s", async (_label, cp) => {
+      const { user, product } = await owner();
+      await expect(
+        insert(user, product, "name", `'Acme' || chr(${cp}) || 'Inc'`),
+      ).resolves.toBeTruthy();
     });
 
     it("treats names that differ only in case as the same competitor", async () => {
