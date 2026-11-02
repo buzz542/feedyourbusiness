@@ -10,7 +10,14 @@ import {
 import type { BillingStripe, ProfileStore, TrialingProfile } from "./ports";
 
 export interface Mailer {
-  send(message: { to: string; subject: string; text: string; html: string }): Promise<void>;
+  send(message: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    /** List-Unsubscribe and List-Unsubscribe-Post for the daily and weekly emails (11). */
+    headers?: Record<string, string>;
+  }): Promise<void>;
 }
 
 const HOUR_MS = 3_600_000;

@@ -19,8 +19,15 @@ export function createResendMailer(env: Env = process.env): Mailer {
 
   const resend = new Resend(apiKey);
   return {
-    async send({ to, subject, text, html }) {
-      const { error } = await resend.emails.send({ from, to, subject, text, html });
+    async send({ to, subject, text, html, headers }) {
+      const { error } = await resend.emails.send({
+        from,
+        to,
+        subject,
+        text,
+        html,
+        ...(headers ? { headers } : {}),
+      });
       if (error) throw new Error(`Resend rejected the message: ${error.name}`);
     },
   };

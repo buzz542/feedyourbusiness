@@ -1,4 +1,5 @@
 import type { CollectSource } from "@/sources/types";
+import { digestRunAfter, londonDate } from "@/server/email/schedule";
 import type { JobKind, JobStore, NewJob } from "./ports";
 
 const HOUR = 60 * 60_000;
@@ -60,6 +61,18 @@ export async function enqueueDaily(input: {
           payload: { day, from: from.toISOString(), to: to.toISOString() },
         });
   }
+  // The daily posts email (11): one job per product and London day; the handler checks the owner's
+  // setting and entitlement when it runs.
+  if (input.kinds.has("digest_daily"))
+    for (const product of await input.products())
+      jobs.push({
+        kind: "digest_daily",
+        productId: product,
+        source: null,
+        dedupeKey: `digest_daily:${product}:${londonDate(input.now)}`,
+        runAfter: digestRunAfter(input.now),
+        payload: { email: "daily" },
+      });
   if (input.kinds.has("purge"))
     jobs.push({
       kind: "purge",
