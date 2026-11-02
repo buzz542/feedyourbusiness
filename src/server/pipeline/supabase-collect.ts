@@ -2,6 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/server/supabase/admin";
 import type { CollectStore } from "./collect-step";
 import type { DeletionStore } from "./deletion-sync";
+import type { CollectTerm } from "@/sources/types";
 
 class CollectStoreError extends Error {
   override name = "CollectStoreError";
@@ -22,8 +23,7 @@ const chunks = <T>(items: readonly T[]): T[][] =>
 /**
  * The collect step's store through the service role (docs/PLAN.md 7.3). Posts go in only through
  * ingest_post, which checks the suppression list in the same statement; links use on conflict do
- * nothing. The label columns beyond relevance, category and reason (highlight, rival, term) arrive
- * with the classification migration (M4, 6.4), and this adapter writes them from then on.
+ * nothing, with every label column of the classification migration (6.4).
  */
 export function createSupabaseCollectStore(admin: AdminClient): CollectStore {
   return {
@@ -83,6 +83,15 @@ export function createSupabaseCollectStore(admin: AdminClient): CollectStore {
           relevance: label.relevance,
           category: label.category,
           reason: label.reason,
+          highlight_start: label.highlight?.start ?? null,
+          highlight_end: label.highlight?.end ?? null,
+          tool_mentioned: label.toolMentioned,
+          competitor_id: label.competitorId,
+          rival_issue: label.rival?.issue ?? null,
+          rival_sentiment: label.rival?.sentiment ?? null,
+          rival_summary: label.rival?.summary ?? null,
+          switching: label.rival?.switching ?? false,
+          term_id: label.termId,
         },
         { onConflict: "product_id,post_id", ignoreDuplicates: true },
       );
@@ -162,4 +171,31 @@ export async function recheckProducts(admin: AdminClient, from: Date, to: Date):
   });
   fail(error);
   return (data ?? []).map((r) => r.id);
+}
+
+/** Reddit takes the 12 least recently collected terms a day; free sources take them all (7.3). */
+export const termsPerRun = (sourceId: string) => (sourceId === "reddit" ? 12 : 40);
+
+/**
+ * Step 1 of 7.3: the product's active terms for one source, least recently collected first, or
+ * null when the product is no longer collectable (paused, unconfirmed, owner not entitled, or off
+ * the pre-launch allowlist) since the job was enqueued.
+ */
+export async function collectTermsFor(
+  admin: AdminClient,
+  productId: string,
+  sourceId: string,
+  allowed: (row: { id: string; owner_id: string }) => Promise<boolean>,
+): Promise<CollectTerm[] | null> {
+  const { data: rows, error } = await admin.rpc("collectable_products");
+  fail(error);
+  const row = (rows ?? []).find((r) => r.id === productId);
+  if (!row || !(await allowed(row))) return null;
+  const { data, error: termsError } = await admin.rpc("collect_terms", {
+    p_product_id: productId,
+    p_source: sourceId,
+    p_limit: termsPerRun(sourceId),
+  });
+  fail(termsError);
+  return (data ?? []).map((t) => ({ id: t.id, term: t.term }));
 }

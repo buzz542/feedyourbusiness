@@ -275,6 +275,15 @@ export type Database = {
           relevance: number
           state: string
           updated_at: string
+          competitor_id: string | null
+          highlight_end: number | null
+          highlight_start: number | null
+          rival_issue: string | null
+          rival_sentiment: string | null
+          rival_summary: string | null
+          switching: boolean
+          term_id: string | null
+          tool_mentioned: string | null
         }
         Insert: {
           category: string
@@ -286,6 +295,15 @@ export type Database = {
           relevance: number
           state?: string
           updated_at?: string
+          competitor_id?: string | null
+          highlight_end?: number | null
+          highlight_start?: number | null
+          rival_issue?: string | null
+          rival_sentiment?: string | null
+          rival_summary?: string | null
+          switching?: boolean
+          term_id?: string | null
+          tool_mentioned?: string | null
         }
         Update: {
           category?: string
@@ -297,6 +315,15 @@ export type Database = {
           relevance?: number
           state?: string
           updated_at?: string
+          competitor_id?: string | null
+          highlight_end?: number | null
+          highlight_start?: number | null
+          rival_issue?: string | null
+          rival_sentiment?: string | null
+          rival_summary?: string | null
+          switching?: boolean
+          term_id?: string | null
+          tool_mentioned?: string | null
         }
         Relationships: [
           {
