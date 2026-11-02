@@ -39,28 +39,38 @@ create index product_posts_competitor_id_idx on public.product_posts (competitor
   where competitor_id is not null;
 create index product_posts_term_id_idx on public.product_posts (term_id) where term_id is not null;
 
--- A label points only at the product's own competitor and term. Runs as the writer (security
--- invoker); only the service role writes these columns.
+-- A label points only at the product's own competitor and term. One deleted since the run started
+-- (a term removed while a vendor run was pending, a competitor removed during a cron run) is left
+-- off the label instead of failing the job; one of another product is refused. Runs as the writer
+-- (security invoker); only the service role writes these columns.
 create function private.product_posts_same_product() returns trigger
 language plpgsql
 set search_path = ''
 as $$
+declare
+  v_product uuid;
 begin
-  if new.competitor_id is not null and not exists (
-    select 1 from public.competitors c
-     where c.id = new.competitor_id and c.product_id = new.product_id) then
-    raise exception 'label: competitor of another product' using errcode = '23514';
+  if new.competitor_id is not null then
+    select c.product_id into v_product from public.competitors c where c.id = new.competitor_id;
+    if not found then
+      new.competitor_id := null;
+    elsif v_product <> new.product_id then
+      raise exception 'label: competitor of another product' using errcode = '23514';
+    end if;
   end if;
-  if new.term_id is not null and not exists (
-    select 1 from public.search_terms t
-     where t.id = new.term_id and t.product_id = new.product_id) then
-    raise exception 'label: term of another product' using errcode = '23514';
+  if new.term_id is not null then
+    select t.product_id into v_product from public.search_terms t where t.id = new.term_id;
+    if not found then
+      new.term_id := null;
+    elsif v_product <> new.product_id then
+      raise exception 'label: term of another product' using errcode = '23514';
+    end if;
   end if;
   return new;
 end;
 $$;
 revoke all on function private.product_posts_same_product() from public, anon;
-grant execute on function private.product_posts_same_product() to authenticated, service_role;
+grant execute on function private.product_posts_same_product() to service_role;
 
 create trigger product_posts_same_product
   before insert or update of product_id, competitor_id, term_id on public.product_posts

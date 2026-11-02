@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createLlm, LlmCapError, LlmRefusalError } from "@/server/llm/llm";
 import { FakeLlmClient, FakeUsageStore } from "@/server/llm/fakes";
 import type { LlmReply } from "@/server/llm/ports";
@@ -10,6 +10,7 @@ import type { CollectSource } from "@/sources/types";
 import {
   CLASSIFY_MODEL,
   cleanToolName,
+  quotes,
   createClassifier,
   highlightOffsets,
   type ProductProfile,
@@ -232,6 +233,41 @@ describe("post-processing", () => {
   });
 });
 
+describe("quote check", () => {
+  it("replaces a reason and drops a rival summary that copy 8 or more words of the post", async () => {
+    const excerpt = "Ledgerly support never answers my emails so I am thinking of switching soon";
+    const quoted = [{ id: "2", source: "reddit", community: "r/freelance", excerpt }];
+    const { classifier } = setup([
+      reply([
+        result({
+          id: "2",
+          category: "mentions_competitor",
+          competitor_key: "c2",
+          reason: `They say ${excerpt}`,
+          rival: {
+            issue: "support",
+            sentiment: "negative",
+            switching: true,
+            summary: `Says ${excerpt}`,
+          },
+        }),
+      ]),
+    ]);
+    const [label] = await classifier.classify(PRODUCT, quoted);
+    expect(label!.reason).toBe("Matches one of your search terms.");
+    expect(label!.rival).toBeNull();
+    expect(
+      quotes("one two three four five six seven", "one two three four five six seven eight"),
+    ).toBe(false);
+    expect(
+      quotes(
+        "a one two three four five six seven eight",
+        "one two three four five six seven eight z",
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("refusals and spend caps", () => {
   it("raises LlmRefusalError on a refusal, which the collect step skips and counts", async () => {
     const { classifier } = setup([reply([], { stopReason: "refusal", text: "" })]);
@@ -311,5 +347,51 @@ describe("refusals and spend caps", () => {
       payload: { result: "ok", stored: 0, capped: cap },
     });
     expect(posts.posts.size).toBe(0);
+  });
+
+  it("ends a collect job before any budget or fetch when it could not classify", async () => {
+    const { classifier } = setup([]);
+    const start = vi.fn();
+    const source = {
+      id: "reddit",
+      linkHosts: ["www.reddit.com"],
+      costPerUnitUsd: 0.0015,
+      dailyBudget: 120,
+      credentials: [],
+      start,
+    } as unknown as CollectSource;
+    const jobs = new FakeJobStore();
+    await jobs.enqueue([
+      {
+        kind: "collect",
+        productId: PRODUCT,
+        source: "reddit",
+        dedupeKey: "collect:2",
+        runAfter: NOW,
+      },
+    ]);
+    const budget = new FakeBudget(jobs);
+    const reserve = vi.spyOn(budget, "reserve");
+    const handler = createCollectHandler({
+      sourceFor: () => source,
+      fetchFor: () => (async () => new Response("{}")) as never,
+      budget,
+      terms: async () => [{ id: "term-1", term: "unpaid invoices" }],
+      process: createCollectStep({
+        store: new FakeCollectStore(),
+        classifier,
+        hash: (s, k) => `${s}:${k}`,
+      }),
+      ready: () => "ModelKeyMissing",
+      monthlyCap: () => 18_000,
+      userAgent: "test",
+    });
+    await runJobs({ store: jobs, handlers: { collect: handler }, clock: () => NOW });
+    expect(jobs.jobs[0]).toMatchObject({
+      status: "done",
+      payload: { result: "not_ready", errorClass: "ModelKeyMissing" },
+    });
+    expect(start).not.toHaveBeenCalled();
+    expect(reserve).not.toHaveBeenCalled();
   });
 });

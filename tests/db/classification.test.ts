@@ -178,6 +178,16 @@ describe("rival labels", () => {
     await expect(link(alice, post, { term_id: bobTerm })).rejects.toThrow(/term/);
   });
 
+  it("leaves off a competitor or term deleted since the run started, instead of failing", async () => {
+    const post = await ingest("12");
+    const gone = "00000000-0000-4000-8000-00000000dead";
+    await link(alice, post, { competitor_id: gone, term_id: gone });
+    expect(await one("select competitor_id, term_id from public.product_posts")).toEqual({
+      competitor_id: null,
+      term_id: null,
+    });
+  });
+
   it("keeps the link when its competitor or term is deleted", async () => {
     const post = await ingest("7");
     const rival = (

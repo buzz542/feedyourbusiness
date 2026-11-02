@@ -187,9 +187,12 @@ export async function collectTermsFor(
   sourceId: string,
   allowed: (row: { id: string; owner_id: string }) => Promise<boolean>,
 ): Promise<CollectTerm[] | null> {
-  const { data: rows, error } = await admin.rpc("collectable_products");
+  const { data: rows, error } = await admin
+    .rpc("collectable_products")
+    .eq("id", productId)
+    .limit(1);
   fail(error);
-  const row = (rows ?? []).find((r) => r.id === productId);
+  const row = rows?.[0];
   if (!row || !(await allowed(row))) return null;
   const { data, error: termsError } = await admin.rpc("collect_terms", {
     p_product_id: productId,

@@ -23,7 +23,7 @@ export interface LlmRequest {
   maxTokens: number;
   /** output_config.effort: how much the model thinks before answering (default: the model's). */
   effort?: "low" | "medium" | "high";
-  /** For this request, the SDK's own retries included. */
+  /** For each try of this request; the SDK's retries each get this long again (maxRetries). */
   timeoutMs: number;
   /** The SDK's retries of 429 and 5xx: 2 normally, 0 when a deadline leaves no room. */
   maxRetries: number;

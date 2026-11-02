@@ -137,6 +137,7 @@ News, Bluesky, Reddit and X. No other platform is added (section 2 still applies
 - [x] Dedupe. Test: the same post found by two terms, two sources' URLs or two products yields one `posts` row and one `product_posts` row per product. Done in `tests/db/classification.test.ts`; the collect step also drops a repeated external id within a run (`collect-step.test.ts`).
 - [x] Spend caps (8.1). Test: the per-product monthly cap and the global daily cap each stop classification and show in the job result. Done in `src/server/classify/classifier.test.ts` through the collect job, and `createSpendCapCheck` stops a capped product before a paid run reserves budget.
 - [ ] Eval script `npm run eval:classifier` (8.6). Test: runs against a 5-row sample file with a fake model and prints precision and recall.
+- [ ] (you) After F13, record a real pair of classifier responses on invented posts (no real person's post, 2.3.13) and replace `tests/fixtures/anthropic/classify-cache-pair.json`; confirm Haiku 5.5's minimum cacheable length on Anthropic's prompt caching page and that it accepts `effort: "low"`.
 - [ ] (you) F16: label 100 posts; precision is at least 0.8 at the default threshold; then replace section 18's model estimates with measured numbers from `llm_usage`.
 
 ## M5 Reply tab

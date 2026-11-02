@@ -1,7 +1,7 @@
 import { charLength } from "@/lib/highlight-range";
 import type { Llm } from "@/server/llm/llm";
 import type { LlmModel } from "@/server/llm/prices";
-import { hasPersonOrLink } from "@/server/onboarding/labels";
+import { hasPersonOrLink, isProductLabel, tidy } from "@/server/onboarding/labels";
 import {
   BATCH_SIZE,
   MIN_RELEVANCE,
@@ -49,14 +49,35 @@ export interface ProfileStore {
   profile(productId: string): Promise<ProductProfile | null>;
 }
 
+/** Lowercase words, for the quote check. */
+const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+
+/**
+ * True when `text` shares `run` or more consecutive words with `source` (docs/PLAN.md 8.4). Reasons
+ * travel in emails (2.3.14) and summaries in Rivals, so neither may quote the post.
+ */
+export function quotes(text: string, source: string, run = 8): boolean {
+  const a = words(text);
+  const b = words(source);
+  if (a.length < run || b.length < run) return false;
+  const grams = new Set<string>();
+  for (let i = 0; i + run <= b.length; i++) grams.add(b.slice(i, i + run).join(" "));
+  for (let i = 0; i + run <= a.length; i++)
+    if (grams.has(a.slice(i, i + run).join(" "))) return true;
+  return false;
+}
+
+/** Our own fallback when a reason quoted the post. */
+const QUOTED_REASON = "Matches one of your search terms.";
+
 /** Cut to `n` code points, as the database counts. */
 const cut = (text: string, n: number) => Array.from(text).slice(0, n).join("");
 
 /** A product or company name: never a handle, an email, a link or blank (8.2, D5). */
 export function cleanToolName(raw: string | null): string | null {
-  const tool = raw?.trim() ?? "";
+  const tool = tidy(raw ?? "");
   if (!tool || /@|(^|[^a-z0-9])u\//i.test(tool) || hasPersonOrLink(tool)) return null;
-  return charLength(tool) > MAX_TOOL ? null : tool;
+  return isProductLabel(tool, MAX_TOOL) ? tool : null;
 }
 
 /** Offsets of an exact substring, in code points; anything else is no highlight. */
@@ -88,14 +109,20 @@ export function toLabels(
     const competitorId = competitorIds.get(result.competitor_key?.trim() ?? "") ?? null;
     const summary = result.rival ? cut(result.rival.summary.trim(), MAX_SUMMARY) : "";
     const rival =
-      result.rival && (toolMentioned || competitorId) && summary && !hasPersonOrLink(summary)
+      result.rival &&
+      (toolMentioned || competitorId) &&
+      summary &&
+      !hasPersonOrLink(summary) &&
+      !quotes(summary, item.excerpt)
         ? { ...result.rival, summary }
         : null;
     labels.push({
       id: result.id,
       relevance: result.relevance,
       category: result.category,
-      reason: cut(result.reason.trim(), MAX_REASON),
+      reason: quotes(result.reason, item.excerpt)
+        ? QUOTED_REASON
+        : cut(result.reason.trim(), MAX_REASON),
       highlight: highlightOffsets(item.excerpt, result.highlight),
       toolMentioned,
       competitorId,
@@ -111,13 +138,15 @@ export function createClassifier(deps: {
 }): Classifier {
   const profiles = new Map<string, Promise<ProductProfile | null>>();
   return {
-    async classify(productId, items) {
+    async classify(productId, items, options) {
       if (items.length === 0) return [];
       if (items.length > BATCH_SIZE) throw new RangeError("A batch holds at most 20 posts");
       let pending = profiles.get(productId);
       if (!pending) {
         pending = deps.profiles.profile(productId);
         profiles.set(productId, pending);
+        // A failed read is not cached: the next batch tries again.
+        pending.catch(() => profiles.delete(productId));
       }
       const profile = await pending;
       if (!profile) return [];
@@ -140,6 +169,7 @@ export function createClassifier(deps: {
         parseSchema: ClassificationAnswer,
         maxTokens: CLASSIFY_MAX_TOKENS,
         effort: "low",
+        ...(options?.deadlineMs !== undefined ? { deadlineMs: options.deadlineMs } : {}),
       });
       return toLabels(answer, items, new Map(keyed.map((c) => [c.key, c.id])));
     },

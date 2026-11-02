@@ -58,6 +58,14 @@ export class LlmUnavailableError extends Error {
   }
 }
 
+/** A call whose system prompt lacks the never-infer rule; refused before anything is sent. */
+export class LlmPromptError extends Error {
+  constructor() {
+    super("The system prompt lacks the never-infer rule");
+    this.name = "LlmPromptError";
+  }
+}
+
 export type SpendCap = "product_monthly" | "global_daily" | "task_daily";
 
 export class LlmCapError extends Error {
@@ -201,6 +209,9 @@ export function createLlm(deps: LlmDeps) {
 
   return {
     async callStructured<S extends z.ZodType>(call: StructuredCall<S>): Promise<z.infer<S>> {
+      // Every system prompt carries the never-infer rule (2.3.7, 8.2), whoever adds a call.
+      if (!call.system.some((block) => block.text.includes(NEVER_INFER)))
+        throw new LlmPromptError();
       const started = deps.clock.now().getTime();
       for (let tries = 0; tries < 2; tries++) {
         let timeoutMs = CALL_TIMEOUT_MS;

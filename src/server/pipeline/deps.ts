@@ -51,11 +51,21 @@ export function createServerCronDeps(): CronDeps {
     llm: { callStructured: (call) => (llm ??= createLlmFromEnv()).callStructured(call) },
     profiles: createSupabaseProfileStore(admin),
   });
-  const spendCap = createSpendCapCheck({
-    usage: createSupabaseUsageStore(admin),
-    caps: loadSpendCaps(),
-    clock: { now: () => new Date() },
-  });
+  const usage = createSupabaseUsageStore(admin);
+  // Read when a collect job runs, so a bad cap value never stops the purge or deletion sync.
+  const spendCap = (productId: string) =>
+    createSpendCapCheck({ usage, caps: loadSpendCaps(), clock: { now: () => new Date() } })(
+      productId,
+    );
+  const ready = () => {
+    if (!process.env.ANTHROPIC_API_KEY) return "ModelKeyMissing";
+    try {
+      hasher ??= authorHasher();
+    } catch {
+      return "AuthorPepperMissing";
+    }
+    return null;
+  };
   const budget = createSupabaseBudgetStore(admin);
 
   return {
@@ -74,6 +84,7 @@ export function createServerCronDeps(): CronDeps {
           hash: (source, key) => (hasher ??= authorHasher())(source, key),
         }),
         spendCap,
+        ready,
         monthlyCap: (source) => monthlyCapFor(source),
         budgetFor: (source) => dailyBudgetFor(source),
         costFor: (source) => costPerUnitFor(source),

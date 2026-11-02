@@ -49,6 +49,12 @@ export interface CollectHandlerDeps {
    * run reserves budget, so no paid fetch starts whose posts could not be classified (8.1).
    */
   spendCap?(productId: string): Promise<SpendCap | null>;
+  /**
+   * Why posts could not be classified or stored now (a missing model key or author pepper), as an
+   * error class name, or null. Checked before any budget is reserved, so no paid fetch starts whose
+   * posts would be thrown away.
+   */
+  ready?(): string | null;
   /** The vendor's monthly record cap (BRIGHTDATA_MONTHLY_RECORD_CAP), or null when none applies. */
   monthlyCap(source: CollectSource): number | null;
   /** Units per product per day (dailyBudgetFor); the module's dailyBudget when unset. */
@@ -112,6 +118,8 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       return { status: "done", payload: { result: "not_collectable" } };
 
     if (!("reserved" in job.payload)) {
+      const missing = deps.ready?.() ?? null;
+      if (missing) return { status: "done", payload: { result: "not_ready", errorClass: missing } };
       const cap = await deps.spendCap?.(job.productId);
       if (cap) return { status: "done", payload: { result: "spend_cap", cap } };
     }

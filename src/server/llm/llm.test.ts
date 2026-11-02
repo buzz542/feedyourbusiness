@@ -9,6 +9,7 @@ import {
   LlmSchemaError,
   LlmUnavailableError,
   NEVER_INFER,
+  LlmPromptError,
 } from "./llm";
 import { PRICES } from "./prices";
 
@@ -33,7 +34,10 @@ function setup(
       task: "draft",
       productId: "product-1",
       model: "claude-sonnet-5-5",
-      system: [{ text: "Stable instructions.", cache: true }, { text: "Per-call notes." }],
+      system: [
+        { text: `Stable instructions. ${NEVER_INFER}`, cache: true },
+        { text: "Per-call notes." },
+      ],
       input: "Describe Acme.",
       schema: Answer,
       maxTokens: 1000,
@@ -103,7 +107,7 @@ describe("callStructured", () => {
     const { call, client } = setup([ok('{"name":"Acme"}')]);
     await call();
     expect(client.requests[0]?.system).toEqual([
-      { text: "Stable instructions.", cache: true },
+      { text: `Stable instructions. ${NEVER_INFER}`, cache: true },
       { text: "Per-call notes." },
     ]);
     expect(client.requests[0]?.model).toBe("claude-sonnet-5-5");
@@ -227,7 +231,7 @@ describe("review fixes: failures, races and deadlines", () => {
         task: "draft",
         productId: "product-1",
         model: "claude-sonnet-5-5",
-        system: [{ text: "S" }],
+        system: [{ text: NEVER_INFER }],
         input: "I",
         schema: Answer,
         maxTokens: 1000,
@@ -260,7 +264,7 @@ describe("review fixes: failures, races and deadlines", () => {
         task: "draft",
         productId: "product-1",
         model: "claude-sonnet-5-5",
-        system: [{ text: "S" }],
+        system: [{ text: NEVER_INFER }],
         input: "I",
         schema: Answer,
         maxTokens: 1000,
@@ -294,7 +298,7 @@ describe("review fixes: failures, races and deadlines", () => {
         task: "draft",
         productId: "product-1",
         model: "claude-sonnet-5-5",
-        system: [{ text: "S" }],
+        system: [{ text: NEVER_INFER }],
         input: "I",
         schema: Answer,
         maxTokens: 1000,
@@ -318,12 +322,38 @@ describe("review fixes: failures, races and deadlines", () => {
       task: "draft",
       productId: "product-1",
       model: "claude-sonnet-5-5",
-      system: [{ text: "S" }],
+      system: [{ text: NEVER_INFER }],
       input: "I",
       schema: Answer,
       parseSchema: z.object({ name: z.string() }),
       maxTokens: 1000,
     });
     expect(out.name).toMatch(/far longer/);
+  });
+});
+
+describe("the never-infer rule", () => {
+  it("refuses a call whose system prompt lacks it, before anything is sent (planted)", async () => {
+    const client = new FakeLlmClient([]);
+    const usage = new FakeUsageStore();
+    const llm = createLlm({
+      client,
+      usage,
+      clock: { now: () => NOW },
+      caps: { productMonthlyUsd: 3, dailyUsd: 25 },
+    });
+    await expect(
+      llm.callStructured({
+        task: "classify",
+        productId: "p",
+        model: "claude-haiku-5-5",
+        system: [{ text: "Label these posts." }],
+        input: "[]",
+        schema: Answer,
+        maxTokens: 100,
+      }),
+    ).rejects.toThrow(LlmPromptError);
+    expect(client.requests).toHaveLength(0);
+    expect(usage.rows).toHaveLength(0);
   });
 });

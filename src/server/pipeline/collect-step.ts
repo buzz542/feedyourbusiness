@@ -64,7 +64,11 @@ export interface Label {
 /** The classification port; M4's Haiku classifier implements it (docs/PLAN.md 8.2). */
 export interface Classifier {
   /** At most BATCH_SIZE items a call. */
-  classify(productId: string, items: readonly ClassifyItem[]): Promise<Label[]>;
+  classify(
+    productId: string,
+    items: readonly ClassifyItem[],
+    options?: { deadlineMs?: number },
+  ): Promise<Label[]>;
 }
 
 export interface StoredPost {
@@ -126,6 +130,8 @@ const cut = (text: string, n: number) => Array.from(text).slice(0, n).join("");
 const FALLBACK_REASON = "Matches one of your search terms.";
 /** One full classifier call with its retry: a batch starts only when this much time is left. */
 export const MIN_BATCH_MS = 75_000;
+/** Left over after a classifier call's deadline, to store its batch and finish the job. */
+export const CLASSIFY_MARGIN_MS = 15_000;
 
 /** The classifier checks its labels; this keeps what reaches the database inside its constraints. */
 function toPostLabel(label: Label, category: Category, post: Hashed): PostLabel {
@@ -250,7 +256,12 @@ export function createCollectStep(deps: {
       }));
       let labels: Label[];
       try {
-        labels = await classifier.classify(productId, items);
+        // The call ends before the runner's budget does, the SDK's retries included (8.1).
+        labels = input.timeLeft
+          ? await classifier.classify(productId, items, {
+              deadlineMs: input.timeLeft() - CLASSIFY_MARGIN_MS,
+            })
+          : await classifier.classify(productId, items);
       } catch (error) {
         // A spend cap stops classification: what is stored stays, the rest waits for a later run.
         if (error instanceof LlmCapError) {
