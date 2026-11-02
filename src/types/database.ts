@@ -641,7 +641,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      feed_items: {
+        Row: {
+          category: string
+          community: string | null
+          competitor_id: string | null
+          created_at: string
+          excerpt: string
+          highlight_end: number | null
+          highlight_start: number | null
+          id: string
+          posted_at: string
+          product_id: string
+          reason: string
+          relevance: number
+          rival_issue: string | null
+          rival_sentiment: string | null
+          source: string
+          state: string
+          switching: boolean
+          tool_mentioned: string | null
+          url: string
+        }
+        Relationships: []
+      }
     }
     Functions: {
       apply_billing_patch: {
