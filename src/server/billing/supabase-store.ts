@@ -102,6 +102,15 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
       return rows.length === 1;
     },
 
+    async recordServiceConsent(userId, at) {
+      const { error } = await db
+        .from("profiles")
+        .update({ service_consent_at: at.toISOString() })
+        .eq("id", userId)
+        .is("service_consent_at", null);
+      if (error) throw new Error(`Supabase error ${error.code}`);
+    },
+
     async releaseTrialReminder(userId) {
       must(await db.from("profiles").update({ trial_reminder_sent_at: null }).eq("id", userId));
     },

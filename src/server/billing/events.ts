@@ -16,7 +16,11 @@ const HANDLED = new Set<string>(HANDLED_EVENT_TYPES);
 
 type EventStore = Pick<
   ProfileStore,
-  "claimEvent" | "markEventProcessed" | "applyBillingPatch" | "findUserIdByCustomerId"
+  | "claimEvent"
+  | "markEventProcessed"
+  | "applyBillingPatch"
+  | "findUserIdByCustomerId"
+  | "recordServiceConsent"
 >;
 
 export interface EventDeps {
@@ -88,6 +92,9 @@ export async function handleStripeEvent(
         profilePatchFromSubscription(sub),
         eventAt,
       );
+      // The consent the checkout handler recorded (10.2), written once.
+      const consentAt = Date.parse(sub.metadata.service_consent_at ?? "");
+      if (Number.isFinite(consentAt)) await store.recordServiceConsent(userId, new Date(consentAt));
       outcome = applied ? "processed" : "stale";
       break;
     }

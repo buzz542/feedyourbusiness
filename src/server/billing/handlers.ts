@@ -22,6 +22,7 @@ export interface BillingDeps {
   isAllowed(email: string | null): boolean;
   /** The signed-in user's terms acceptance and product, read through RLS (the user's own client). */
   getAccount(userId: string): Promise<AccountState>;
+  now?: () => Date;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -68,7 +69,17 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
       if (hasLiveSubscription(profile?.subscriptionStatus)) {
         return json(409, { error: "subscription_exists" });
       }
+      // The consent box on /app/billing (10.2): checkout starts only with it ticked.
+      const body = (await request.text().catch(() => "")).slice(0, 1024);
+      let consent = false;
+      try {
+        consent = (JSON.parse(body) as { consent?: unknown })?.consent === true;
+      } catch {
+        consent = false;
+      }
+      if (!consent) return json(400, { error: "consent_required" });
       const { url } = await createCheckoutSession({
+        consentAt: deps.now?.() ?? new Date(),
         stripe: deps.stripe,
         config: deps.config,
         user: auth.user,

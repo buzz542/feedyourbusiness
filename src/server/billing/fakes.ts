@@ -58,6 +58,12 @@ export class FakeProfileStore implements ProfileStore {
     };
   }
 
+  consent = new Map<string, Date>();
+
+  async recordServiceConsent(userId: string, at: Date): Promise<void> {
+    if (this.rows.has(userId) && !this.consent.has(userId)) this.consent.set(userId, at);
+  }
+
   async findUserIdByCustomerId(customerId: string): Promise<string | null> {
     for (const r of this.rows.values()) if (r.patch.stripe_customer_id === customerId) return r.id;
     return null;
@@ -124,6 +130,7 @@ export const TEST_PRICE: PriceInfo = {
   currency: "usd",
   interval: "month",
   intervalCount: 1,
+  taxBehavior: "inclusive",
 };
 
 export class FakeStripe implements BillingStripe {
@@ -165,6 +172,15 @@ export class FakeStripe implements BillingStripe {
   async createCheckoutSession(params: Stripe.Checkout.SessionCreateParams) {
     this.checkoutCalls.push(params);
     return { url: this.checkoutUrl };
+  }
+
+  sessions = new Map<
+    string,
+    { clientReferenceId: string | null; customerId: string | null; subscriptionId: string | null }
+  >();
+
+  async getCheckoutSession(sessionId: string) {
+    return this.sessions.get(sessionId) ?? null;
   }
 
   async createPortalSession(args: { customerId: string; returnUrl: string }) {

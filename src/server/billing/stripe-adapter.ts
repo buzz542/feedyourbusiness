@@ -24,6 +24,12 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
         currency: price.currency,
         interval: INTERVALS.find((i) => i === price.recurring?.interval) ?? null,
         intervalCount: price.recurring?.interval_count ?? null,
+        taxBehavior:
+          price.tax_behavior === "inclusive"
+            ? "inclusive"
+            : price.tax_behavior === "exclusive"
+              ? "exclusive"
+              : "unspecified",
       };
     },
 
@@ -54,6 +60,22 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
           error instanceof Stripe.errors.StripeInvalidRequestError &&
           error.code === "resource_missing";
         if (missing) return null;
+        throw error;
+      }
+    },
+
+    async getCheckoutSession(sessionId) {
+      try {
+        const s = await stripe.checkout.sessions.retrieve(sessionId);
+        const id = (v: string | { id: string } | null) =>
+          typeof v === "string" ? v : (v?.id ?? null);
+        return {
+          clientReferenceId: s.client_reference_id,
+          customerId: id(s.customer),
+          subscriptionId: id(s.subscription),
+        };
+      } catch (error) {
+        if (error instanceof Stripe.errors.StripeInvalidRequestError) return null;
         throw error;
       }
     },

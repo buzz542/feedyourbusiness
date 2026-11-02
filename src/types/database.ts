@@ -410,6 +410,7 @@ export type Database = {
           trial_end: string | null
           trial_reminder_sent_at: string | null
           updated_at: string
+          service_consent_at: string | null
         }
         Insert: {
           billing_event_at?: string | null
@@ -430,6 +431,7 @@ export type Database = {
           trial_end?: string | null
           trial_reminder_sent_at?: string | null
           updated_at?: string
+          service_consent_at?: string | null
         }
         Update: {
           billing_event_at?: string | null
@@ -450,6 +452,7 @@ export type Database = {
           trial_end?: string | null
           trial_reminder_sent_at?: string | null
           updated_at?: string
+          service_consent_at?: string | null
         }
         Relationships: []
       }

@@ -6,7 +6,14 @@ let stripe: FakeStripe;
 const user = { id: "user-1", email: "maker@example.test" };
 
 const create = (overrides: Partial<Parameters<typeof createCheckoutSession>[0]> = {}) =>
-  createCheckoutSession({ stripe, config: TEST_CONFIG, user, customerId: null, ...overrides });
+  createCheckoutSession({
+    stripe,
+    config: TEST_CONFIG,
+    user,
+    customerId: null,
+    consentAt: new Date("2026-11-02T12:00:00Z"),
+    ...overrides,
+  });
 
 beforeEach(() => {
   stripe = new FakeStripe();
@@ -45,7 +52,10 @@ describe("createCheckoutSession", () => {
     const params = stripe.checkoutCalls[0]!;
 
     expect(params.client_reference_id).toBe("user-1");
-    expect(params.subscription_data?.metadata).toEqual({ user_id: "user-1" });
+    expect(params.subscription_data?.metadata).toEqual({
+      user_id: "user-1",
+      service_consent_at: "2026-11-02T12:00:00.000Z",
+    });
   });
 
   it("turns Managed Payments on, and leaves it off only when configured so", async () => {

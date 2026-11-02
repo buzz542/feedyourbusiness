@@ -6,7 +6,7 @@ import { renewalTerms } from "./terms";
 
 export class BillingError extends Error {
   constructor(
-    readonly code: "price_unavailable" | "no_checkout_url",
+    readonly code: "price_unavailable" | "price_not_tax_inclusive" | "no_checkout_url",
     message: string,
   ) {
     super(message);
@@ -31,12 +31,18 @@ export async function createCheckoutSession(args: {
   config: BillingConfig;
   user: CheckoutUser;
   customerId: string | null;
+  /** When the customer ticked the consent box (10.2); travels in the subscription's metadata. */
+  consentAt: Date;
 }): Promise<{ url: string }> {
   const { stripe, config, user, customerId } = args;
 
   const price = await stripe.getPrice(config.priceId);
   if (!price.active || price.unitAmount == null || !price.interval) {
     throw new BillingError("price_unavailable", "Configured price is inactive or not recurring");
+  }
+  // The page shows the full price, tax included (2.4, 10.1): no drip pricing at checkout.
+  if (price.taxBehavior !== "inclusive") {
+    throw new BillingError("price_not_tax_inclusive", "Configured price is not tax-inclusive");
   }
 
   const terms = renewalTerms({
@@ -53,7 +59,7 @@ export async function createCheckoutSession(args: {
     subscription_data: {
       trial_period_days: TRIAL_DAYS,
       trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-      metadata: { user_id: user.id },
+      metadata: { user_id: user.id, service_consent_at: args.consentAt.toISOString() },
     },
     client_reference_id: user.id,
     metadata: { user_id: user.id },

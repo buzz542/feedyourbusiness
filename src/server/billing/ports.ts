@@ -53,6 +53,8 @@ export interface ProfileStore {
   /** Atomically mark the reminder as sent. False if another run already claimed it. */
   claimTrialReminder(userId: string, now: Date): Promise<boolean>;
   releaseTrialReminder(userId: string): Promise<void>;
+  /** Writes service_consent_at once (10.2); a later consent never moves it. */
+  recordServiceConsent(userId: string, at: Date): Promise<void>;
 }
 
 export interface PriceInfo {
@@ -61,6 +63,8 @@ export interface PriceInfo {
   currency: string;
   interval: "day" | "week" | "month" | "year" | null;
   intervalCount: number | null;
+  /** Stripe's tax_behavior: the page shows the full price only for a tax-inclusive price (10.1). */
+  taxBehavior: "inclusive" | "exclusive" | "unspecified";
 }
 
 export interface CancelState {
@@ -88,6 +92,12 @@ export interface BillingStripe {
     params: Stripe.Checkout.SessionCreateParams,
   ): Promise<{ url: string | null }>;
   createPortalSession(args: { customerId: string; returnUrl: string }): Promise<{ url: string }>;
+  /** A Checkout Session, for the welcome step (7.3), or null when Stripe has no such session. */
+  getCheckoutSession(sessionId: string): Promise<{
+    clientReferenceId: string | null;
+    customerId: string | null;
+    subscriptionId: string | null;
+  } | null>;
   setCancelAtPeriodEnd(subscriptionId: string, cancel: boolean): Promise<CancelState>;
   /** Verify the signature and parse the event. Throws if the signature is invalid. */
   verifyWebhook(rawBody: string, signature: string): Stripe.Event;
