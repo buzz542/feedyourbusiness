@@ -2,13 +2,24 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { loadAllowlist } from "@/server/auth/allowlist";
 import { collectSources } from "@/sources/registry";
+import { createClassifier } from "@/server/classify/classifier";
+import { createSpendCapCheck } from "@/server/classify/spend";
+import { createSupabaseProfileStore } from "@/server/classify/supabase-profiles";
+import { createLlmFromEnv, type Llm } from "@/server/llm";
+import { loadSpendCaps } from "@/server/llm/config";
+import { createSupabaseUsageStore } from "@/server/llm/supabase-usage";
+import { authorHasher, type AuthorHasher } from "@/server/privacy/author-hash";
 import { allowlistedProducts } from "./collectable";
 import { createSourceFetch } from "@/server/net/source-fetch";
-import { costPerUnitFor, monthlyCapFor, SOURCE_USER_AGENT } from "./config";
+import { createCollectHandler } from "./collect";
+import { createCollectStep } from "./collect-step";
+import { costPerUnitFor, dailyBudgetFor, monthlyCapFor, SOURCE_USER_AGENT } from "./config";
 import { createPurgeHandler, type CronDeps } from "./cron";
 import { createDeletionSyncHandler } from "./deletion-sync";
 import {
+  collectTermsFor,
   createOwnerEmailLookup,
+  createSupabaseCollectStore,
   createSupabaseDeletionStore,
   recheckProducts,
 } from "./supabase-collect";
@@ -21,26 +32,60 @@ import {
 
 /**
  * The cron routes' dependencies (docs/PLAN.md 7.2, 13). Only kinds with a handler are enqueued, so
- * a kind is switched on here when its step exists: the purge and deletion sync now; collect once
- * the classifier exists (M4: the collect step needs it); synthesis and digests with their
- * milestones. Every collect source is off by default, so deletion sync has nothing to do until one
- * is switched on.
+ * a kind is switched on here when its step exists: the purge, deletion sync and collect now;
+ * synthesis and digests with their milestones. Every collect source is off by default, so collect
+ * and deletion sync have nothing to do until one is switched on. The model client and the author
+ * pepper are read on first use, so a missing key never stops the purge.
  */
 export function createServerCronDeps(): CronDeps {
   const admin = createSupabaseAdminClient();
   const sources = collectSources();
+  const ownerEmail = createOwnerEmailLookup(admin);
+  const allowed = async (row: { id: string; owner_id: string }) =>
+    (await allowlistedProducts([row], ownerEmail, loadAllowlist())).length > 0;
+  const sourceFor = (id: string) => collectSources().find((s) => s.id === id) ?? null;
+
+  let llm: Llm | undefined;
+  let hasher: AuthorHasher | undefined;
+  const classifier = createClassifier({
+    llm: { callStructured: (call) => (llm ??= createLlmFromEnv()).callStructured(call) },
+    profiles: createSupabaseProfileStore(admin),
+  });
+  const spendCap = createSpendCapCheck({
+    usage: createSupabaseUsageStore(admin),
+    caps: loadSpendCaps(),
+    clock: { now: () => new Date() },
+  });
+  const budget = createSupabaseBudgetStore(admin);
+
   return {
     store: createSupabaseJobStore(admin),
     handlers: {
       purge: createPurgeHandler((now) => purgeExpired(admin, now)),
-      // Deletion sync needs no model, so it runs as soon as a source is switched on: Hacker News and
-      // Bluesky existence checks, X lookups (its deletion compliance) and the Reddit re-check.
-      deletion_sync: createDeletionSyncHandler({
-        sourceFor: (id) => collectSources().find((s) => s.id === id) ?? null,
+      collect: createCollectHandler({
+        sourceFor,
         // Each source's own fetch, bound to its own hosts (2.1.9), never the combined safeFetch.
         fetchFor: (source) => createSourceFetch(source),
+        budget,
+        terms: (productId, source) => collectTermsFor(admin, productId, source.id, allowed),
+        process: createCollectStep({
+          store: createSupabaseCollectStore(admin),
+          classifier,
+          hash: (source, key) => (hasher ??= authorHasher())(source, key),
+        }),
+        spendCap,
+        monthlyCap: (source) => monthlyCapFor(source),
+        budgetFor: (source) => dailyBudgetFor(source),
+        costFor: (source) => costPerUnitFor(source),
+        userAgent: SOURCE_USER_AGENT,
+      }),
+      // Deletion sync needs no model: Hacker News and Bluesky existence checks, X lookups (its
+      // deletion compliance) and the Reddit re-check.
+      deletion_sync: createDeletionSyncHandler({
+        sourceFor,
+        fetchFor: (source) => createSourceFetch(source),
         store: createSupabaseDeletionStore(admin),
-        budget: createSupabaseBudgetStore(admin),
+        budget,
         recheckCap: (source) => monthlyCapFor(source, process.env, "recheck"),
         costFor: (source) => costPerUnitFor(source),
         userAgent: SOURCE_USER_AGENT,
@@ -49,11 +94,7 @@ export function createServerCronDeps(): CronDeps {
     recheckProducts: (from, to) => recheckProducts(admin, from, to),
     // Before launch, only accounts on SIGNUP_ALLOWLIST (12.10).
     products: async () =>
-      allowlistedProducts(
-        await collectableRows(admin),
-        createOwnerEmailLookup(admin),
-        loadAllowlist(),
-      ),
+      allowlistedProducts(await collectableRows(admin), ownerEmail, loadAllowlist()),
     sources,
     clock: () => new Date(),
   };

@@ -1,0 +1,39 @@
+{
+  "results": [
+    {
+      "id": "0",
+      "relevance": 86,
+      "category": "looking_for_tool",
+      "reason": "Asks for an app that reminds clients about overdue invoices.",
+      "highlight": "Is there a tool that chases unpaid invoices?",
+      "tool_mentioned": "Acme Invoices",
+      "competitor_key": "c1",
+      "rival": {
+        "issue": "pricing",
+        "sentiment": "negative",
+        "switching": true,
+        "summary": "Finds the rival too expensive for a solo freelancer."
+      }
+    },
+    {
+      "id": "1",
+      "relevance": 12,
+      "category": "not_relevant",
+      "reason": "A post about a pet, unrelated to invoicing.",
+      "highlight": "",
+      "tool_mentioned": null,
+      "competitor_key": null,
+      "rival": null
+    },
+    {
+      "id": "2",
+      "relevance": 64,
+      "category": "wish",
+      "reason": "Wishes reminders could go out by text message.",
+      "highlight": "I wish reminders went out by text",
+      "tool_mentioned": null,
+      "competitor_key": null,
+      "rival": null
+    }
+  ]
+}

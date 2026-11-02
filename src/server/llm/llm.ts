@@ -96,6 +96,8 @@ export interface StructuredCall<S extends z.ZodType> {
    */
   parseSchema?: z.ZodType<z.infer<S>>;
   maxTokens: number;
+  /** Passed to the API as output_config.effort; classification runs at low (8.2). */
+  effort?: "low" | "medium" | "high";
   /** Calls of this task for this product per UTC day, a retry included (8.3: 6 for drafts). */
   dailyCallLimit?: number;
   /** Milliseconds for the whole call, both attempts included (8.3: 45 seconds for a draft). */
@@ -184,6 +186,7 @@ export function createLlm(deps: LlmDeps) {
         input: call.input,
         schema: call.schema,
         maxTokens: call.maxTokens,
+        ...(call.effort ? { effort: call.effort } : {}),
         timeoutMs,
         maxRetries,
       });

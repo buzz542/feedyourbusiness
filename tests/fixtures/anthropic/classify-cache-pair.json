@@ -1,0 +1,35 @@
+{
+  "note": "Synthetic, shaped like two Messages API responses to the same cached classifier prefix (docs/PLAN.md 8.2). Not a live recording: the build session has no API key. Replace with a recorded pair after F13.",
+  "responses": [
+    {
+      "id": "msg_synthetic_first",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "content": [{ "type": "text", "text": "{\"results\":[]}" }],
+      "usage": {
+        "input_tokens": 240,
+        "output_tokens": 40,
+        "cache_creation_input_tokens": 1560,
+        "cache_read_input_tokens": 0
+      }
+    },
+    {
+      "id": "msg_synthetic_second",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "content": [{ "type": "text", "text": "{\"results\":[]}" }],
+      "usage": {
+        "input_tokens": 236,
+        "output_tokens": 38,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 1560
+      }
+    }
+  ]
+}

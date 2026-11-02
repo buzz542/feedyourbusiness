@@ -28,7 +28,10 @@ export function toMessageParams(request: LlmRequest): Anthropic.MessageCreatePar
       ...(block.cache ? { cache_control: { type: "ephemeral" as const } } : {}),
     })),
     messages: [{ role: "user", content: request.input }],
-    output_config: { format: { type: "json_schema", schema: format.schema } },
+    output_config: {
+      ...(request.effort ? { effort: request.effort } : {}),
+      format: { type: "json_schema", schema: format.schema },
+    },
   };
 }
 
