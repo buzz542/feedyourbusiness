@@ -60,8 +60,8 @@ as $$
     l is not null
     and char_length(l) between 1 and p_max
     and l = btrim(l)
-    and l !~ '[[:cntrl:]  ᠎ -‏ -  -⁤　﻿]'
-    and l !~* '([@＠]|(^|[^a-z0-9])u[/／]|://|(^|[^a-z0-9])www\.|[a-z0-9-]\.[a-z]{2,63}[/／]|(^|[/／])(user|users|in|profile)[/／]|bsky\.social)'
+    and l !~ '[[:cntrl:]\u00a0\u1680\u180e\u2000-\u200f\u2028-\u202f\u205f-\u2064\u3000\ufeff]'
+    and l !~* '([@\uff20]|(^|[^a-z0-9])u[/\uff0f]|://|(^|[^a-z0-9])www\.|[a-z0-9-]\.[a-z]{2,63}[/\uff0f]|(^|[/\uff0f])(user|users|in|profile)[/\uff0f]|bsky\.social)'
   ), true) and count(distinct lower(l)) = count(*)
   from unnest(p_labels) as l
 $$;
