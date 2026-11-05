@@ -28,8 +28,11 @@ describe("/bot", () => {
     expect(OWN_SITE_USER_AGENT).toContain("https://askedfor.app/bot");
   });
 
-  it("gives the monitored contact address", () => {
-    expect(html).toContain(`href="mailto:${CONTACT_EMAIL}"`);
+  it("shows no contact address until the founder monitors it (F10), then shows it", () => {
+    expect(html).not.toContain(CONTACT_EMAIL);
+    expect(html).toContain("A contact address for the site reader is added here before launch.");
+    const live = renderToStaticMarkup(<BotPage contactLive />);
+    expect(live).toContain(`href="mailto:${CONTACT_EMAIL}"`);
   });
 
   it("states the reader's real limits", () => {
@@ -37,7 +40,8 @@ describe("/bot", () => {
     expect(text).toContain("At most 7 requests");
   });
 
-  it("has a claims row for every paragraph and list item", () => {
+  it("has a claims row for every paragraph and list item, with or without the address", () => {
+    expect(unclaimedBlocks(renderToStaticMarkup(<BotPage contactLive />)).missing).toEqual([]);
     const { blocks, missing } = unclaimedBlocks(html);
     expect(blocks.length).toBeGreaterThanOrEqual(8);
     expect(missing).toEqual([]);

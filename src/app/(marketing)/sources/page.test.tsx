@@ -6,7 +6,10 @@ import { checkCopy, claimNumbers } from "../../../../compliance/lib/scan-copy";
 import { sources } from "@/sources/registry";
 import type { CollectSource, Source } from "@/sources/types";
 import { HOW, NEVER_COLLECTED, SourceList } from "../_components/source-list";
-import SourcesPage from "./page";
+import { unclaimedBlocks } from "../../../../compliance/lib/claims-blocks";
+import SourcesPage, { metadata } from "./page";
+
+const claimsText = readFileSync("docs/claims.md", "utf8");
 
 /** The sources page (docs/PLAN.md M9): exactly the registry, with access, retention and vendor. */
 
@@ -29,7 +32,7 @@ describe("sources page", () => {
     expect(block).toContain(s.displayName);
     expect(block).toContain(HOW[s.id]!);
     expect(block).toContain(`Deleted from AskedFor ${s.retentionDays} days after we collect it.`);
-    expect(block).toMatch(/Collecting now\.|Not switched on yet\./);
+    expect(block).toMatch(/Switched on\.|Not switched on yet\./);
     if (s.vendor) expect(block).toContain(`Data provider: ${s.vendor.name}.`);
   });
 
@@ -42,7 +45,7 @@ describe("sources page", () => {
   it("names every link source as a search the user opens, and every platform never collected", () => {
     for (const s of sources.filter((x) => x.mode === "link")) expect(page).toContain(s.displayName);
     for (const name of NEVER_COLLECTED) expect(page).toContain(name);
-    expect(page).toContain("we never access Product Hunt");
+    expect(page).toContain("we never collect anything from Product Hunt");
   });
 
   it("shows a source as off when its kill switch is off", () => {
@@ -50,6 +53,13 @@ describe("sources page", () => {
     expect(text(renderToStaticMarkup(<SourceList sources={[off]} />))).toContain(
       "Not switched on yet.",
     );
+  });
+
+  it("has a claims row for every paragraph, the cards' lines included", () => {
+    const { blocks, missing } = unclaimedBlocks(renderToStaticMarkup(<SourcesPage />), ["p"]);
+    expect(blocks.length).toBeGreaterThanOrEqual(15);
+    expect(missing).toEqual([]);
+    expect(claimsText).toContain(metadata.description as string);
   });
 
   it("passes the copy gate as rendered: every number has a claims row", () => {

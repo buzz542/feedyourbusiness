@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CONTACT_EMAIL } from "@/lib/contact";
+import { CONTACT_EMAIL, CONTACT_EMAIL_LIVE } from "@/lib/contact";
 import { OWN_SITE_USER_AGENT } from "@/server/net/own-site";
 
 export const metadata: Metadata = {
@@ -13,15 +13,16 @@ export const metadata: Metadata = {
  * monitored contact. The reader's User-Agent links here. Every paragraph and list item is a row in
  * docs/claims.md (the test checks).
  */
-export default function BotPage() {
+export default function BotPage({ contactLive = CONTACT_EMAIL_LIVE }: { contactLive?: boolean }) {
   return (
     <article className="space-y-6">
       <h1 className="font-serif text-3xl tracking-tight">Our site reader</h1>
       <p>
         When someone sets up AskedFor, they paste the address of their own product&apos;s website.
-        Our site reader reads that page and up to 5 more pages on the same site that say what the
-        product does, such as pricing, features or questions and answers. We use the text to draft a
-        short profile of the product. We keep the profile, never the pages.
+        Our site reader reads that page, or the home page if the pasted page is about people, and up
+        to 5 more pages on the same site that say what the product does, such as pricing, features
+        or questions and answers. We use the text to draft a short profile of the product. We keep
+        the profile, never the pages.
       </p>
       <section aria-labelledby="what" className="space-y-3">
         <h2 id="what" className="font-serif text-2xl tracking-tight">
@@ -34,11 +35,12 @@ export default function BotPage() {
           </li>
           <li>Only the site that was pasted, never a link to another site.</li>
           <li>
-            Never pages about people, such as team, customer, blog, careers or contact pages, and
-            never sign-in or legal pages.
+            Never pages whose address names people, such as team, customer, blog, careers or contact
+            pages, and never sign-in or legal pages.
           </li>
           <li>
-            Never social networks, forums, app stores, code hosts, review sites or profile pages.
+            Never known social networks, forums, app stores, code hosts, review sites or profile
+            pages.
           </li>
         </ul>
       </section>
@@ -47,9 +49,10 @@ export default function BotPage() {
           How to stop it
         </h2>
         <p>
-          The page the person pasted is read because they asked for it. Every other page follows
-          your robots.txt: the group for the token AskedFor if you have one, or else the group for
-          every robot. To keep it off your site, add:
+          The page the person pasted is read because they asked for it, and so is your home page
+          when the pasted page is about people. Every other page follows your robots.txt: the group
+          for the token AskedFor if you have one, or else the group for every robot. To keep those
+          pages off limits, add:
         </p>
         <pre className="overflow-x-auto rounded-[2px] border border-rule p-3 text-sm">
           {"User-agent: AskedFor\nDisallow: /"}
@@ -63,13 +66,17 @@ export default function BotPage() {
         <h2 id="contact" className="font-serif text-2xl tracking-tight">
           Contact
         </h2>
-        <p>
-          Questions or problems with the site reader:{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
-            {CONTACT_EMAIL}
-          </a>
-          .
-        </p>
+        {contactLive ? (
+          <p>
+            Questions or problems with the site reader:{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+              {CONTACT_EMAIL}
+            </a>
+            .
+          </p>
+        ) : (
+          <p>A contact address for the site reader is added here before launch.</p>
+        )}
         <p>
           Where the posts AskedFor shows come from is on our{" "}
           <Link href="/sources" className="underline">

@@ -25,6 +25,14 @@ export const NEVER_COLLECTED = [
   "Discord",
 ];
 
+/** "A, B and C", with each name once. */
+export const listInWords = (names: readonly string[]) => {
+  const unique = [...new Set(names)];
+  return unique.length < 2
+    ? (unique[0] ?? "")
+    : `${unique.slice(0, -1).join(", ")} and ${unique[unique.length - 1]}`;
+};
+
 const retention = (days: number) =>
   days === 7
     ? "Deleted from AskedFor 7 days after we collect it."
@@ -56,7 +64,7 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
               ) : null}
               <p className="mt-1 text-sm text-muted">{retention(source.retentionDays)}</p>
               <p className="mt-1 text-sm text-muted">
-                {isOn(source) ? "Collecting now." : "Not switched on yet."}
+                {isOn(source) ? "Switched on." : "Not switched on yet."}
               </p>
             </li>
           ))}
@@ -67,17 +75,17 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
           Searches you open yourself
         </h2>
         <p>
-          For {links.map((s) => s.displayName).join(", ")}, AskedFor gives you one-tap searches for
-          your terms. They open in your own browser. We never fetch or store anything from these
+          For {listInWords(links.map((s) => s.displayName))}, AskedFor gives you one-tap searches
+          for your terms. They open in your own browser. We never fetch or store anything from these
           searches.
         </p>
         <p>
-          We never collect posts from {NEVER_COLLECTED.join(", ")}, and we never access Product
-          Hunt.
+          We never collect posts from {listInWords(NEVER_COLLECTED)}, and we never collect anything
+          from Product Hunt.
         </p>
         <p>
-          We never post, reply, vote, follow or message on any platform, and we never write your
-          replies.
+          We never post, reply, vote, follow or message for you on any platform, and we never write
+          your replies.
         </p>
       </section>
     </>

@@ -67,8 +67,8 @@ export default function PricingPage() {
             An email when there are new posts, which you can turn off in Settings in one click.
           </li>
           <li>
-            We never post, reply, vote, follow or message on any platform, and we never write your
-            replies.
+            We never post, reply, vote, follow or message for you on any platform, and we never
+            write your replies.
           </li>
         </ul>
         <p className="text-muted">
