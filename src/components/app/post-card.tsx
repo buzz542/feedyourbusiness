@@ -76,6 +76,7 @@ export function PostCard({
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
+          data-action="open"
           className="font-medium text-accent underline underline-offset-2"
         >
           Open post

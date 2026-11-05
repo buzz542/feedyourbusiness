@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FeedKeyboard } from "@/components/app/feed-keyboard";
 import { FilterBar } from "@/components/app/filter-bar";
 import { FirstRunProgress } from "@/components/app/first-run-progress";
 import { PostCard } from "@/components/app/post-card";
@@ -73,6 +74,10 @@ export default async function ReplyPage({
   return (
     <div className="flex flex-col gap-6">
       {firstRunActive(progress) ? <FirstRunProgress progress={progress} /> : null}
+      <FeedKeyboard />
+      <p className="hidden text-sm text-muted sm:block">
+        Press <kbd className="font-mono">?</kbd> for keyboard shortcuts.
+      </p>
       <Tabs
         label="Views"
         current={current}
@@ -90,7 +95,13 @@ export default async function ReplyPage({
       ) : (
         <ol className="flex flex-col gap-4">
           {feed.items.map((item) => (
-            <li key={item.id} id={`post-${item.id}`}>
+            <li
+              key={item.id}
+              id={`post-${item.id}`}
+              data-feed-card
+              tabIndex={-1}
+              className="rounded-[2px] focus:outline focus:outline-2 focus:outline-accent"
+            >
               <PostCard
                 item={item}
                 now={now}

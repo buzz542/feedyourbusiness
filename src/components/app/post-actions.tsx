@@ -42,17 +42,32 @@ export function PostActions({
   return (
     <div className="flex flex-wrap items-center gap-2" aria-busy={pending}>
       {state !== "saved" ? (
-        <Button variant="secondary" disabled={pending} onClick={() => change("saved")}>
+        <Button
+          variant="secondary"
+          data-action="save"
+          disabled={pending}
+          onClick={() => change("saved")}
+        >
           Save
         </Button>
       ) : null}
       {state !== "replied" ? (
-        <Button variant="secondary" disabled={pending} onClick={() => change("replied")}>
+        <Button
+          variant="secondary"
+          data-action="replied"
+          disabled={pending}
+          onClick={() => change("replied")}
+        >
           Mark replied
         </Button>
       ) : null}
       {state !== "hidden" ? (
-        <Button variant="quiet" disabled={pending} onClick={() => change("hidden")}>
+        <Button
+          variant="quiet"
+          data-action="hide"
+          disabled={pending}
+          onClick={() => change("hidden")}
+        >
           Hide
         </Button>
       ) : null}
