@@ -235,6 +235,11 @@ describe("runHealthChecks", () => {
         // Checkout refuses a price that is not the full price (10.1), so health says so too.
         { ...TEST_PRICE, taxBehavior: "exclusive" as const },
         { ...TEST_PRICE, taxBehavior: "unspecified" as const },
+        // The pricing page states $29 a month: any other amount, currency or interval is wrong.
+        { ...TEST_PRICE, unitAmount: 2500 },
+        { ...TEST_PRICE, currency: "gbp" },
+        { ...TEST_PRICE, interval: "year" as const },
+        { ...TEST_PRICE, intervalCount: 2 },
       ]) {
         const report = await runHealthChecks(deps({ price }));
         expect(report.checks.stripe_price?.status).toBe("invalid");

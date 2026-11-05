@@ -1,5 +1,6 @@
 import { BillingConfigError, loadBillingConfig, type BillingConfig } from "@/server/billing/config";
 import { checkSources } from "./sources";
+import { ADVERTISED_PRICE } from "@/server/billing/constants";
 import { HANDLED_EVENT_TYPES } from "@/server/billing/events";
 import type { BillingStripe, WebhookEndpointInfo } from "@/server/billing/ports";
 import { isCronAuthorized } from "@/server/http/cron";
@@ -177,6 +178,15 @@ async function checkStripePrice(
     if (price.taxBehavior !== "inclusive") {
       // Checkout and /app/billing refuse it: the price shown must be the full price (10.1).
       return { status: "invalid", detail: "STRIPE_PRICE_ID must be tax-inclusive" };
+    }
+    if (
+      price.unitAmount !== ADVERTISED_PRICE.unitAmount ||
+      price.currency !== ADVERTISED_PRICE.currency ||
+      price.interval !== ADVERTISED_PRICE.interval ||
+      (price.intervalCount ?? 1) !== 1
+    ) {
+      // The pricing page states ADVERTISED_PRICE; Checkout must charge exactly that.
+      return { status: "invalid", detail: "STRIPE_PRICE_ID does not match the advertised price" };
     }
     const every = `${price.intervalCount ?? 1} ${price.interval}`;
     return { status: "ok", detail: `${price.unitAmount} ${price.currency} every ${every}` };

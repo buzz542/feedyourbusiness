@@ -3,6 +3,13 @@
 /** Default: 7-day trial, card required. */
 export const TRIAL_DAYS = 7;
 
+/**
+ * The one plan as the public pages state it (D7; docs/claims.md "plan-price"): $29 a month, tax
+ * included. /api/health reports the Stripe price invalid unless it is exactly this, so the pricing
+ * page can never show a number Checkout does not charge.
+ */
+export const ADVERTISED_PRICE = { unitAmount: 2900, currency: "usd", interval: "month" } as const;
+
 /** Reminder email goes out at least this long before the first charge (DMCC subscription rules). */
 export const REMINDER_HOURS_BEFORE_CHARGE = 48;
 
