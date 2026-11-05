@@ -8,7 +8,8 @@ import {
   TRIAL_DAYS,
 } from "@/server/billing/constants";
 import { formatMoney } from "@/server/billing/terms";
-import PricingPage from "./page";
+import { sources } from "@/sources/registry";
+import PricingPage, { metadata } from "./page";
 
 /** Public pricing (docs/PLAN.md 2.4, 9.6, M8). The copy gate checks every number has a claims row. */
 
@@ -39,13 +40,30 @@ describe("pricing page", () => {
     expect(html).toContain(`${REMINDER_HOURS_BEFORE_CHARGE} hours`);
   });
 
-  it("has a claims row with the exact wording of every sentence that carries a number", () => {
-    for (const sentence of [
-      "$29 a month, tax included where it applies. Prices in US dollars.",
-      "Start with a 7-day free trial. A card is required to start it.",
-      "We email you at least 48 hours before the first charge.",
-      "When the trial ends, your card is charged $29, then $29 every month until you cancel.",
-    ])
-      expect(claims).toContain(sentence);
+  it("has a claims row with the exact wording of every list item and paragraph", () => {
+    const raw = renderToStaticMarkup(<PricingPage />);
+    const blocks = [...raw.matchAll(/<(li|p)[^>]*>([\s\S]*?)<\/\1>/g)].map((m) =>
+      m[2]!
+        .replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+    expect(blocks.length).toBeGreaterThanOrEqual(10);
+    const cells = claims
+      .split("\n")
+      .filter((l) => l.startsWith("| "))
+      .map((l) => l.split("|")[2] ?? "");
+    for (const block of blocks)
+      expect(
+        cells.some((c) => c.includes(block)),
+        block,
+      ).toBe(true);
+    expect(cells.some((c) => c.includes(metadata.description as string))).toBe(true);
+  });
+
+  it("names exactly the link sources in the registry as searches", () => {
+    const names = sources.filter((s) => s.mode === "link").map((s) => s.displayName);
+    const sentence = /One-tap searches on (.+), opened in your browser\./.exec(html)?.[1] ?? "";
+    expect(sentence.split(/, | and /).sort()).toEqual([...new Set(names)].sort());
   });
 });

@@ -46,12 +46,12 @@ const textOf = (html: string) =>
 describe("once the retention is stated (F8)", () => {
   const stated = {
     ...(reddit as CollectSource),
-    vendor: { ...(reddit as CollectSource).vendor!, snapshotRetention: "30 days" },
+    vendor: { ...(reddit as CollectSource).vendor!, snapshotRetention: "45 days" },
   } satisfies CollectSource;
   const text = textOf(renderToStaticMarkup(<DataProviderNotice source={stated} />));
 
   it("states it, and drops the 'until then' sentence", () => {
-    expect(text).toContain("Bright Data keeps the snapshots it delivers to us for 30 days.");
+    expect(text).toContain("Bright Data keeps the snapshots it delivers to us for 45 days.");
     expect(text).not.toContain("Until then");
   });
 
@@ -59,9 +59,9 @@ describe("once the retention is stated (F8)", () => {
     const deny = loadDenylist();
     const claims = claimNumbers(readFileSync("docs/claims.md", "utf8"));
     const findings = checkCopy([{ text, line: 1 }], "notice", deny, claims);
-    // "30" has no claims row yet: the F8 commit must add one with the vendor's written answer.
+    // "45" has no claims row: the F8 commit must add one with the vendor's written answer.
     expect(findings.map((f) => f.rule)).toContain(
-      findings.find((f) => f.detail.includes("30"))?.rule ?? "missing",
+      findings.find((f) => f.detail.includes("45"))?.rule ?? "missing",
     );
     // The notice as published today passes.
     const today = textOf(renderToStaticMarkup(<DataProviderNotice />));

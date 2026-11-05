@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 /**
  * Public pricing (docs/PLAN.md 2.4, 9.6 item 5, D7): one plan, the full price with tax included
  * where it applies, the trial, the card, the reminder and how to cancel, all before checkout.
- * Every sentence with a number is a row in docs/claims.md; the price is ADVERTISED_PRICE, which
- * /api/health compares with Stripe's.
+ * Every sentence is a row in docs/claims.md (the test checks each list item and paragraph); the
+ * price is ADVERTISED_PRICE, which checkout and /api/health compare with Stripe's.
  */
 export default function PricingPage() {
   return (
@@ -45,6 +45,9 @@ export default function PricingPage() {
         >
           Start your free trial
         </Link>
+        <p className="text-sm text-muted">
+          AskedFor is in private beta. Until launch, sign-in is by invitation.
+        </p>
       </section>
 
       <section aria-labelledby="included-heading" className="mt-10 flex flex-col gap-3">
@@ -53,21 +56,25 @@ export default function PricingPage() {
         </h2>
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>
-            Every morning, public posts where someone asks for a tool like yours or describes the
-            problem you solve, each with a link to the post so you can reply yourself.
+            Each day, public posts where someone asks for a tool like yours or describes the problem
+            you solve, each with a link to the post so you can reply yourself.
           </li>
-          <li>One-tap searches on the platforms we do not collect from, opened in your browser.</li>
-          <li>An email when there are new posts, which you can turn off in one click.</li>
-          <li>We never post or reply for you, and we never write your replies.</li>
+          <li>
+            One-tap searches on Reddit, X, LinkedIn, Facebook, Threads and Indie Hackers, opened in
+            your browser.
+          </li>
+          <li>
+            An email when there are new posts, which you can turn off in Settings in one click.
+          </li>
+          <li>
+            We never post, reply, vote, follow or message on any platform, and we never write your
+            replies.
+          </li>
         </ul>
         <p className="text-muted">
-          Where posts come from is on{" "}
+          Where posts come from is on our{" "}
           <Link href="/sources" className="underline">
-            our sources page
-          </Link>
-          . The full subscription terms are in our{" "}
-          <Link href="/terms" className="underline">
-            terms
+            sources page
           </Link>
           .
         </p>
