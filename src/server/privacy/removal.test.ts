@@ -85,6 +85,28 @@ describe("parseRemovalTarget", () => {
     ],
     ["x", "https://twitter.com/maker", { kind: "author", key: "maker" }],
     ["x", "@maker", { kind: "author", key: "maker" }],
+    ["x", "@12345678", { kind: "author", key: "12345678" }],
+    [
+      "hackernews",
+      "https://news.ycombinator.com/user?id=someone",
+      { kind: "author", key: "someone" },
+    ],
+    [
+      "reddit",
+      "reddit.com/r/SaaS/comments/1abc23/a_title/",
+      { kind: "post", externalId: "1abc23" },
+    ],
+    [
+      "reddit",
+      "https://m.reddit.com/r/SaaS/comments/1abc23/",
+      { kind: "post", externalId: "1abc23" },
+    ],
+    ["reddit", "https://redd.it/1abc23", { kind: "post", externalId: "1abc23" }],
+    [
+      "x",
+      "mobile.x.com/maker/status/1790000000000000000",
+      { kind: "post", externalId: "1790000000000000000" },
+    ],
   ] as const)("%s: %s", (source, input, want) => {
     expect(parseRemovalTarget(input, source)).toMatchObject(want);
   });
@@ -93,8 +115,12 @@ describe("parseRemovalTarget", () => {
     ["reddit", "https://news.ycombinator.com/item?id=1"],
     ["hackernews", "https://evil.example/item?id=1"],
     ["x", "https://x.com/i/web/status/notanumber"],
-    ["reddit", "https://redd.it/abc"],
     ["hackernews", "two words"],
+    // A comment permalink names the commenter, not the post's author: we cannot tell whose it is.
+    ["reddit", "https://www.reddit.com/r/SaaS/comments/1abc23/a_title/def456/"],
+    // A reply link is someone else's comment.
+    ["hackernews", "https://news.ycombinator.com/reply?id=4242"],
+    ["bluesky", "https://bsky.app/profile/%E0%A4%A/post/x"],
     ["reddit", ""],
   ] as const)("refuses %s: %s", (source, input) => {
     expect(parseRemovalTarget(input, source)).toBeNull();
@@ -151,16 +177,41 @@ describe("handleRemoval", () => {
     expect(f.removed[0]).toMatchObject({ authorHash: "stored-bsky", externalId: uri });
   });
 
-  it("an X username resolves to the user id", async () => {
+  it("an X username resolves to the user id, even one made only of digits", async () => {
     const f = fakes();
     await handleRemoval(f.deps, request("x", "@Maker"), "admin:a1");
     expect(f.removed[0]!.authorHash).toBe(collected("x", "1234567890"));
+    const digits = fakes();
+    digits.deps.resolveXUsername = async (name) => (name === "12345678" ? "999000111" : null);
+    await handleRemoval(digits.deps, request("x", "@12345678"), "admin:a1");
+    expect(digits.removed[0]!.authorHash).toBe(collected("x", "999000111"));
+  });
+
+  it("a Reddit link matches a post stored with the vendor's t3_ prefix too", async () => {
+    const f = fakes({ "reddit:t3_1abc23": "stored-reddit" });
+    await handleRemoval(
+      f.deps,
+      request("reddit", "https://www.reddit.com/r/SaaS/comments/1abc23/x/"),
+      "admin:a1",
+    );
+    expect(f.removed[0]).toMatchObject({ authorHash: "stored-reddit", externalId: "t3_1abc23" });
+  });
+
+  it("a Bluesky post we no longer hold still suppresses its author, whose DID the link names", async () => {
+    const f = fakes();
+    await handleRemoval(
+      f.deps,
+      request("bluesky", `https://bsky.app/profile/${DID}/post/3kgone`),
+      "admin:a1",
+    );
+    expect(f.removed[0]).toMatchObject({ authorHash: collected("bluesky", DID), externalId: null });
   });
 
   it("a link to a post we never stored, or a name that does not resolve, removes nothing", async () => {
     for (const r of [
       request("hackernews", "https://news.ycombinator.com/item?id=9"),
       request("bluesky", "@nobody.bsky.social"),
+      request("bluesky", "https://bsky.app/profile/nobody.bsky.social/post/3k"),
       request("x", "@nobody"),
     ]) {
       const f = fakes();
@@ -172,7 +223,7 @@ describe("handleRemoval", () => {
 
   it("an unreadable request changes nothing", async () => {
     const f = fakes();
-    expect(await handleRemoval(f.deps, request("reddit", "https://redd.it/x"), "a")).toEqual({
+    expect(await handleRemoval(f.deps, request("reddit", "https://example.com/x"), "a")).toEqual({
       kind: "unreadable",
     });
     expect(f.removed).toEqual([]);

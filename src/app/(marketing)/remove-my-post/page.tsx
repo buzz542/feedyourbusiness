@@ -5,7 +5,8 @@ import { RemovalForm } from "./removal-form";
 
 export const metadata: Metadata = {
   title: "Remove my post",
-  description: "Ask AskedFor to delete a post you wrote and never store your posts again.",
+  description:
+    "Ask AskedFor to delete the posts we hold from you on a platform and never store your posts from it again.",
 };
 
 /** Remove my post (docs/PLAN.md 2.3.5, 4.8): the public form. Every paragraph has a claims row. */

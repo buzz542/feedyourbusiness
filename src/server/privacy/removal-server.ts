@@ -112,7 +112,8 @@ export function removalDeps(): RemovalDeps {
         p_request_id: args.requestId,
         p_source: args.source,
         p_author_hash: args.authorHash,
-        p_external_id: args.externalId ?? undefined,
+        // Sent even when null, so the call names every argument.
+        p_external_id: args.externalId,
         p_actor: args.actor,
         p_now: args.now.toISOString(),
       });

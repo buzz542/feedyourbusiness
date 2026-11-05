@@ -18,50 +18,95 @@ export type RemovalTarget =
   | { kind: "bluesky_post_by_handle"; handle: string; rkey: string }
   | { kind: "author"; source: RemovalSource; key: string };
 
-const REDDIT_HOSTS = new Set(["reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com"]);
+const REDDIT_HOSTS = new Set([
+  "reddit.com",
+  "www.reddit.com",
+  "old.reddit.com",
+  "new.reddit.com",
+  "m.reddit.com",
+]);
 const X_HOSTS = new Set([
   "x.com",
   "www.x.com",
+  "mobile.x.com",
   "twitter.com",
   "www.twitter.com",
   "mobile.twitter.com",
 ]);
+const KNOWN_HOSTS = [...REDDIT_HOSTS, ...X_HOSTS, "redd.it", "news.ycombinator.com", "bsky.app"];
 const DID = /^did:(plc|web):[A-Za-z0-9._:%-]+$/;
+const REDDIT_ID = /^[a-z0-9]{1,12}$/i;
 
 /** A link or a username, with the source the person picked. Null when we cannot use it. */
 export function parseRemovalTarget(input: string, source: RemovalSource): RemovalTarget | null {
   const text = input.trim();
   if (!text || text.length > 500) return null;
-  if (/^https?:\/\//i.test(text)) return parseLink(text, source);
+  if (/^https?:\/\//i.test(text)) {
+    let url: URL;
+    try {
+      url = new URL(text);
+    } catch {
+      return null;
+    }
+    return parseLink(url.hostname.toLowerCase(), url.pathname, url.searchParams, source);
+  }
+  // A link pasted without its scheme: split it by hand (nothing is ever fetched).
+  const host = text.split(/[/?#]/)[0]!.toLowerCase();
+  if (KNOWN_HOSTS.includes(host)) {
+    const rest = text.slice(host.length).split("#")[0]!;
+    const [path, query] = rest.split("?");
+    return parseLink(host, path || "/", new URLSearchParams(query ?? ""), source);
+  }
   const key = text.replace(/^@/, "").replace(/^\/?u\//i, "");
   if (!/^[A-Za-z0-9._:-]{1,253}$/.test(key)) return null;
   return { kind: "author", source, key };
 }
 
-function parseLink(text: string, source: RemovalSource): RemovalTarget | null {
-  let url: URL;
+function decode(part: string): string | null {
   try {
-    url = new URL(text);
+    return decodeURIComponent(part);
   } catch {
     return null;
   }
-  const host = url.hostname.toLowerCase();
-  const parts = url.pathname.split("/").filter(Boolean);
+}
+
+function parseLink(
+  host: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+  source: RemovalSource,
+): RemovalTarget | null {
+  const parts = pathname.split("/").filter(Boolean);
   if (source === "hackernews" && host === "news.ycombinator.com") {
-    const id = url.searchParams.get("id");
-    return id && /^\d{1,12}$/.test(id) ? { kind: "post", source, externalId: id } : null;
+    const id = searchParams.get("id");
+    if (!id) return null;
+    // /item is a story or comment; /user, /submitted and /threads name the author.
+    if (pathname === "/item")
+      return /^\d{1,12}$/.test(id) ? { kind: "post", source, externalId: id } : null;
+    if (["/user", "/submitted", "/threads"].includes(pathname))
+      return parseRemovalTarget(id, source);
+    return null;
   }
+  if (source === "reddit" && host === "redd.it")
+    return parts[0] && REDDIT_ID.test(parts[0])
+      ? { kind: "post", source, externalId: parts[0].toLowerCase() }
+      : null;
   if (source === "reddit" && REDDIT_HOSTS.has(host)) {
-    // /r/<sub>/comments/<id>/... ; a profile link /user/<name> or /u/<name> names the author.
+    // /r/<sub>/comments/<id>/<slug>/ is the post; anything after the slug is a comment, whose
+    // author we cannot tell from the link, so it is not read as the post's.
     const at = parts.indexOf("comments");
-    if (at >= 0 && parts[at + 1] && /^[a-z0-9]{1,12}$/i.test(parts[at + 1]!))
-      return { kind: "post", source, externalId: parts[at + 1]!.toLowerCase() };
+    if (at >= 0) {
+      const id = parts[at + 1];
+      if (!id || !REDDIT_ID.test(id) || parts.length > at + 3) return null;
+      return { kind: "post", source, externalId: id.toLowerCase() };
+    }
     if ((parts[0] === "user" || parts[0] === "u") && parts[1])
       return parseRemovalTarget(parts[1], source);
     return null;
   }
   if (source === "bluesky" && host === "bsky.app" && parts[0] === "profile" && parts[1]) {
-    const who = decodeURIComponent(parts[1]);
+    const who = decode(parts[1]);
+    if (!who) return null;
     if (parts[2] === "post" && parts[3]) {
       if (DID.test(who))
         return {
@@ -71,7 +116,7 @@ function parseLink(text: string, source: RemovalSource): RemovalTarget | null {
         };
       return { kind: "bluesky_post_by_handle", handle: who, rkey: parts[3] };
     }
-    return { kind: "author", source, key: who };
+    return parseRemovalTarget(who, source);
   }
   if (source === "x" && X_HOSTS.has(host)) {
     const at = parts.indexOf("status");
@@ -146,15 +191,28 @@ export async function resolveRemoval(
     };
   }
   if (target.kind === "post") {
-    const authorHash = await deps.findPostAuthor(target.source, target.externalId);
-    return authorHash ? { authorHash, externalId: target.externalId, source: target.source } : null;
+    // Reddit ids may be stored with the vendor's t3_ prefix; try both forms.
+    const candidates =
+      target.source === "reddit"
+        ? [target.externalId, `t3_${target.externalId}`]
+        : [target.externalId];
+    for (const externalId of candidates) {
+      const authorHash = await deps.findPostAuthor(target.source, externalId);
+      if (authorHash) return { authorHash, externalId, source: target.source };
+    }
+    // A Bluesky link names its author's DID: suppress them even when the post is gone.
+    const did =
+      target.source === "bluesky" ? /^at:\/\/([^/]+)\//.exec(target.externalId)?.[1] : null;
+    if (did && DID.test(did))
+      return { authorHash: deps.hash("bluesky", did), externalId: null, source: "bluesky" };
+    return null;
   }
-  // A username: hashed from the same stable id collection hashes.
+  // A username: hashed from the same stable id collection hashes. X ids are never typed by
+  // people, so X input is always resolved as a username, digits included.
   let key: string | null = target.key;
   if (target.source === "bluesky" && !DID.test(target.key))
     key = await deps.resolveBlueskyHandle(target.key);
-  if (target.source === "x" && !/^\d{1,20}$/.test(target.key))
-    key = await deps.resolveXUsername(target.key);
+  if (target.source === "x") key = await deps.resolveXUsername(target.key);
   if (!key) return null;
   return { authorHash: deps.hash(target.source, key), externalId: null, source: target.source };
 }

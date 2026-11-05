@@ -52,13 +52,15 @@ begin
 end;
 $$;
 
+-- p_external_id comes last with a default: PostgREST matches functions by argument names, and a
+-- request by username has no post to name.
 create function public.remove_and_suppress(
   p_request_id uuid,
   p_source text,
   p_author_hash text,
-  p_external_id text,
   p_actor text,
-  p_now timestamptz
+  p_now timestamptz,
+  p_external_id text default null
 )
 returns integer
 language plpgsql
@@ -116,13 +118,13 @@ $$;
 
 revoke all on function public.submit_removal_request(text, text, text, text, text, timestamptz, integer)
   from public, anon, authenticated;
-revoke all on function public.remove_and_suppress(uuid, text, text, text, text, timestamptz)
+revoke all on function public.remove_and_suppress(uuid, text, text, text, timestamptz, text)
   from public, anon, authenticated;
 revoke all on function public.close_removal_request(uuid, text, text, timestamptz)
   from public, anon, authenticated;
 grant execute on function public.submit_removal_request(text, text, text, text, text, timestamptz, integer)
   to service_role;
-grant execute on function public.remove_and_suppress(uuid, text, text, text, text, timestamptz)
+grant execute on function public.remove_and_suppress(uuid, text, text, text, timestamptz, text)
   to service_role;
 grant execute on function public.close_removal_request(uuid, text, text, timestamptz)
   to service_role;

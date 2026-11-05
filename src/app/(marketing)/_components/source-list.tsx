@@ -75,11 +75,13 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
         <h2 id="searches" className="font-serif text-2xl tracking-tight">
           Searches you open yourself
         </h2>
-        <p>
-          For {listInWords(links.map((s) => s.displayName))}, AskedFor gives you one-tap searches
-          for your terms. They open in your own browser. We never fetch or store anything from these
-          searches.
-        </p>
+        {links.length > 0 ? (
+          <p>
+            For {listInWords(links.map((s) => s.displayName))}, AskedFor gives you one-tap searches
+            for your terms. They open in your own browser. We never fetch or store anything from
+            these searches.
+          </p>
+        ) : null}
         <p>
           We never collect posts from {listInWords(NEVER_COLLECTED)}, and we never collect anything
           from Product Hunt.

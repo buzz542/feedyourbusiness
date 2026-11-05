@@ -97,7 +97,7 @@ describe("remove_and_suppress", () => {
       async () =>
         (
           await one<{ n: number }>(
-            "select public.remove_and_suppress($1, 'hackernews', 'hash-target', '101', 'admin:1', $2) as n",
+            "select public.remove_and_suppress($1, 'hackernews', 'hash-target', 'admin:1', $2, '101') as n",
             [request, NOW],
           )
         ).n,
@@ -127,14 +127,14 @@ describe("remove_and_suppress", () => {
   it("refuses a request that is already closed, changing nothing", async () => {
     const request = await submit("ip-f");
     await asService(() =>
-      db.query("select public.remove_and_suppress($1, 'hackernews', 'h2', null, 'admin:1', $2)", [
+      db.query("select public.remove_and_suppress($1, 'hackernews', 'h2', 'admin:1', $2)", [
         request,
         NOW,
       ]),
     );
     await expect(
       asService(() =>
-        db.query("select public.remove_and_suppress($1, 'hackernews', 'h3', null, 'admin:1', $2)", [
+        db.query("select public.remove_and_suppress($1, 'hackernews', 'h3', 'admin:1', $2)", [
           request,
           NOW,
         ]),
@@ -143,6 +143,24 @@ describe("remove_and_suppress", () => {
     expect(
       (await db.query("select 1 from public.suppression where author_hash = 'h3'")).rows,
     ).toEqual([]);
+  });
+});
+
+describe("remove_and_suppress by name, as PostgREST calls it", () => {
+  it("works for a username request, which names no post (p_external_id left out)", async () => {
+    await ingest("201", "hash-name");
+    const request = await submit("ip-h", "u/someone");
+    const deleted = await asService(
+      async () =>
+        (
+          await one<{ n: number }>(
+            `select public.remove_and_suppress(p_request_id => $1, p_source => 'hackernews',
+             p_author_hash => 'hash-name', p_actor => 'admin:1', p_now => $2) as n`,
+            [request, NOW],
+          )
+        ).n,
+    );
+    expect(deleted).toBe(1);
   });
 });
 
@@ -166,7 +184,7 @@ describe("access", () => {
     for (const role of ["anon", "authenticated"] as const) {
       for (const sql of [
         "select public.submit_removal_request('x', 'reddit', 'a@example.test', null, 'ip', now(), 5)",
-        "select public.remove_and_suppress(gen_random_uuid(), 'reddit', 'h', null, 'a', now())",
+        "select public.remove_and_suppress(gen_random_uuid(), 'reddit', 'h', 'a', now())",
         "select public.close_removal_request(gen_random_uuid(), 'closed', 'a', now())",
       ])
         await expect(withRole(db, role, ALICE, () => db.query(sql))).rejects.toThrow();

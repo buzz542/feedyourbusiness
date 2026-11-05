@@ -687,7 +687,7 @@ export type Database = {
         Args: {
           p_actor: string
           p_author_hash: string
-          p_external_id?: string
+          p_external_id?: string | null
           p_now: string
           p_request_id: string
           p_source: string
