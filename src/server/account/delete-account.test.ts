@@ -5,7 +5,14 @@ import { deleteAccount, type AccountDeletionDeps } from "./delete-account";
 
 const USER = "00000000-0000-4000-8000-0000000000a1";
 
-function fakes(over: Partial<{ status: string | null; sub: string | null }> = {}) {
+function fakes(
+  over: Partial<{
+    status: string | null;
+    sub: string | null;
+    others: string[];
+    byUser: string[];
+  }> = {},
+) {
   const calls: string[] = [];
   const audit: Array<{ actor: string; action: string; target: string | null }> = [];
   const events: Array<{ name: string; userId: string | null }> = [];
@@ -21,6 +28,14 @@ function fakes(over: Partial<{ status: string | null; sub: string | null }> = {}
         stripeSubscriptionId: over.sub === undefined ? "sub_1" : over.sub,
         subscriptionStatus: (over.status === undefined ? "trialing" : over.status) as never,
       };
+    },
+    async liveSubscriptionIdsForUser(id) {
+      calls.push(`search:${id}`);
+      return over.byUser ?? [];
+    },
+    async liveSubscriptionIds(customerId) {
+      calls.push(`list:${customerId}`);
+      return over.others ?? [];
     },
     async cancelSubscriptionNow(id) {
       calls.push(`cancel:${id}`);
@@ -65,12 +80,18 @@ describe("deleteAccount", () => {
     expect(await deleteAccount(f.deps, USER, "DELETE")).toBe("deleted");
     expect(f.calls).toEqual([
       `profile:${USER}`,
+      "list:cus_1",
+      `search:${USER}`,
       "cancel:sub_1",
       "audit",
       `delete:${USER}`,
+      "audit",
       "track:account_deleted",
     ]);
-    expect(f.audit).toEqual([{ actor: "self", action: "account_deleted", target: USER }]);
+    expect(f.audit).toEqual([
+      { actor: "self", action: "account_deletion_requested", target: USER },
+      { actor: "self", action: "account_deleted", target: USER },
+    ]);
     expect(f.events).toEqual([{ name: "account_deleted", userId: null }]);
   });
 
@@ -82,13 +103,34 @@ describe("deleteAccount", () => {
     }
   });
 
-  it("skips Stripe when there is no subscription, or it has already ended", async () => {
-    for (const over of [{ sub: null }, { status: "canceled" }, { status: "incomplete_expired" }]) {
-      const f = fakes(over);
-      expect(await deleteAccount(f.deps, USER, "DELETE")).toBe("deleted");
-      expect(f.calls.some((c) => c.startsWith("cancel:"))).toBe(false);
-      expect(f.calls).toContain(`delete:${USER}`);
+  it("asks Stripe even when our copy says it ended, since a webhook may be late", async () => {
+    for (const status of ["canceled", "incomplete_expired"]) {
+      const f = fakes({ status });
+      await deleteAccount(f.deps, USER, "DELETE");
+      expect(f.calls).toContain("cancel:sub_1");
     }
+  });
+
+  it("cancels every other live subscription on the customer too", async () => {
+    const f = fakes({ others: ["sub_1", "sub_dup"] });
+    await deleteAccount(f.deps, USER, "DELETE");
+    expect(f.calls.filter((c) => c.startsWith("cancel:"))).toEqual([
+      "cancel:sub_1",
+      "cancel:sub_dup",
+    ]);
+  });
+
+  it("finds a subscription whose webhook has not landed yet by the user id in its metadata", async () => {
+    const f = fakes({ sub: null, byUser: ["sub_fresh"] });
+    await deleteAccount(f.deps, USER, "DELETE");
+    expect(f.calls).toContain("cancel:sub_fresh");
+  });
+
+  it("calls no cancel when there is no subscription at all", async () => {
+    const f = fakes({ sub: null });
+    expect(await deleteAccount(f.deps, USER, "DELETE")).toBe("deleted");
+    expect(f.calls.some((c) => c.startsWith("cancel:"))).toBe(false);
+    expect(f.calls).toContain(`delete:${USER}`);
   });
 
   it("keeps the account when Stripe cannot cancel, so nobody is billed for a deleted account", async () => {

@@ -1,3 +1,4 @@
+import { formatChargeTime } from "@/lib/charge-time";
 import type { PriceInfo } from "./ports";
 import { formatMoney } from "./terms";
 
@@ -14,9 +15,12 @@ export interface PlanProfile {
   hasCustomer: boolean;
 }
 
+/** Text, or a billing moment the page shows with its time and zone (the visitor's own). */
+export type Segment = string | { at: string };
+
 export interface PlanView {
   /** One or two sentences: what the plan is and what happens next. */
-  summary: string;
+  summary: Segment[];
   /** A warning shown above everything else, for a payment that did not go through. */
   banner: string | null;
   /** The date access stops if the user cancels now, for the confirm step. */
@@ -28,13 +32,9 @@ export interface PlanView {
   canStartTrial: boolean;
 }
 
-export const longDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+/** The summary as plain text, with moments in `timeZone` (tests, and anywhere without a browser). */
+export const summaryText = (view: PlanView, timeZone = "UTC"): string =>
+  view.summary.map((s) => (typeof s === "string" ? s : formatChargeTime(s.at, timeZone))).join("");
 
 /** "$29 a month", or null when the price cannot be read or is not the full price. */
 export function priceInWords(price: PriceInfo | null): string | null {
@@ -63,13 +63,12 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
 
   if (status === "trialing") {
     const end = profile.trialEnd ?? profile.currentPeriodEnd;
-    const when = end ? longDate(end) : null;
     if (profile.cancelAtPeriodEnd) {
       return {
         ...NONE,
-        summary: when
-          ? `Trial canceled. You keep access until ${when} and will not be charged.`
-          : "Trial canceled. You will not be charged.",
+        summary: end
+          ? ["Trial canceled. You keep access until ", { at: end }, " and will not be charged."]
+          : ["Trial canceled. You will not be charged."],
         accessUntil: end,
         canResume: true,
         canUpdateCard: card,
@@ -78,7 +77,9 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
     const then = amount ? ` Then ${amount}.` : "";
     return {
       ...NONE,
-      summary: when ? `Trial ends ${when}.${then}` : `You are on the free trial.${then}`,
+      summary: end
+        ? ["Trial ends ", { at: end }, `.${then}`]
+        : [`You are on the free trial.${then}`],
       accessUntil: end,
       canCancel: true,
       canUpdateCard: card,
@@ -87,22 +88,25 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
 
   if (status === "active") {
     const end = profile.currentPeriodEnd;
-    const when = end ? longDate(end) : null;
     if (profile.cancelAtPeriodEnd) {
       return {
         ...NONE,
-        summary: when
-          ? `Subscription canceled. You keep access until ${when} and will not be charged again.`
-          : "Subscription canceled. You will not be charged again.",
+        summary: end
+          ? [
+              "Subscription canceled. You keep access until ",
+              { at: end },
+              " and will not be charged again.",
+            ]
+          : ["Subscription canceled. You will not be charged again."],
         accessUntil: end,
         canResume: true,
         canUpdateCard: card,
       };
     }
-    const renews = when ? `Renews on ${when}` : "Renews automatically";
+    const at = amount ? ` at ${amount}.` : ".";
     return {
       ...NONE,
-      summary: amount ? `${renews} at ${amount}.` : `${renews}.`,
+      summary: end ? ["Renews on ", { at: end }, at] : [`Renews automatically${at}`],
       accessUntil: end,
       canCancel: true,
       canUpdateCard: card,
@@ -112,17 +116,19 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
   if (status === "past_due" || status === "unpaid") {
     return {
       ...NONE,
-      summary:
+      summary: [
         status === "past_due"
           ? "Your last payment did not go through. Stripe will try again."
           : "Your subscription is unpaid, so collection has stopped.",
+      ],
       banner:
         "Your last payment did not go through. Update your card to keep using AskedFor. " +
         "Until then, your feed is paused.",
-      // Cancelling stops further attempts to charge a card that keeps failing.
-      accessUntil: profile.currentPeriodEnd,
-      canCancel: !profile.cancelAtPeriodEnd,
-      canResume: profile.cancelAtPeriodEnd,
+      // Canceling ends it at once, which stops further attempts to charge the card; there is no
+      // paid period left to keep.
+      accessUntil: null,
+      canCancel: true,
+      canResume: false,
       canUpdateCard: card,
     };
   }
@@ -130,7 +136,10 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
   if (status === "paused") {
     return {
       ...NONE,
-      summary: "Your subscription is paused. Update your card to restart it.",
+      summary: ["Your subscription is paused. Update your card to restart it, or cancel it."],
+      accessUntil: profile.currentPeriodEnd,
+      canCancel: !profile.cancelAtPeriodEnd,
+      canResume: profile.cancelAtPeriodEnd,
       canUpdateCard: card,
     };
   }
@@ -138,7 +147,7 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
   // canceled, incomplete, incomplete_expired, or never subscribed.
   return {
     ...NONE,
-    summary: status === "canceled" ? "Your subscription has ended." : "You have no plan yet.",
+    summary: [status === "canceled" ? "Your subscription has ended." : "You have no plan yet."],
     canStartTrial: true,
   };
 }

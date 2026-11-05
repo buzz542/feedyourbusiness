@@ -112,8 +112,12 @@ export interface BillingStripe {
   setCancelAtPeriodEnd(subscriptionId: string, cancel: boolean): Promise<CancelState>;
   /** Cancel at once, for account deletion (10.6). Succeeds when it has already ended. */
   cancelNow(subscriptionId: string): Promise<void>;
+  /** Every subscription of the customer that could still bill (10.6). */
+  liveSubscriptionIds(customerId: string): Promise<string[]>;
+  /** Every subscription our checkout made for this user (metadata user_id) that could still bill. */
+  liveSubscriptionIdsForUser(userId: string): Promise<string[]>;
   /**
-   * The total of the subscription's next invoice, tax included, from Stripe's invoice preview
+   * The amount due on the subscription's next invoice, tax included, from Stripe's invoice preview
    * (10.5), or null when Stripe cannot preview it. Smallest currency unit.
    */
   previewNextInvoiceTotal(

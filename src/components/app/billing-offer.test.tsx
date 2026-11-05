@@ -38,7 +38,11 @@ describe("BillingOffer", () => {
   });
 
   it("offers no checkout for a price that is not tax-inclusive, or no price", () => {
-    for (const price of [{ ...TEST_PRICE, taxBehavior: "exclusive" as const }, null]) {
+    for (const price of [
+      { ...TEST_PRICE, taxBehavior: "exclusive" as const },
+      { ...TEST_PRICE, unitAmount: 2500 },
+      null,
+    ]) {
       const html = renderToStaticMarkup(
         <BillingOffer price={price} now={NOW} startCheckout={start} />,
       );

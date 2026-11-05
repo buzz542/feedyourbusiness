@@ -12,7 +12,11 @@ export interface ExportSource {
   terms: Array<Record<string, unknown>>;
   competitors: Array<Record<string, unknown>>;
   feed: Array<Record<string, unknown>>;
+  /** The user's own analytics events (12.6): names, our typed props and times. */
+  events?: Array<Record<string, unknown>>;
 }
+
+export const EVENT_FIELDS = ["name", "props", "at"] as const;
 
 export const PROFILE_FIELDS = [
   "created_at",
@@ -74,6 +78,7 @@ export interface AccountExport {
   search_terms: Array<Record<string, unknown>>;
   competitors: Array<Record<string, unknown>>;
   feed: Array<Record<string, unknown>>;
+  events: Array<Record<string, unknown>>;
 }
 
 export function buildAccountExport(source: ExportSource, now: Date): AccountExport {
@@ -87,5 +92,6 @@ export function buildAccountExport(source: ExportSource, now: Date): AccountExpo
     search_terms: source.terms.map((r) => pick(r, TERM_FIELDS)!),
     competitors: source.competitors.map((r) => pick(r, COMPETITOR_FIELDS)!),
     feed: source.feed.map((r) => pick(r, FEED_FIELDS)!),
+    events: (source.events ?? []).map((r) => pick(r, EVENT_FIELDS)!),
   };
 }

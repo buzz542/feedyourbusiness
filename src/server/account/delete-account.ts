@@ -13,13 +13,14 @@ import type { BillingProfile } from "@/server/billing/ports";
 
 export const DELETE_CONFIRMATION = "DELETE";
 
-/** Statuses after which Stripe never bills the subscription again. */
-const ENDED = new Set(["canceled", "incomplete_expired"]);
-
 export interface AccountDeletionDeps {
   getBillingProfile(userId: string): Promise<BillingProfile | null>;
   /** Cancels immediately. Succeeds when the subscription has already ended. */
   cancelSubscriptionNow(subscriptionId: string): Promise<void>;
+  /** Every subscription of the customer that could still bill, from Stripe itself. */
+  liveSubscriptionIds(customerId: string): Promise<string[]>;
+  /** Every subscription our checkout made for this user, found by its metadata in Stripe. */
+  liveSubscriptionIdsForUser(userId: string): Promise<string[]>;
   writeAudit(entry: { actor: string; action: string; target: string | null }): Promise<void>;
   deleteAuthUser(userId: string): Promise<void>;
   track(name: EventName, userId: null): Promise<void>;
@@ -34,13 +35,20 @@ export async function deleteAccount(
 ): Promise<DeletionOutcome> {
   if (typed !== DELETE_CONFIRMATION) return "confirmation_mismatch";
 
+  // Stripe decides what can still bill, not our copy of the status (a webhook may be late):
+  // the profile's subscription, and any other live one on the same customer.
+  // A checkout whose webhook has not landed yet is found by our user id in its metadata.
   const profile = await deps.getBillingProfile(userId);
-  const subscriptionId = profile?.stripeSubscriptionId ?? null;
-  if (subscriptionId && !ENDED.has(profile?.subscriptionStatus ?? "")) {
-    await deps.cancelSubscriptionNow(subscriptionId);
-  }
-  await deps.writeAudit({ actor: "self", action: "account_deleted", target: userId });
+  const ids = new Set<string>();
+  if (profile?.stripeSubscriptionId) ids.add(profile.stripeSubscriptionId);
+  if (profile?.stripeCustomerId)
+    for (const id of await deps.liveSubscriptionIds(profile.stripeCustomerId)) ids.add(id);
+  for (const id of await deps.liveSubscriptionIdsForUser(userId)) ids.add(id);
+  for (const id of ids) await deps.cancelSubscriptionNow(id);
+  // Requested before, done after: the log never claims a deletion that did not happen.
+  await deps.writeAudit({ actor: "self", action: "account_deletion_requested", target: userId });
   await deps.deleteAuthUser(userId);
+  await deps.writeAudit({ actor: "self", action: "account_deleted", target: userId });
   await deps.track("account_deleted", null);
   return "deleted";
 }

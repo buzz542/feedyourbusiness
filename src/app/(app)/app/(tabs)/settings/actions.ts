@@ -11,6 +11,7 @@ import { createCancelHandler, createPortalHandler } from "@/server/billing/handl
 
 export interface PlanActionResult {
   cancelAtPeriodEnd?: boolean;
+  ended?: boolean;
   accessUntil?: string | null;
   url?: string;
   error?: string;

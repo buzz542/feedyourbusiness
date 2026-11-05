@@ -199,6 +199,17 @@ export class FakeStripe implements BillingStripe {
   }
 
   canceledNow: string[] = [];
+  customerSubscriptions = new Map<string, string[]>();
+
+  async liveSubscriptionIds(customerId: string): Promise<string[]> {
+    return this.customerSubscriptions.get(customerId) ?? [];
+  }
+
+  userSubscriptions = new Map<string, string[]>();
+
+  async liveSubscriptionIdsForUser(userId: string): Promise<string[]> {
+    return this.userSubscriptions.get(userId) ?? [];
+  }
 
   async cancelNow(subscriptionId: string): Promise<void> {
     this.canceledNow.push(subscriptionId);

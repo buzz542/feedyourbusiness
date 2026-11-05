@@ -1,18 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-
-const longDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+import { ChargeDate } from "./charge-date";
 
 export interface PlanActionResult {
   cancelAtPeriodEnd?: boolean;
+  /** Ended at once (a past-due subscription): nothing to resume. */
+  ended?: boolean;
   accessUntil?: string | null;
   url?: string;
   error?: string;
@@ -49,7 +44,7 @@ export function PlanControls({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<ReactNode>(null);
   const [state, setState] = useState({ canCancel, canResume, accessUntil });
 
   async function setCancel(action: "cancel" | "resume") {
@@ -68,12 +63,23 @@ export function PlanControls({
       canResume: Boolean(result.cancelAtPeriodEnd),
       accessUntil: until,
     });
+    if (result.ended) {
+      setState({ canCancel: false, canResume: false, accessUntil: null });
+      setMessage("Canceled. Your subscription has ended and you will not be charged again.");
+      return;
+    }
     setMessage(
-      result.cancelAtPeriodEnd
-        ? until
-          ? `Canceled. You keep access until ${longDate(until)} and will not be charged.`
-          : "Canceled. You will not be charged."
-        : "Resumed. Your plan continues.",
+      result.cancelAtPeriodEnd ? (
+        until ? (
+          <>
+            Canceled. You keep access until <ChargeDate iso={until} /> and will not be charged.
+          </>
+        ) : (
+          "Canceled. You will not be charged."
+        )
+      ) : (
+        "Resumed. Your plan continues."
+      ),
     );
   }
 
@@ -94,9 +100,14 @@ export function PlanControls({
       {confirming ? (
         <div className="flex flex-col gap-3 rounded-[2px] border border-rule p-4" role="group">
           <p className="text-sm">
-            {state.accessUntil
-              ? `Cancel your subscription? You keep access until ${longDate(state.accessUntil)} and will not be charged after that.`
-              : "Cancel your subscription? You will not be charged again."}
+            {state.accessUntil ? (
+              <>
+                Cancel your subscription? You keep access until{" "}
+                <ChargeDate iso={state.accessUntil} /> and will not be charged after that.
+              </>
+            ) : (
+              "Cancel your subscription? You will not be charged again."
+            )}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy} onClick={() => setCancel("cancel")}>

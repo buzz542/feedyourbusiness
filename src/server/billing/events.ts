@@ -63,11 +63,16 @@ export async function handleStripeEvent(
         typeof session.subscription === "string"
           ? session.subscription
           : (session.subscription?.id ?? null);
+      // The subscription as Stripe has it now, so this event never moves billing_event_at past a
+      // patch it does not carry: a just-paid user is entitled by whichever event lands first, and
+      // the welcome step's earlier stamp is never left without a status (7.3).
+      const sub = subscriptionId ? await deps.stripe.getSubscription(subscriptionId) : null;
       const applied = await store.applyBillingPatch(
         userId,
         {
           stripe_customer_id: customerId,
           ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
+          ...(sub ? profilePatchFromSubscription(sub) : {}),
         },
         eventAt,
       );
@@ -92,7 +97,7 @@ export async function handleStripeEvent(
         profilePatchFromSubscription(sub),
         eventAt,
       );
-      // The consent the checkout handler recorded (10.2), written once.
+      // The consent the checkout handler recorded (10.2); only a later one replaces it.
       const consentAt = Date.parse(sub.metadata.service_consent_at ?? "");
       if (Number.isFinite(consentAt)) await store.recordServiceConsent(userId, new Date(consentAt));
       outcome = applied ? "processed" : "stale";

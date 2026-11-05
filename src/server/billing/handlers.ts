@@ -69,6 +69,13 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
       if (hasLiveSubscription(profile?.subscriptionStatus)) {
         return json(409, { error: "subscription_exists" });
       }
+      // Our copy can lag the webhook (a second tab, a slow event): ask Stripe as well.
+      if (
+        profile?.stripeCustomerId &&
+        (await deps.stripe.liveSubscriptionIds(profile.stripeCustomerId)).length > 0
+      ) {
+        return json(409, { error: "subscription_exists" });
+      }
       // The consent box on /app/billing (10.2): checkout starts only with it checked.
       const text = await readBodyText(request, 1_000);
       if (text === null) return json(413, { error: "payload_too_large" });
@@ -134,6 +141,15 @@ export function createCancelHandler(deps: BillingDeps): Handler {
     try {
       const profile = await deps.store.getBillingProfile(auth.user.id);
       if (!profile?.stripeSubscriptionId) return json(404, { error: "no_subscription" });
+      // A failed payment has no paid period left to keep: canceling at the period end would let
+      // Stripe keep retrying the card, so it ends now (10.3).
+      if (
+        parsed.data.action === "cancel" &&
+        (profile.subscriptionStatus === "past_due" || profile.subscriptionStatus === "unpaid")
+      ) {
+        await deps.stripe.cancelNow(profile.stripeSubscriptionId);
+        return json(200, { cancelAtPeriodEnd: false, ended: true, accessUntil: null });
+      }
       const state = await deps.stripe.setCancelAtPeriodEnd(
         profile.stripeSubscriptionId,
         parsed.data.action === "cancel",

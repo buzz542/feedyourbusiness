@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { nextStepFor } from "@/server/auth/next-step";
 import { handleStripeEvent } from "./events";
 import { FakeProfileStore, FakeStripe } from "./fakes";
-import { createCheckoutHandler, type BillingDeps } from "./handlers";
+import { createCancelHandler, createCheckoutHandler, type BillingDeps } from "./handlers";
 import { applyWelcome } from "./welcome";
 
 /** M8: the consent record (10.2), the tax-inclusive price (10.1) and the welcome step (7.3). */
@@ -63,6 +63,25 @@ describe("consent before checkout", () => {
     });
   });
 
+  it("refuses a second checkout when Stripe has a live subscription our copy has not seen yet", async () => {
+    store.addUser("user-1", { stripe_customer_id: "cus_1" });
+    stripe.customerSubscriptions.set("cus_1", ["sub_new"]);
+    const response = await createCheckoutHandler(deps())(post({ consent: true }));
+    expect(response.status).toBe(409);
+    expect(stripe.checkoutCalls).toHaveLength(0);
+  });
+
+  it.each([
+    ["another amount", { unitAmount: 2500 }],
+    ["another currency", { currency: "gbp" }],
+    ["another interval", { interval: "year" as const }],
+  ])("refuses a price that is not the advertised one (%s)", async (_, change) => {
+    stripe.price = { ...stripe.price, ...change };
+    const response = await createCheckoutHandler(deps())(post({ consent: true }));
+    expect(response.status).toBe(502);
+    expect(stripe.checkoutCalls).toHaveLength(0);
+  });
+
   it("refuses a price that is not tax-inclusive, so no tax is added at checkout", async () => {
     stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
     const response = await createCheckoutHandler(deps())(post({ consent: true }));
@@ -103,6 +122,34 @@ describe("consent before checkout", () => {
     await handleStripeEvent(event("evt_3", 3), { stripe, store });
     expect(store.consent.get("user-1")).toEqual(later);
   });
+});
+
+describe("cancel a past-due subscription", () => {
+  it.each(["past_due", "unpaid"])(
+    "ends a %s subscription at once instead of at the period end",
+    async (status) => {
+      store.addUser("user-1", {
+        subscription_status: status as "past_due",
+        stripe_customer_id: "cus_1",
+        stripe_subscription_id: "sub_1",
+      });
+      const response = await createCancelHandler(deps())(
+        new Request("https://app.example.test/api/billing/cancel", {
+          method: "POST",
+          headers: { origin: "https://app.example.test", "content-type": "application/json" },
+          body: JSON.stringify({ action: "cancel" }),
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        cancelAtPeriodEnd: false,
+        ended: true,
+        accessUntil: null,
+      });
+      expect(stripe.canceledNow).toEqual(["sub_1"]);
+      expect(stripe.cancelCalls).toEqual([]);
+    },
+  );
 });
 
 describe("welcome step", () => {
@@ -212,6 +259,43 @@ describe("welcome step", () => {
     });
     expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("stale");
     expect(store.row("user-1").cancel_at_period_end).toBe(true);
+  });
+
+  it("welcomes a returning subscriber whose old subscription ended onto the new one", async () => {
+    store.addUser("user-1", {
+      subscription_status: "canceled",
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_old",
+    });
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("applied");
+    expect(await store.getBillingProfile("user-1")).toMatchObject({
+      stripeSubscriptionId: "sub_1",
+      subscriptionStatus: "trialing",
+    });
+  });
+
+  it("checkout.session.completed arriving first entitles the user, and a second checkout is refused", async () => {
+    await handleStripeEvent(
+      {
+        id: "evt_completed",
+        type: "checkout.session.completed",
+        created: Math.floor((NOW.getTime() - 60_000) / 1000),
+        data: {
+          object: {
+            mode: "subscription",
+            client_reference_id: "user-1",
+            customer: "cus_1",
+            subscription: "sub_1",
+          },
+        },
+      } as unknown as Stripe.Event,
+      { stripe, store },
+    );
+    // The welcome step is now stale (its stamp is older), and that is fine: the state is there.
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("stale");
+    expect((await store.getBillingProfile("user-1"))?.subscriptionStatus).toBe("trialing");
+    const second = await createCheckoutHandler(deps())(post({ consent: true }));
+    expect(second.status).toBe(409);
   });
 
   it("applies nothing for another user's session or a malformed id", async () => {

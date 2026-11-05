@@ -31,9 +31,19 @@ describe("checkout.session.completed", () => {
     });
   });
 
-  it("does not grant access by itself: only subscription events change the plan", async () => {
+  it("does not grant access from the payload: only Stripe's current subscription does", async () => {
     await handle(checkoutCompletedEvent());
     expect(store.row("user-1").plan).toBe("none");
+  });
+
+  it("applies the subscription as Stripe has it now, so a just-paid user is entitled at once", async () => {
+    stripe.subscriptions.set("sub_1", subscriptionFixture({ metadata: { user_id: "user-1" } }));
+    await handle(checkoutCompletedEvent());
+    expect(store.row("user-1")).toMatchObject({
+      subscription_status: "trialing",
+      plan: "pro",
+      stripe_subscription_id: "sub_1",
+    });
   });
 
   it.each([

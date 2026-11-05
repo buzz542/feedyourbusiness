@@ -129,14 +129,15 @@ test.describe("billing in Stripe test mode", () => {
 
     // 3. Settings: the plan in plain words, then cancel in two clicks, then resume.
     await page.goto("/app/settings");
-    await expect(page.getByText(/^Trial ends /)).toBeVisible();
+    const plan = page.getByRole("region", { name: "Plan and billing" });
+    await expect(plan.getByText(/^Trial ends /)).toBeVisible();
     await page.getByRole("button", { name: "Cancel subscription" }).click();
     await expect(page.getByText(/You keep access until/)).toBeVisible();
     await page.getByRole("button", { name: "Yes, cancel" }).click();
-    await expect(page.getByRole("status")).toContainText("Canceled.");
+    await expect(plan.getByRole("status")).toContainText("Canceled.");
     expect((await stripe().subscriptions.retrieve(sub.id)).cancel_at_period_end).toBe(true);
     await page.getByRole("button", { name: "Resume subscription" }).click();
-    await expect(page.getByRole("status")).toContainText("Resumed.");
+    await expect(plan.getByRole("status")).toContainText("Resumed.");
     expect((await stripe().subscriptions.retrieve(sub.id)).cancel_at_period_end).toBe(false);
 
     // 4. A second checkout is refused while the subscription is live.
@@ -215,6 +216,6 @@ test.describe("billing in Stripe test mode", () => {
     if (error) throw new Error(`billing patch failed: ${error.code}`);
     await page.goto("/app/reply");
     await expect(page).toHaveURL(/\/app\/settings$/);
-    await expect(page.getByRole("alert")).toContainText("Update your card");
+    await expect(page.getByRole("alert").filter({ hasText: "Update your card" })).toBeVisible();
   });
 });

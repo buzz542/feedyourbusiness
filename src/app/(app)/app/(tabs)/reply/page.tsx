@@ -44,7 +44,7 @@ export default async function ReplyPage({
     return (
       <EmptyState title="Confirming your payment">
         Stripe has not told us about your payment yet. This usually takes a few seconds. Refresh
-        this page in a minute. You will not be charged twice.
+        this page in a minute.
       </EmptyState>
     );
   const supabase = await createSupabaseServerClient();

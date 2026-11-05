@@ -1,5 +1,5 @@
 import { CONSENT_WORDING } from "@/server/billing/consent";
-import { TRIAL_DAYS } from "@/server/billing/constants";
+import { ADVERTISED_PRICE, TRIAL_DAYS } from "@/server/billing/constants";
 import { priceInWords } from "@/server/billing/plan-status";
 import type { PriceInfo } from "@/server/billing/ports";
 import { renewalTerms } from "@/server/billing/terms";
@@ -25,7 +25,10 @@ export function BillingOffer({
     !price.active ||
     price.unitAmount === null ||
     !price.interval ||
-    price.taxBehavior !== "inclusive"
+    price.taxBehavior !== "inclusive" ||
+    price.unitAmount !== ADVERTISED_PRICE.unitAmount ||
+    price.currency !== ADVERTISED_PRICE.currency ||
+    price.interval !== ADVERTISED_PRICE.interval
   )
     return (
       <p className="rounded-sm border border-rule p-4">

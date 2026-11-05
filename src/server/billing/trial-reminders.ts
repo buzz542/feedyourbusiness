@@ -141,6 +141,17 @@ export async function runTrialReminders(args: {
       result.deferred = due.length - index;
       break;
     }
+    // The amount first, before any claim: a slow or failed preview leaves nothing to release.
+    let amount;
+    try {
+      amount = await withTimeout(chargeAmount(profile), sendTimeoutMs);
+    } catch {
+      amount = null;
+    }
+    if (!amount) {
+      result.failed++;
+      continue;
+    }
     // Claim first so two overlapping runs cannot both send. Release if sending fails.
     if (!(await store.claimTrialReminder(profile.id, now))) {
       result.skipped++;
@@ -149,8 +160,6 @@ export async function runTrialReminders(args: {
     try {
       const to = await getEmail(profile.id);
       if (!to) throw new Error("no email address");
-      const amount = await chargeAmount(profile);
-      if (!amount) throw new Error("no full amount");
       const email = renderTrialReminder({
         chargeDate: profile.trialEnd,
         price: {

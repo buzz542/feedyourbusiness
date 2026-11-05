@@ -1,5 +1,5 @@
 import type { BillingStripe, ProfileStore } from "./ports";
-import { profilePatchFromSubscription } from "./subscription";
+import { hasLiveSubscription, profilePatchFromSubscription } from "./subscription";
 
 /**
  * The welcome step after Checkout (docs/PLAN.md 7.3, 10.4): retrieve the Checkout Session
@@ -21,10 +21,15 @@ export async function applyWelcome(
   if (!session || session.clientReferenceId !== userId) return "mismatch";
   if (session.status !== "complete" || !session.subscriptionId || !session.customerId)
     return "pending";
-  // Only the subscription the profile already holds, or the first one. An old session (a bookmark,
-  // browser history) never overwrites a newer subscription.
+  // Never over a different subscription that is still live: an old session (a bookmark, browser
+  // history) cannot overwrite the current one. A returning subscriber whose old subscription
+  // ended is welcomed onto the new one; the Stripe-time stamp below keeps newer state winning.
   const profile = await deps.store.getBillingProfile(userId);
-  if (profile?.stripeSubscriptionId && profile.stripeSubscriptionId !== session.subscriptionId)
+  if (
+    profile?.stripeSubscriptionId &&
+    profile.stripeSubscriptionId !== session.subscriptionId &&
+    hasLiveSubscription(profile.subscriptionStatus)
+  )
     return "stale";
   const sub = await deps.stripe.getSubscription(session.subscriptionId);
   if (!sub) return "pending";

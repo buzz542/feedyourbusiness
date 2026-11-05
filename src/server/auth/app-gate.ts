@@ -10,8 +10,11 @@ export interface GateDeps {
   /** The signed-in, allowed user who accepted the terms. In the app it redirects otherwise. */
   requireUser(path: string): Promise<{ id: string }>;
   loadAccount(userId: string): Promise<AccountState>;
-  /** Confirm a just-completed Checkout Session and apply its billing patch (7.3). */
-  applyWelcome(userId: string, sessionId: string | undefined): Promise<unknown>;
+  /**
+   * Confirm a just-completed Checkout Session and apply its billing patch (7.3). "invalid" and
+   * "mismatch" mean the URL named no session of this user's; anything else is a real checkout.
+   */
+  applyWelcome(userId: string, sessionId: string | undefined): Promise<string>;
   /** Start the first run once (dedupe keys); only called for an entitled account. */
   startFirstRun(userId: string): Promise<void>;
   logError(message: string): void;
@@ -34,21 +37,23 @@ const errorName = (error: unknown) => (error instanceof Error ? error.name : "Un
 export async function gateAppPage(deps: GateDeps, input: GateInput): Promise<GateOutcome> {
   const user = await deps.requireUser(input.path);
 
-  let welcomeFailed = false;
+  // True when the URL names a checkout of this user's that we have not seen through yet.
+  let unconfirmed = false;
   if (input.welcome) {
     try {
-      await deps.applyWelcome(user.id, input.welcome.sessionId);
+      const result = await deps.applyWelcome(user.id, input.welcome.sessionId);
+      unconfirmed = result !== "invalid" && result !== "mismatch";
     } catch (error) {
-      welcomeFailed = true;
+      unconfirmed = true;
       deps.logError(`[billing] welcome failed: ${errorName(error)}`);
     }
   }
 
   const step = nextStepFor(await deps.loadAccount(user.id));
   if (step !== "/app/reply") {
-    // A just-paid user whose payment we could not confirm would otherwise be offered a second
-    // checkout; the webhook settles it within seconds.
-    if (input.welcome && welcomeFailed && step === "/app/billing") return { kind: "confirming" };
+    // A user back from a real checkout who is not entitled yet would otherwise be offered a
+    // second one; the webhook settles it within seconds, and a refresh runs the step again.
+    if (unconfirmed && step === "/app/billing") return { kind: "confirming" };
     return { kind: "redirect", to: step };
   }
 

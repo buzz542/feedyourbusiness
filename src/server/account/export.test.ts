@@ -71,6 +71,17 @@ describe("buildAccountExport", () => {
     expect(FEED_FIELDS).not.toContain("excerpt" as never);
   });
 
+  it("includes the user's own events, with their names, props and times only", () => {
+    const withEvents = buildAccountExport(
+      {
+        ...source,
+        events: [{ id: 9, user_id: "user-1", name: "feed_opened", props: {}, at: "x" }],
+      },
+      NOW,
+    );
+    expect(withEvents.events).toEqual([{ name: "feed_opened", props: {}, at: "x" }]);
+  });
+
   it("leaves out internal ids and Stripe ids", () => {
     for (const secret of ["cus_secret", "sub_secret", "is_admin", "owner_id", "name_key", "pp1"])
       expect(text).not.toContain(secret);

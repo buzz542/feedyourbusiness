@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
+import { TRIAL_DAYS } from "@/server/billing/constants";
 import type { PlanView } from "@/server/billing/plan-status";
+import { ChargeDate } from "./charge-date";
 import { PlanControls, type PlanActionResult } from "./plan-controls";
 
 /** Settings, Plan and billing (docs/PLAN.md 4.7, 10.3). */
@@ -23,10 +25,14 @@ export function PlanBilling({
           {view.banner}
         </p>
       ) : null}
-      <p>{view.summary}</p>
+      <p>
+        {view.summary.map((part, i) =>
+          typeof part === "string" ? part : <ChargeDate key={i} iso={part.at} />,
+        )}
+      </p>
       {view.canStartTrial ? (
         <Link href="/app/billing" className={buttonClass("primary", "self-start")}>
-          Start your 7-day trial
+          Start your {TRIAL_DAYS}-day trial
         </Link>
       ) : (
         <PlanControls

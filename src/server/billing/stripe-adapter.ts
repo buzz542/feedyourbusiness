@@ -9,11 +9,17 @@ const iso = (unixSeconds: number | undefined): string | null =>
 const INTERVALS = ["day", "week", "month", "year"] as const;
 
 /** The only file that talks to the Stripe SDK. Everything else uses the BillingStripe port. */
-export function createStripeAdapter(config: BillingConfig): BillingStripe {
-  const stripe = new Stripe(config.secretKey, {
-    maxNetworkRetries: 2,
-    appInfo: { name: "AskedFor" },
-  });
+export function createStripeAdapter(
+  config: BillingConfig,
+  /** Tests pass a stub; production builds the SDK client. */
+  client?: Stripe,
+): BillingStripe {
+  const stripe =
+    client ??
+    new Stripe(config.secretKey, {
+      maxNetworkRetries: 2,
+      appInfo: { name: "AskedFor" },
+    });
 
   return {
     async getPrice(priceId): Promise<PriceInfo> {
@@ -111,16 +117,38 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
         await stripe.subscriptions.cancel(subscriptionId);
       } catch (error) {
         if (!(error instanceof Stripe.errors.StripeInvalidRequestError)) throw error;
-        // Already canceled, or gone: fine only if Stripe confirms it will never bill again.
-        const sub = await stripe.subscriptions.retrieve(subscriptionId).catch(() => null);
-        if (sub && sub.status !== "canceled" && sub.status !== "incomplete_expired") throw error;
+        // No such subscription in this account: nothing can bill.
+        if (error.code === "resource_missing") return;
+        // Already ended is fine, but only when Stripe says so: any other answer, or a failed
+        // lookup, is an error, so the account is never deleted while it may still be billed.
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        if (sub.status !== "canceled" && sub.status !== "incomplete_expired") throw error;
       }
+    },
+
+    async liveSubscriptionIdsForUser(userId) {
+      // Search is eventually consistent (about a minute); deletion also lists by customer.
+      if (!/^[0-9a-f-]{36}$/.test(userId)) return [];
+      const ids: string[] = [];
+      for await (const sub of stripe.subscriptions.search({
+        query: `metadata['user_id']:'${userId}'`,
+      }))
+        if (sub.status !== "canceled" && sub.status !== "incomplete_expired") ids.push(sub.id);
+      return ids;
+    },
+
+    async liveSubscriptionIds(customerId) {
+      const ids: string[] = [];
+      for await (const sub of stripe.subscriptions.list({ customer: customerId, status: "all" }))
+        if (sub.status !== "canceled" && sub.status !== "incomplete_expired") ids.push(sub.id);
+      return ids;
     },
 
     async previewNextInvoiceTotal(subscriptionId) {
       try {
         const invoice = await stripe.invoices.createPreview({ subscription: subscriptionId });
-        return { total: invoice.total, currency: invoice.currency };
+        // What the card is charged: the total after any customer credit.
+        return { total: invoice.amount_due, currency: invoice.currency };
       } catch (error) {
         if (error instanceof Stripe.errors.StripeInvalidRequestError) return null;
         throw error;

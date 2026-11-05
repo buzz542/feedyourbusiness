@@ -28,6 +28,7 @@ function deps(status: string | null, over: Partial<GateDeps> = {}) {
     },
     async applyWelcome() {
       calls.push("welcome");
+      return "applied";
     },
     async startFirstRun() {
       calls.push("first_run");
@@ -82,6 +83,7 @@ describe("gateAppPage", () => {
       applyWelcome: async () => {
         order.push("welcome");
         status = "trialing";
+        return "applied";
       },
       loadAccount: async () => {
         order.push("account");
@@ -112,6 +114,26 @@ describe("gateAppPage", () => {
     expect(f.logs).toEqual(["[billing] welcome failed: TypeError"]);
     expect(f.calls).not.toContain("first_run");
   });
+
+  it.each(["stale", "pending"])(
+    "shows the confirming state, never billing, when a real checkout is not settled yet (%s)",
+    async (result) => {
+      const f = deps(null, { applyWelcome: async () => result });
+      expect(
+        await gateAppPage(f.d, { path: "/app/reply", welcome: { sessionId: "cs_test_abc" } }),
+      ).toEqual({ kind: "confirming" });
+    },
+  );
+
+  it.each(["invalid", "mismatch"])(
+    "sends a URL with no session of this user's (%s) to billing as usual",
+    async (result) => {
+      const f = deps(null, { applyWelcome: async () => result });
+      expect(
+        await gateAppPage(f.d, { path: "/app/reply", welcome: { sessionId: "cs_test_abc" } }),
+      ).toEqual({ kind: "redirect", to: "/app/billing" });
+    },
+  );
 
   it("starts no first run for an account that is still not entitled after the welcome step", async () => {
     const f = deps("past_due");

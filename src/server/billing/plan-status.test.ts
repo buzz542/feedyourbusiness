@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEST_PRICE } from "./fakes";
-import { describePlan, priceInWords, type PlanProfile } from "./plan-status";
+import { describePlan, priceInWords, summaryText, type PlanProfile } from "./plan-status";
 
 /** Settings, Plan and billing in plain words (docs/PLAN.md 4.7, 10.3). */
 
@@ -20,7 +20,9 @@ describe("describePlan", () => {
       { ...base, subscriptionStatus: "trialing", trialEnd: TRIAL_END, currentPeriodEnd: TRIAL_END },
       TEST_PRICE,
     );
-    expect(view.summary).toBe("Trial ends October 21, 2026. Then $29.00 a month.");
+    expect(summaryText(view)).toBe(
+      "Trial ends October 21, 2026 at 9:00 AM UTC. Then $29.00 a month.",
+    );
     expect(view).toMatchObject({
       canCancel: true,
       canResume: false,
@@ -36,8 +38,8 @@ describe("describePlan", () => {
       { ...base, subscriptionStatus: "trialing", trialEnd: TRIAL_END, cancelAtPeriodEnd: true },
       TEST_PRICE,
     );
-    expect(view.summary).toBe(
-      "Trial canceled. You keep access until October 21, 2026 and will not be charged.",
+    expect(summaryText(view)).toBe(
+      "Trial canceled. You keep access until October 21, 2026 at 9:00 AM UTC and will not be charged.",
     );
     expect(view.canCancel).toBe(false);
     expect(view.canResume).toBe(true);
@@ -48,7 +50,7 @@ describe("describePlan", () => {
       { ...base, subscriptionStatus: "active", currentPeriodEnd: PERIOD_END },
       TEST_PRICE,
     );
-    expect(view.summary).toBe("Renews on December 21, 2026 at $29.00 a month.");
+    expect(summaryText(view)).toBe("Renews on December 21, 2026 at 9:00 AM UTC at $29.00 a month.");
     expect(view.canCancel).toBe(true);
   });
 
@@ -62,7 +64,7 @@ describe("describePlan", () => {
       },
       TEST_PRICE,
     );
-    expect(view.summary).toContain("You keep access until December 21, 2026");
+    expect(summaryText(view)).toContain("You keep access until December 21, 2026 at 9:00 AM UTC");
     expect(view.canResume).toBe(true);
     expect(view.canCancel).toBe(false);
   });
@@ -96,6 +98,24 @@ describe("describePlan", () => {
     expect(view.canUpdateCard).toBe(false);
   });
 
+  it("gives the moment, not a bare UTC date: a US evening charge is shown on its own day", () => {
+    // 02:00 UTC on November 10 is 9:00 PM on November 9 in New York.
+    const view = describePlan(
+      { ...base, subscriptionStatus: "trialing", trialEnd: "2026-11-10T02:00:00.000Z" },
+      TEST_PRICE,
+    );
+    expect(summaryText(view, "America/New_York")).toBe(
+      "Trial ends November 9, 2026 at 9:00 PM EST. Then $29.00 a month.",
+    );
+    expect(view.summary).toContainEqual({ at: "2026-11-10T02:00:00.000Z" });
+  });
+
+  it("a paused subscription can be canceled as well as restarted", () => {
+    const view = describePlan({ ...base, subscriptionStatus: "paused" }, TEST_PRICE);
+    expect(view.canCancel).toBe(true);
+    expect(view.canUpdateCard).toBe(true);
+  });
+
   it("never shows a price that is not the full price, or one it could not read", () => {
     expect(priceInWords({ ...TEST_PRICE, taxBehavior: "exclusive" })).toBeNull();
     expect(priceInWords(null)).toBeNull();
@@ -103,6 +123,6 @@ describe("describePlan", () => {
       { ...base, subscriptionStatus: "trialing", trialEnd: TRIAL_END },
       { ...TEST_PRICE, taxBehavior: "exclusive" },
     );
-    expect(view.summary).toBe("Trial ends October 21, 2026.");
+    expect(summaryText(view)).toBe("Trial ends October 21, 2026 at 9:00 AM UTC.");
   });
 });
