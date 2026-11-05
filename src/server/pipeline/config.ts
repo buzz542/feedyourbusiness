@@ -1,7 +1,8 @@
+import { CONTACT_EMAIL } from "@/lib/contact";
 import type { CollectSource } from "@/sources/types";
 
 /** Descriptive, with a monitored contact (docs/PLAN.md 7.4), on every source request. */
-export const SOURCE_USER_AGENT = "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)";
+export const SOURCE_USER_AGENT = `AskedFor/1.0 (+https://askedfor.app; ${CONTACT_EMAIL})`;
 
 /**
  * BRIGHTDATA_MONTHLY_RECORD_CAP for vendor sources (docs/PLAN.md 7.7), default 20,000. New

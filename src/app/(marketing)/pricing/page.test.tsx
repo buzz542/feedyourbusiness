@@ -9,6 +9,7 @@ import {
 } from "@/server/billing/constants";
 import { formatMoney } from "@/server/billing/terms";
 import { sources } from "@/sources/registry";
+import { unclaimedBlocks } from "../../../../compliance/lib/claims-blocks";
 import PricingPage, { metadata } from "./page";
 
 /** Public pricing (docs/PLAN.md 2.4, 9.6, M8). The copy gate checks every number has a claims row. */
@@ -41,24 +42,10 @@ describe("pricing page", () => {
   });
 
   it("has a claims row with the exact wording of every list item and paragraph", () => {
-    const raw = renderToStaticMarkup(<PricingPage />);
-    const blocks = [...raw.matchAll(/<(li|p)[^>]*>([\s\S]*?)<\/\1>/g)].map((m) =>
-      m[2]!
-        .replace(/<[^>]+>/g, "")
-        .replace(/\s+/g, " ")
-        .trim(),
-    );
+    const { blocks, missing } = unclaimedBlocks(renderToStaticMarkup(<PricingPage />));
     expect(blocks.length).toBeGreaterThanOrEqual(10);
-    const cells = claims
-      .split("\n")
-      .filter((l) => l.startsWith("| "))
-      .map((l) => l.split("|")[2] ?? "");
-    for (const block of blocks)
-      expect(
-        cells.some((c) => c.includes(block)),
-        block,
-      ).toBe(true);
-    expect(cells.some((c) => c.includes(metadata.description as string))).toBe(true);
+    expect(missing).toEqual([]);
+    expect(claims).toContain(metadata.description as string);
   });
 
   it("names exactly the link sources in the registry as searches", () => {
