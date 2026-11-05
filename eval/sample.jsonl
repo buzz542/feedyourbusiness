@@ -1,0 +1,6 @@
+# Five invented posts for the eval's own test (docs/PLAN.md 8.6). Never a real person's post.
+{"id":"s1","source":"hackernews","community":"Hacker News","excerpt":"Is there a tool that chases unpaid invoices for freelancers automatically?","relevant":true,"category":"looking_for_tool"}
+{"id":"s2","source":"reddit","community":"r/freelance","excerpt":"Clients pay me 60 days late and I hate writing reminder emails.","relevant":true,"category":"pain_point"}
+{"id":"s3","source":"bluesky","community":"Bluesky","excerpt":"Lovely sunset over the harbor tonight.","relevant":false,"category":null}
+{"id":"s4","source":"reddit","community":"r/SaaS","excerpt":"Our team switched project trackers again this quarter.","relevant":false,"category":null}
+{"id":"s5","source":"x","community":"X","excerpt":"I wish my invoicing app sent polite payment nudges on its own.","relevant":true,"category":"wish"}
