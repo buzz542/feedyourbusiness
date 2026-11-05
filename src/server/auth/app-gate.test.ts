@@ -115,18 +115,15 @@ describe("gateAppPage", () => {
     expect(f.calls).not.toContain("first_run");
   });
 
-  it.each(["stale", "pending"])(
-    "shows the confirming state, never billing, when a real checkout is not settled yet (%s)",
-    async (result) => {
-      const f = deps(null, { applyWelcome: async () => result });
-      expect(
-        await gateAppPage(f.d, { path: "/app/reply", welcome: { sessionId: "cs_test_abc" } }),
-      ).toEqual({ kind: "confirming" });
-    },
-  );
+  it("shows the confirming state, never billing, while a paid checkout's subscription is pending", async () => {
+    const f = deps(null, { applyWelcome: async () => "pending" });
+    expect(
+      await gateAppPage(f.d, { path: "/app/reply", welcome: { sessionId: "cs_test_abc" } }),
+    ).toEqual({ kind: "confirming" });
+  });
 
-  it.each(["invalid", "mismatch"])(
-    "sends a URL with no session of this user's (%s) to billing as usual",
+  it.each(["invalid", "mismatch", "not_paid", "stale", "applied"])(
+    "sends anyone whose profile already holds the truth (%s) to their step as usual",
     async (result) => {
       const f = deps(null, { applyWelcome: async () => result });
       expect(

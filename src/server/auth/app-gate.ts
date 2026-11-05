@@ -11,8 +11,9 @@ export interface GateDeps {
   requireUser(path: string): Promise<{ id: string }>;
   loadAccount(userId: string): Promise<AccountState>;
   /**
-   * Confirm a just-completed Checkout Session and apply its billing patch (7.3). "invalid" and
-   * "mismatch" mean the URL named no session of this user's; anything else is a real checkout.
+   * Confirm a just-completed Checkout Session and apply its billing patch (7.3). Only "pending"
+   * (paid, but Stripe has not given us the subscription yet) is worth waiting for; every other
+   * answer means the profile already holds the truth.
    */
   applyWelcome(userId: string, sessionId: string | undefined): Promise<string>;
   /** Start the first run once (dedupe keys); only called for an entitled account. */
@@ -37,12 +38,11 @@ const errorName = (error: unknown) => (error instanceof Error ? error.name : "Un
 export async function gateAppPage(deps: GateDeps, input: GateInput): Promise<GateOutcome> {
   const user = await deps.requireUser(input.path);
 
-  // True when the URL names a checkout of this user's that we have not seen through yet.
+  // True when this user paid but we could not see the subscription yet.
   let unconfirmed = false;
   if (input.welcome) {
     try {
-      const result = await deps.applyWelcome(user.id, input.welcome.sessionId);
-      unconfirmed = result !== "invalid" && result !== "mismatch";
+      unconfirmed = (await deps.applyWelcome(user.id, input.welcome.sessionId)) === "pending";
     } catch (error) {
       unconfirmed = true;
       deps.logError(`[billing] welcome failed: ${errorName(error)}`);

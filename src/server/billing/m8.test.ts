@@ -194,9 +194,9 @@ describe("welcome step", () => {
     expect(second.status).toBe(409);
   });
 
-  it("applies nothing for a session that is not complete", async () => {
+  it("applies nothing for a session that is not complete, and says nobody paid", async () => {
     stripe.sessions.set(SESSION, { ...stripe.sessions.get(SESSION)!, status: "open" });
-    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("pending");
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("not_paid");
     expect((await store.getBillingProfile("user-1"))?.subscriptionStatus ?? null).toBeNull();
   });
 

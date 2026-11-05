@@ -48,7 +48,14 @@ export async function deleteAccount(
   // Requested before, done after: the log never claims a deletion that did not happen.
   await deps.writeAudit({ actor: "self", action: "account_deletion_requested", target: userId });
   await deps.deleteAuthUser(userId);
-  await deps.writeAudit({ actor: "self", action: "account_deleted", target: userId });
+  // The account is gone either way; a failed second row must not report a failed deletion.
+  try {
+    await deps.writeAudit({ actor: "self", action: "account_deleted", target: userId });
+  } catch (error) {
+    console.error(
+      `[account] audit after deletion failed: ${error instanceof Error ? error.name : "UnknownError"}`,
+    );
+  }
   await deps.track("account_deleted", null);
   return "deleted";
 }

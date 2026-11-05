@@ -139,8 +139,19 @@ export function createStripeAdapter(
 
     async liveSubscriptionIds(customerId) {
       const ids: string[] = [];
-      for await (const sub of stripe.subscriptions.list({ customer: customerId, status: "all" }))
-        if (sub.status !== "canceled" && sub.status !== "incomplete_expired") ids.push(sub.id);
+      try {
+        for await (const sub of stripe.subscriptions.list({ customer: customerId, status: "all" }))
+          if (sub.status !== "canceled" && sub.status !== "incomplete_expired") ids.push(sub.id);
+      } catch (error) {
+        // A customer this account does not have (a test-mode id after the live switch, or one
+        // deleted in the Dashboard) has nothing that can bill.
+        if (
+          error instanceof Stripe.errors.StripeInvalidRequestError &&
+          error.code === "resource_missing"
+        )
+          return [];
+        throw error;
+      }
       return ids;
     },
 

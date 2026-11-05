@@ -7,7 +7,11 @@ import { hasLiveSubscription, profilePatchFromSubscription } from "./subscriptio
  * so a new subscriber is never shown the billing page (or able to start a second checkout) while
  * the webhook is still on its way.
  */
-export type WelcomeResult = "applied" | "invalid" | "mismatch" | "pending" | "stale";
+/**
+ * "not_paid": the session is open or expired, so nobody paid. "pending": it is complete but Stripe
+ * has not attached or cannot yet return its subscription; only this one is worth waiting for.
+ */
+export type WelcomeResult = "applied" | "invalid" | "mismatch" | "not_paid" | "pending" | "stale";
 
 const SESSION_ID = /^cs_(test|live)_[A-Za-z0-9]{10,200}$/;
 
@@ -19,8 +23,8 @@ export async function applyWelcome(
   if (!sessionId || !SESSION_ID.test(sessionId)) return "invalid";
   const session = await deps.stripe.getCheckoutSession(sessionId);
   if (!session || session.clientReferenceId !== userId) return "mismatch";
-  if (session.status !== "complete" || !session.subscriptionId || !session.customerId)
-    return "pending";
+  if (session.status !== "complete") return "not_paid";
+  if (!session.subscriptionId || !session.customerId) return "pending";
   // Never over a different subscription that is still live: an old session (a bookmark, browser
   // history) cannot overwrite the current one. A returning subscriber whose old subscription
   // ended is welcomed onto the new one; the Stripe-time stamp below keeps newer state winning.

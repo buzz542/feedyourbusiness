@@ -28,7 +28,8 @@ export function BillingOffer({
     price.taxBehavior !== "inclusive" ||
     price.unitAmount !== ADVERTISED_PRICE.unitAmount ||
     price.currency !== ADVERTISED_PRICE.currency ||
-    price.interval !== ADVERTISED_PRICE.interval
+    price.interval !== ADVERTISED_PRICE.interval ||
+    (price.intervalCount ?? 1) !== 1
   )
     return (
       <p className="rounded-sm border border-rule p-4">

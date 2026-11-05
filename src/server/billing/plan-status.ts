@@ -103,7 +103,7 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
         canUpdateCard: card,
       };
     }
-    const at = amount ? ` at ${amount}.` : ".";
+    const at = amount ? `, for ${amount}.` : ".";
     return {
       ...NONE,
       summary: end ? ["Renews on ", { at: end }, at] : [`Renews automatically${at}`],

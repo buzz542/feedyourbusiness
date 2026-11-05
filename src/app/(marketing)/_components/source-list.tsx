@@ -47,7 +47,8 @@ const isOn = (source: CollectSource) =>
 
 export function SourceList({ sources }: { sources: readonly Source[] }) {
   const collect = sources.filter((s): s is CollectSource => s.mode === "collect");
-  const links = sources.filter((s): s is LinkSource => s.mode === "link");
+  // Only the searches the app offers today: a link source switched off is not listed.
+  const links = sources.filter((s): s is LinkSource => s.mode === "link" && isEnabled(s));
   return (
     <>
       <section aria-labelledby="collected" className="mt-8 space-y-4">

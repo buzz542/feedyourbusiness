@@ -83,3 +83,37 @@ describe("cancelNow", () => {
     await expect(adapter.cancelNow("sub_1")).rejects.toThrow();
   });
 });
+
+describe("liveSubscriptionIds", () => {
+  const listing = (list: () => AsyncIterable<unknown>) =>
+    ({ subscriptions: { list } }) as unknown as Stripe;
+
+  it("lists the customer's subscriptions that can still bill", async () => {
+    const adapter = createStripeAdapter(
+      config,
+      listing(async function* () {
+        yield { id: "sub_a", status: "trialing" };
+        yield { id: "sub_b", status: "canceled" };
+        yield { id: "sub_c", status: "past_due" };
+      }),
+    );
+    expect(await adapter.liveSubscriptionIds("cus_1")).toEqual(["sub_a", "sub_c"]);
+  });
+
+  it("returns nothing for a customer Stripe does not have, and fails on anything else", async () => {
+    const missing = createStripeAdapter(
+      config,
+      listing(async function* () {
+        throw invalid("resource_missing");
+      }),
+    );
+    expect(await missing.liveSubscriptionIds("cus_test_old")).toEqual([]);
+    const down = createStripeAdapter(
+      config,
+      listing(async function* () {
+        throw new Stripe.errors.StripeConnectionError({ message: "down" });
+      }),
+    );
+    await expect(down.liveSubscriptionIds("cus_1")).rejects.toThrow();
+  });
+});

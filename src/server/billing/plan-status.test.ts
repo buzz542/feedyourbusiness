@@ -50,7 +50,9 @@ describe("describePlan", () => {
       { ...base, subscriptionStatus: "active", currentPeriodEnd: PERIOD_END },
       TEST_PRICE,
     );
-    expect(summaryText(view)).toBe("Renews on December 21, 2026 at 9:00 AM UTC at $29.00 a month.");
+    expect(summaryText(view)).toBe(
+      "Renews on December 21, 2026 at 9:00 AM UTC, for $29.00 a month.",
+    );
     expect(view.canCancel).toBe(true);
   });
 

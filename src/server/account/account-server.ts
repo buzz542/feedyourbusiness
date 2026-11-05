@@ -1,10 +1,12 @@
 import "server-only";
 import { createSupabaseEventStore } from "@/server/analytics/supabase-events";
 import { track } from "@/server/analytics/track";
+import { BillingConfigError } from "@/server/billing/config";
 import { getBillingCore } from "@/server/billing/deps";
 import type { BillingStripe } from "@/server/billing/ports";
 import { createSupabaseProfileStore } from "@/server/billing/supabase-store";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
+import { readAllPages } from "@/server/store/pages";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import type { AccountDeletionDeps } from "./delete-account";
 import type { ExportSource } from "./export";
@@ -34,7 +36,9 @@ export function accountDeletionDeps(): AccountDeletionDeps {
     if (stripe === undefined) {
       try {
         stripe = getBillingCore().stripe;
-      } catch {
+      } catch (error) {
+        // Not configured means no subscription can exist here; any other error is real.
+        if (!(error instanceof BillingConfigError)) throw error;
         stripe = null;
       }
     }
@@ -65,8 +69,6 @@ export function accountDeletionDeps(): AccountDeletionDeps {
   };
 }
 
-const PAGE = 1000;
-
 /**
  * The export reads through the user's own client: RLS keeps every other account out (10.7). The
  * user's own events are deny-all to API roles, so they are read with the service role, filtered
@@ -80,22 +82,26 @@ export async function loadAccountExport(
   const product = await db.from("products").select("*").eq("owner_id", userId).maybeSingle();
   if (product.error) throw new AccountDataError(product.error.code);
   const productId = product.data?.id ?? "00000000-0000-0000-0000-000000000000";
-  const [profile, terms, competitors, events] = await Promise.all([
+  const [profile, terms, competitors] = await Promise.all([
     db.from("profiles").select("*").eq("id", userId).maybeSingle(),
     db.from("search_terms").select("*").eq("product_id", productId).order("created_at"),
     db.from("competitors").select("*").eq("product_id", productId).order("created_at"),
-    createSupabaseAdminClient()
+  ]);
+  for (const r of [profile, terms, competitors])
+    if (r.error) throw new AccountDataError(r.error.code);
+  const admin = createSupabaseAdminClient();
+  const events = await readAllPages(async (from, to) => {
+    const page = await admin
       .from("events")
-      .select("name, props, at")
+      .select("id, name, props, at")
       .eq("user_id", userId)
       .order("at")
-      .limit(10_000),
-  ]);
-  for (const r of [profile, terms, competitors, events])
-    if (r.error) throw new AccountDataError(r.error.code);
-  // Page through the feed: PostgREST returns at most 1,000 rows a request.
-  const feed: Array<Record<string, unknown>> = [];
-  for (let from = 0; ; from += PAGE) {
+      .order("id")
+      .range(from, to);
+    if (page.error) throw new AccountDataError(page.error.code);
+    return page.data ?? [];
+  });
+  const feed = await readAllPages(async (from, to) => {
     const page = await db
       .from("feed_items")
       .select(
@@ -104,11 +110,10 @@ export async function loadAccountExport(
       .eq("product_id", productId)
       .order("created_at", { ascending: false })
       .order("id")
-      .range(from, from + PAGE - 1);
+      .range(from, to);
     if (page.error) throw new AccountDataError(page.error.code);
-    feed.push(...(page.data ?? []));
-    if ((page.data ?? []).length < PAGE) break;
-  }
+    return page.data ?? [];
+  });
   return {
     email,
     profile: profile.data,
@@ -116,6 +121,6 @@ export async function loadAccountExport(
     terms: terms.data ?? [],
     competitors: competitors.data ?? [],
     feed,
-    events: events.data ?? [],
+    events,
   };
 }
