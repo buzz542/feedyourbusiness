@@ -71,7 +71,7 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
         must(
           await db
             .from("profiles")
-            .select("id, trial_end, cancel_at_period_end")
+            .select("id, trial_end, cancel_at_period_end, stripe_subscription_id")
             .eq("subscription_status", "trialing" satisfies SubscriptionStatus)
             .is("trial_reminder_sent_at", null)
             .not("trial_end", "is", null),
@@ -83,6 +83,7 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
                 id: r.id,
                 trialEnd: new Date(r.trial_end),
                 cancelAtPeriodEnd: r.cancel_at_period_end,
+                subscriptionId: r.stripe_subscription_id,
               },
             ]
           : [],
@@ -107,7 +108,9 @@ export function createSupabaseProfileStore(db: AdminClient): ProfileStore {
         .from("profiles")
         .update({ service_consent_at: at.toISOString() })
         .eq("id", userId)
-        .is("service_consent_at", null);
+        // Only forward: a new contract's consent replaces an old one; a redelivered old event
+        // never moves it back.
+        .or(`service_consent_at.is.null,service_consent_at.lt."${at.toISOString()}"`);
       if (error) throw new Error(`Supabase error ${error.code}`);
     },
 

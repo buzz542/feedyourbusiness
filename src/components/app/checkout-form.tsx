@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const ERRORS: Record<string, string> = {
-  consent_required: "Tick the box to start your trial.",
+  consent_required: "Check the box to start your trial.",
   subscription_exists: "You already have a subscription. See Settings.",
   private_beta: "AskedFor is in private beta.",
 };

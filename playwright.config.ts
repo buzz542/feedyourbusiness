@@ -20,6 +20,8 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL) assertDevSupabase(process.env.NEXT_PUB
 export const E2E_EMAIL = "e2e-signin@example.test";
 /** The onboarding E2E's address (tests/e2e/onboarding.spec.ts); also on the allowlist. */
 export const E2E_ONBOARDING_EMAIL = "e2e-onboarding@example.test";
+/** The billing E2E's address (tests/e2e/billing.spec.ts); also on the allowlist. */
+export const E2E_BILLING_EMAIL = "e2e-billing@example.test";
 
 // The onboarding E2E must never call the real model or a real site: refuse to run when the
 // server's env would turn the fakes off (a VERCEL_ENV pulled into .env.local, for instance).
@@ -46,7 +48,12 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       // A fake model and site for onboarding; honored only on a local run (fake-services.ts).
       E2E_FAKE_SERVICES: "1",
-      SIGNUP_ALLOWLIST: [process.env.SIGNUP_ALLOWLIST, E2E_EMAIL, E2E_ONBOARDING_EMAIL]
+      SIGNUP_ALLOWLIST: [
+        process.env.SIGNUP_ALLOWLIST,
+        E2E_EMAIL,
+        E2E_ONBOARDING_EMAIL,
+        E2E_BILLING_EMAIL,
+      ]
         .filter(Boolean)
         .join(","),
     },

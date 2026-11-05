@@ -232,6 +232,9 @@ describe("runHealthChecks", () => {
         { ...TEST_PRICE, active: false },
         { ...TEST_PRICE, interval: null },
         { ...TEST_PRICE, unitAmount: null },
+        // Checkout refuses a price that is not the full price (10.1), so health says so too.
+        { ...TEST_PRICE, taxBehavior: "exclusive" as const },
+        { ...TEST_PRICE, taxBehavior: "unspecified" as const },
       ]) {
         const report = await runHealthChecks(deps({ price }));
         expect(report.checks.stripe_price?.status).toBe("invalid");

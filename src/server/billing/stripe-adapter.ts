@@ -73,6 +73,8 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
           clientReferenceId: s.client_reference_id,
           customerId: id(s.customer),
           subscriptionId: id(s.subscription),
+          status: (["open", "complete", "expired"] as const).find((v) => v === s.status) ?? null,
+          created: new Date(s.created * 1000),
         };
       } catch (error) {
         if (error instanceof Stripe.errors.StripeInvalidRequestError) return null;
@@ -102,6 +104,27 @@ export function createStripeAdapter(config: BillingConfig): BillingStripe {
         status: sub.status,
         accessUntil: iso(sub.items.data[0]?.current_period_end),
       };
+    },
+
+    async cancelNow(subscriptionId) {
+      try {
+        await stripe.subscriptions.cancel(subscriptionId);
+      } catch (error) {
+        if (!(error instanceof Stripe.errors.StripeInvalidRequestError)) throw error;
+        // Already canceled, or gone: fine only if Stripe confirms it will never bill again.
+        const sub = await stripe.subscriptions.retrieve(subscriptionId).catch(() => null);
+        if (sub && sub.status !== "canceled" && sub.status !== "incomplete_expired") throw error;
+      }
+    },
+
+    async previewNextInvoiceTotal(subscriptionId) {
+      try {
+        const invoice = await stripe.invoices.createPreview({ subscription: subscriptionId });
+        return { total: invoice.total, currency: invoice.currency };
+      } catch (error) {
+        if (error instanceof Stripe.errors.StripeInvalidRequestError) return null;
+        throw error;
+      }
     },
 
     verifyWebhook(rawBody, signature) {

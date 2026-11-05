@@ -5,6 +5,7 @@ import type {
   BillingProfile,
   BillingStripe,
   CancelState,
+  CheckoutSessionInfo,
   EventClaim,
   PriceInfo,
   ProfileStore,
@@ -61,7 +62,9 @@ export class FakeProfileStore implements ProfileStore {
   consent = new Map<string, Date>();
 
   async recordServiceConsent(userId: string, at: Date): Promise<void> {
-    if (this.rows.has(userId) && !this.consent.has(userId)) this.consent.set(userId, at);
+    const current = this.consent.get(userId);
+    if (this.rows.has(userId) && (!current || current.getTime() < at.getTime()))
+      this.consent.set(userId, at);
   }
 
   async findUserIdByCustomerId(customerId: string): Promise<string | null> {
@@ -105,6 +108,7 @@ export class FakeProfileStore implements ProfileStore {
               id: r.id,
               trialEnd: new Date(r.patch.trial_end),
               cancelAtPeriodEnd: r.patch.cancel_at_period_end ?? false,
+              subscriptionId: r.patch.stripe_subscription_id ?? null,
             },
           ]
         : [],
@@ -174,10 +178,7 @@ export class FakeStripe implements BillingStripe {
     return { url: this.checkoutUrl };
   }
 
-  sessions = new Map<
-    string,
-    { clientReferenceId: string | null; customerId: string | null; subscriptionId: string | null }
-  >();
+  sessions = new Map<string, CheckoutSessionInfo>();
 
   async getCheckoutSession(sessionId: string) {
     return this.sessions.get(sessionId) ?? null;
@@ -195,6 +196,21 @@ export class FakeStripe implements BillingStripe {
       status: "trialing",
       accessUntil: "2026-10-20T10:00:00.000Z",
     };
+  }
+
+  canceledNow: string[] = [];
+
+  async cancelNow(subscriptionId: string): Promise<void> {
+    this.canceledNow.push(subscriptionId);
+  }
+
+  /** Next-invoice totals by subscription id, tax included (10.5). Missing means no preview. */
+  previews = new Map<string, { total: number; currency: string }>();
+  previewCalls: string[] = [];
+
+  async previewNextInvoiceTotal(subscriptionId: string) {
+    this.previewCalls.push(subscriptionId);
+    return this.previews.get(subscriptionId) ?? null;
   }
 
   verifyWebhook(rawBody: string, signature: string): Stripe.Event {

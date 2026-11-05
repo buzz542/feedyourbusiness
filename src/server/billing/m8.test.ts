@@ -70,7 +70,7 @@ describe("consent before checkout", () => {
     expect(stripe.checkoutCalls).toHaveLength(0);
   });
 
-  it("has the webhook write service_consent_at once", async () => {
+  it("has the webhook write service_consent_at, never moving it back", async () => {
     const sub = {
       id: "sub_1",
       customer: "cus_1",
@@ -89,11 +89,19 @@ describe("consent before checkout", () => {
         data: { object: sub },
       }) as unknown as Stripe.Event;
     await handleStripeEvent(event("evt_1", 1), { stripe, store });
-    await handleStripeEvent(event("evt_2", 2), {
-      stripe,
-      store,
-    });
     expect(store.consent.get("user-1")).toEqual(NOW);
+
+    // A redelivered event from an older contract never moves the record back.
+    const earlier = new Date(NOW.getTime() - 86_400_000);
+    sub.metadata.service_consent_at = earlier.toISOString();
+    await handleStripeEvent(event("evt_2", 2), { stripe, store });
+    expect(store.consent.get("user-1")).toEqual(NOW);
+
+    // A new subscription after a lapse carries a new consent, which is the one that counts.
+    const later = new Date(NOW.getTime() + 30 * 86_400_000);
+    sub.metadata.service_consent_at = later.toISOString();
+    await handleStripeEvent(event("evt_3", 3), { stripe, store });
+    expect(store.consent.get("user-1")).toEqual(later);
   });
 });
 
@@ -103,6 +111,8 @@ describe("welcome step", () => {
       clientReferenceId: "user-1",
       customerId: "cus_1",
       subscriptionId: "sub_1",
+      status: "complete",
+      created: new Date(NOW.getTime() - 5 * 60_000),
     });
     stripe.subscriptions.set("sub_1", {
       id: "sub_1",
@@ -116,9 +126,7 @@ describe("welcome step", () => {
   });
 
   it("lands a just-paid user on Reply before the webhook arrives, and refuses a second checkout", async () => {
-    expect(await applyWelcome({ stripe, store, now: () => NOW }, "user-1", SESSION)).toBe(
-      "applied",
-    );
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("applied");
     const profile = await store.getBillingProfile("user-1");
     expect(profile?.subscriptionStatus).toBe("trialing");
     expect(
@@ -139,14 +147,77 @@ describe("welcome step", () => {
     expect(second.status).toBe(409);
   });
 
+  it("applies nothing for a session that is not complete", async () => {
+    stripe.sessions.set(SESSION, { ...stripe.sessions.get(SESSION)!, status: "open" });
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("pending");
+    expect((await store.getBillingProfile("user-1"))?.subscriptionStatus ?? null).toBeNull();
+  });
+
+  it("an old session replayed from a bookmark never overwrites a newer subscription", async () => {
+    // The user's current subscription is sub_2; cs_A created sub_1, which has since ended.
+    store.addUser("user-1", {
+      subscription_status: "trialing",
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_2",
+    });
+    stripe.subscriptions.set("sub_1", {
+      ...stripe.subscriptions.get("sub_1")!,
+      status: "canceled",
+    });
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("stale");
+    const profile = await store.getBillingProfile("user-1");
+    expect(profile).toMatchObject({
+      stripeSubscriptionId: "sub_2",
+      subscriptionStatus: "trialing",
+    });
+  });
+
+  it("is stamped with Stripe's session time, so a webhook that arrives after it still applies", async () => {
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("applied");
+    // Stripe's event for the subscription is created after the session (but before our clock).
+    stripe.subscriptions.set("sub_1", {
+      ...stripe.subscriptions.get("sub_1")!,
+      cancel_at_period_end: true,
+    });
+    const created = Math.floor((NOW.getTime() - 4 * 60_000) / 1000);
+    await handleStripeEvent(
+      {
+        id: "evt_after",
+        type: "customer.subscription.updated",
+        created,
+        data: { object: stripe.subscriptions.get("sub_1") },
+      } as unknown as Stripe.Event,
+      { stripe, store },
+    );
+    expect(store.row("user-1").cancel_at_period_end).toBe(true);
+  });
+
+  it("a webhook that arrived first is never overwritten by the welcome step", async () => {
+    stripe.subscriptions.set("sub_1", {
+      ...stripe.subscriptions.get("sub_1")!,
+      cancel_at_period_end: true,
+    });
+    await handleStripeEvent(
+      {
+        id: "evt_first",
+        type: "customer.subscription.updated",
+        created: Math.floor((NOW.getTime() - 60_000) / 1000),
+        data: { object: stripe.subscriptions.get("sub_1") },
+      } as unknown as Stripe.Event,
+      { stripe, store },
+    );
+    stripe.subscriptions.set("sub_1", {
+      ...stripe.subscriptions.get("sub_1")!,
+      cancel_at_period_end: false,
+    });
+    expect(await applyWelcome({ stripe, store }, "user-1", SESSION)).toBe("stale");
+    expect(store.row("user-1").cancel_at_period_end).toBe(true);
+  });
+
   it("applies nothing for another user's session or a malformed id", async () => {
     store.addUser("user-2");
-    expect(await applyWelcome({ stripe, store, now: () => NOW }, "user-2", SESSION)).toBe(
-      "mismatch",
-    );
-    expect(await applyWelcome({ stripe, store, now: () => NOW }, "user-1", "not-a-session")).toBe(
-      "invalid",
-    );
+    expect(await applyWelcome({ stripe, store }, "user-2", SESSION)).toBe("mismatch");
+    expect(await applyWelcome({ stripe, store }, "user-1", "not-a-session")).toBe("invalid");
     expect((await store.getBillingProfile("user-2"))?.subscriptionStatus ?? null).toBeNull();
   });
 });

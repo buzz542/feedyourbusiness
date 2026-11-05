@@ -4,8 +4,7 @@ import { BillingOffer } from "@/components/app/billing-offer";
 import { loadAccount } from "@/server/auth/account";
 import { nextStepFor } from "@/server/auth/next-step";
 import { requireAppUser } from "@/server/auth/session";
-import { getBillingDeps } from "@/server/billing/deps";
-import type { PriceInfo } from "@/server/billing/ports";
+import { loadPlanPrice } from "@/server/billing/plan-load";
 import { startCheckout } from "./actions";
 
 export const metadata: Metadata = { title: "Start your trial" };
@@ -20,13 +19,7 @@ export default async function BillingPage({
   const user = await requireAppUser("/app/billing");
   const step = nextStepFor(await loadAccount(user.id));
   if (step !== "/app/billing") redirect(step);
-  let price: PriceInfo | null = null;
-  try {
-    const deps = getBillingDeps();
-    price = await deps.stripe.getPrice(deps.config.priceId);
-  } catch {
-    price = null;
-  }
+  const price = await loadPlanPrice();
   const canceled = (await searchParams).checkout === "canceled";
   return (
     <>

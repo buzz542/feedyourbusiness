@@ -120,6 +120,19 @@ export async function runTrialReminders(args: {
     // Without the real amount we must not send a reminder that omits the price.
     return { ...result, failed: due.length };
   }
+  const { unitAmount, interval } = price;
+
+  /**
+   * The full amount of the first charge, tax included where it applies (10.5): the price itself
+   * when it is tax-inclusive, otherwise the total of Stripe's invoice preview for the subscription.
+   * Null when it cannot be known, and then no reminder is sent: one without the amount would not do.
+   */
+  async function chargeAmount(profile: TrialingProfile) {
+    if (price.taxBehavior === "inclusive") return { unitAmount, currency: price.currency };
+    if (!profile.subscriptionId) return null;
+    const preview = await stripe.previewNextInvoiceTotal(profile.subscriptionId);
+    return preview ? { unitAmount: preview.total, currency: preview.currency } : null;
+  }
 
   for (const [index, profile] of due.entries()) {
     if (elapsedMs() > budgetMs) {
@@ -134,12 +147,13 @@ export async function runTrialReminders(args: {
     try {
       const to = await getEmail(profile.id);
       if (!to) throw new Error("no email address");
+      const amount = await chargeAmount(profile);
+      if (!amount) throw new Error("no full amount");
       const email = renderTrialReminder({
         chargeDate: profile.trialEnd,
         price: {
-          unitAmount: price.unitAmount,
-          currency: price.currency,
-          interval: price.interval,
+          ...amount,
+          interval,
           intervalCount: price.intervalCount ?? 1,
         },
         settingsUrl: `${config.siteUrl}${BILLING_PATHS.settings}`,

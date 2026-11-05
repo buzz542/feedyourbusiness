@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { assertDevSupabase, assertLocalBaseUrl, e2eSkipReason, isLocalRequestUrl } from "./guard";
+import {
+  assertDevSupabase,
+  assertLocalBaseUrl,
+  billingE2eSkipReason,
+  e2eSkipReason,
+  isLocalRequestUrl,
+} from "./guard";
 
 /** E2E runs against localhost only (CLAUDE.md, .claude/rules/testing.md) and never production data. */
 
@@ -91,5 +97,35 @@ describe("e2eSkipReason", () => {
 
   it("explains a skip with the placeholder keys from .env.example", () => {
     expect(e2eSkipReason({ ...full, SUPABASE_SECRET_KEY: "sb_secret_replace_me" })).toMatch(/F12/);
+  });
+});
+
+describe("billingE2eSkipReason", () => {
+  const dev = {
+    SUPABASE_SECRET_KEY: "sb_secret_x",
+    NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+  };
+  const stripe = {
+    STRIPE_SECRET_KEY: "sk_test_abc",
+    STRIPE_WEBHOOK_SECRET: "whsec_abc",
+    STRIPE_PRICE_ID: "price_abc",
+  };
+
+  it("runs with the development project and Stripe test keys", () => {
+    expect(billingE2eSkipReason({ ...dev, ...stripe })).toBeNull();
+  });
+
+  it("skips without Stripe test keys or the development project", () => {
+    expect(billingE2eSkipReason({ ...dev })).toMatch(/STRIPE_SECRET_KEY/);
+    expect(billingE2eSkipReason({ ...dev, ...stripe, STRIPE_PRICE_ID: "" })).toMatch(/PRICE/);
+    expect(billingE2eSkipReason({ ...stripe })).toMatch(/SUPABASE_SECRET_KEY/);
+  });
+
+  it("refuses a live key outright", () => {
+    for (const key of ["sk_live_abc", "rk_live_abc"])
+      expect(() => billingE2eSkipReason({ ...dev, ...stripe, STRIPE_SECRET_KEY: key })).toThrow(
+        /live/,
+      );
   });
 });

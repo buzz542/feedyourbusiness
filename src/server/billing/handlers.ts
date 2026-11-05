@@ -69,15 +69,16 @@ export function createCheckoutHandler(deps: BillingDeps): Handler {
       if (hasLiveSubscription(profile?.subscriptionStatus)) {
         return json(409, { error: "subscription_exists" });
       }
-      // The consent box on /app/billing (10.2): checkout starts only with it ticked.
-      const body = (await request.text().catch(() => "")).slice(0, 1024);
-      let consent = false;
+      // The consent box on /app/billing (10.2): checkout starts only with it checked.
+      const text = await readBodyText(request, 1_000);
+      if (text === null) return json(413, { error: "payload_too_large" });
+      let body: unknown = null;
       try {
-        consent = (JSON.parse(body) as { consent?: unknown })?.consent === true;
+        body = JSON.parse(text);
       } catch {
-        consent = false;
+        /* falls through to the schema check, which rejects null */
       }
-      if (!consent) return json(400, { error: "consent_required" });
+      if (!checkoutBody.safeParse(body).success) return json(400, { error: "consent_required" });
       const { url } = await createCheckoutSession({
         consentAt: deps.now?.() ?? new Date(),
         stripe: deps.stripe,
@@ -111,6 +112,7 @@ export function createPortalHandler(deps: BillingDeps): Handler {
 }
 
 const cancelBody = z.object({ action: z.enum(["cancel", "resume"]) });
+const checkoutBody = z.object({ consent: z.literal(true) });
 
 /** Two-click cancellation: the Settings page posts here after one confirmation click. */
 export function createCancelHandler(deps: BillingDeps): Handler {

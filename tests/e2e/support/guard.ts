@@ -56,3 +56,18 @@ export function e2eSkipReason(env: Env): string | null {
     return "the development project's URL and publishable key are not set (docs/PLAN.md F12)";
   return null;
 }
+
+/**
+ * Null when the billing E2E can run: the development project, plus Stripe in test mode. A live key
+ * is refused outright (docs/BILLING.md: the session never uses live keys).
+ */
+export function billingE2eSkipReason(env: Env): string | null {
+  const base = e2eSkipReason(env);
+  if (base) return base;
+  const key = env.STRIPE_SECRET_KEY ?? "";
+  if (/_live_/.test(key)) throw new Error("E2E refuses a live Stripe key");
+  if (!/^(sk|rk)_test_/.test(key)) return "STRIPE_SECRET_KEY (test mode) is not set (F11, F12)";
+  if (!usable(env.STRIPE_WEBHOOK_SECRET)) return "STRIPE_WEBHOOK_SECRET is not set (F11, F12)";
+  if (!usable(env.STRIPE_PRICE_ID)) return "STRIPE_PRICE_ID is not set (F11, F12)";
+  return null;
+}

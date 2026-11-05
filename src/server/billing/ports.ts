@@ -38,6 +38,8 @@ export interface TrialingProfile {
   id: string;
   trialEnd: Date;
   cancelAtPeriodEnd: boolean;
+  /** For the invoice preview when the price is not tax-inclusive (10.5). */
+  subscriptionId: string | null;
 }
 
 export type EventClaim = "new" | "retry" | "duplicate";
@@ -53,7 +55,10 @@ export interface ProfileStore {
   /** Atomically mark the reminder as sent. False if another run already claimed it. */
   claimTrialReminder(userId: string, now: Date): Promise<boolean>;
   releaseTrialReminder(userId: string): Promise<void>;
-  /** Writes service_consent_at once (10.2); a later consent never moves it. */
+  /**
+   * Writes service_consent_at (10.2) when there is none or `at` is later: the record is the consent
+   * for the current contract, and an older one never replaces it.
+   */
   recordServiceConsent(userId: string, at: Date): Promise<void>;
 }
 
@@ -81,6 +86,16 @@ export interface WebhookEndpointInfo {
   enabledEvents: readonly string[];
 }
 
+export interface CheckoutSessionInfo {
+  clientReferenceId: string | null;
+  customerId: string | null;
+  subscriptionId: string | null;
+  /** "complete" once the customer has paid or started the trial. */
+  status: "open" | "complete" | "expired" | null;
+  /** When Stripe created the session (its own clock). */
+  created: Date;
+}
+
 export interface BillingStripe {
   getPrice(priceId: string): Promise<PriceInfo>;
   listWebhookEndpoints(): Promise<WebhookEndpointInfo[]>;
@@ -93,12 +108,17 @@ export interface BillingStripe {
   ): Promise<{ url: string | null }>;
   createPortalSession(args: { customerId: string; returnUrl: string }): Promise<{ url: string }>;
   /** A Checkout Session, for the welcome step (7.3), or null when Stripe has no such session. */
-  getCheckoutSession(sessionId: string): Promise<{
-    clientReferenceId: string | null;
-    customerId: string | null;
-    subscriptionId: string | null;
-  } | null>;
+  getCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null>;
   setCancelAtPeriodEnd(subscriptionId: string, cancel: boolean): Promise<CancelState>;
+  /** Cancel at once, for account deletion (10.6). Succeeds when it has already ended. */
+  cancelNow(subscriptionId: string): Promise<void>;
+  /**
+   * The total of the subscription's next invoice, tax included, from Stripe's invoice preview
+   * (10.5), or null when Stripe cannot preview it. Smallest currency unit.
+   */
+  previewNextInvoiceTotal(
+    subscriptionId: string,
+  ): Promise<{ total: number; currency: string } | null>;
   /** Verify the signature and parse the event. Throws if the signature is invalid. */
   verifyWebhook(rawBody: string, signature: string): Stripe.Event;
 }

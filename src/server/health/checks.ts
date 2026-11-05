@@ -174,6 +174,10 @@ async function checkStripePrice(
     if (!price.active || price.unitAmount == null || !price.interval) {
       return { status: "invalid", detail: "STRIPE_PRICE_ID must be an active recurring price" };
     }
+    if (price.taxBehavior !== "inclusive") {
+      // Checkout and /app/billing refuse it: the price shown must be the full price (10.1).
+      return { status: "invalid", detail: "STRIPE_PRICE_ID must be tax-inclusive" };
+    }
     const every = `${price.intervalCount ?? 1} ${price.interval}`;
     return { status: "ok", detail: `${price.unitAmount} ${price.currency} every ${every}` };
   }, timeoutMs);

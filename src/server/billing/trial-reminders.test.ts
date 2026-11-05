@@ -57,6 +57,7 @@ describe("selectDueReminders", () => {
     id: `u-${hoursLeft}`,
     trialEnd: new Date(now.getTime() + hoursLeft * HOUR),
     cancelAtPeriodEnd,
+    subscriptionId: null,
   });
 
   it("is due once the charge is within the window", () => {
@@ -386,6 +387,34 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
 
     expect(result.failed).toBe(1);
     expect(mailer.sent).toEqual([]);
+  });
+
+  it("with a tax-exclusive price, the email states Stripe's invoice preview total (10.5)", async () => {
+    stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
+    const subscriptionId = store.row("user-1").stripe_subscription_id!;
+    stripe.previews.set(subscriptionId, { total: 3480, currency: "usd" });
+    await runHourly(9 * 24);
+
+    expect(stripe.previewCalls).toContain(subscriptionId);
+    expect(mailer.sent).toHaveLength(1);
+    expect(mailer.sent[0]!.text).toContain("$34.80");
+    expect(mailer.sent[0]!.text).not.toContain("$29.00");
+    expect(mailer.sent[0]!.text).toContain("tax included");
+  });
+
+  it("with a tax-inclusive price, the price is the full amount and no preview is needed", async () => {
+    await runHourly(9 * 24);
+    expect(stripe.previewCalls).toEqual([]);
+    expect(mailer.sent[0]!.text).toContain("$29.00");
+  });
+
+  it("never sends a reminder without the full amount: no preview, no email, retried next run", async () => {
+    stripe.price = { ...stripe.price, taxBehavior: "exclusive" };
+    const result = await tick(new Date(chargeAt - 51.5 * HOUR));
+
+    expect(result.failed).toBe(1);
+    expect(mailer.sent).toEqual([]);
+    expect(store.row("user-1").trialReminderSentAt).toBeNull();
   });
 
   it("releases the claim when the user has no email address, so it can be retried", async () => {
