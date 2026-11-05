@@ -313,3 +313,33 @@ export const bluesky: CollectSource = {
   start,
   checkDeleted,
 };
+
+const ResolveHandleResponse = z.object({ did: z.string().regex(DID) });
+const HANDLE = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?)+$/;
+
+/**
+ * For the removal form (docs/PLAN.md 4.8): a Bluesky handle to its DID, the stable id the author
+ * hash is made from. `com.atproto.identity.resolveHandle` on this source's own host, unauthenticated,
+ * read-only. Null when the handle does not resolve. `sourceFetch` is this source's bound fetch.
+ */
+export async function resolveBlueskyHandle(
+  sourceFetch: CollectContext["fetch"],
+  userAgent: string,
+  handle: string,
+): Promise<string | null> {
+  const name = handle.trim().toLowerCase().replace(/^@/, "");
+  if (!HANDLE.test(name)) return null;
+  const response = await sourceFetch(
+    `${XRPC}/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(name)}`,
+    { headers: { "user-agent": userAgent, accept: "application/json" } },
+  );
+  if (response.status === 400 || response.status === 404) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.ok)
+    throw Object.assign(new Error("lookup failed"), { name: `Http${response.status}` });
+  const parsed = ResolveHandleResponse.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw Object.assign(new Error("unreadable"), { name: "UnreadableResponse" });
+  return parsed.data.did;
+}

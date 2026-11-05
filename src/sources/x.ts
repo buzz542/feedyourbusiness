@@ -203,3 +203,37 @@ export function createXSource(options: { deletionComplianceReady: boolean }): Co
 
 /** Deletion compliance is built: checkDeleted looks stored posts up by id (tested in x.test.ts). */
 export const x: CollectSource = createXSource({ deletionComplianceReady: true });
+
+const UserLookup = z.object({ data: z.object({ id: z.string().regex(/^\d{1,20}$/) }).optional() });
+const USERNAME = /^[A-Za-z0-9_]{1,15}$/;
+
+/**
+ * For the removal form (docs/PLAN.md 4.8): an X username to its user id, the stable id the author
+ * hash is made from. `GET /2/users/by/username/:username` on this source's own host with the app's
+ * bearer token, read-only. Null when there is no such user. `sourceFetch` is this source's bound fetch.
+ */
+export async function resolveXUsername(
+  sourceFetch: CollectContext["fetch"],
+  token: string,
+  userAgent: string,
+  username: string,
+): Promise<string | null> {
+  const name = username.trim().replace(/^@/, "");
+  if (!USERNAME.test(name)) return null;
+  const response = await sourceFetch(`https://api.x.com/2/users/by/username/${name}`, {
+    headers: {
+      authorization: `Bearer ${token}`,
+      "user-agent": userAgent,
+      accept: "application/json",
+    },
+  });
+  if (response.status === 404) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.ok)
+    throw Object.assign(new Error("lookup failed"), { name: `Http${response.status}` });
+  const parsed = UserLookup.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw Object.assign(new Error("unreadable"), { name: "UnreadableResponse" });
+  return parsed.data.data?.id ?? null;
+}

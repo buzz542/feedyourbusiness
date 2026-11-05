@@ -460,10 +460,13 @@ export type Database = {
         Row: {
           contact_email: string
           created_at: string
+          details: string | null
           due_at: string
           handled_at: string | null
           id: string
+          ip_hash: string | null
           link_or_handle: string
+          source: string | null
           status: string
           target_at: string
           updated_at: string
@@ -471,10 +474,13 @@ export type Database = {
         Insert: {
           contact_email: string
           created_at?: string
+          details?: string | null
           due_at?: string
           handled_at?: string | null
           id?: string
+          ip_hash?: string | null
           link_or_handle: string
+          source?: string | null
           status?: string
           target_at?: string
           updated_at?: string
@@ -482,10 +488,13 @@ export type Database = {
         Update: {
           contact_email?: string
           created_at?: string
+          details?: string | null
           due_at?: string
           handled_at?: string | null
           id?: string
+          ip_hash?: string | null
           link_or_handle?: string
+          source?: string | null
           status?: string
           target_at?: string
           updated_at?: string
@@ -670,6 +679,33 @@ export type Database = {
       }
     }
     Functions: {
+      close_removal_request: {
+        Args: { p_actor: string; p_now: string; p_request_id: string; p_status: string }
+        Returns: undefined
+      }
+      remove_and_suppress: {
+        Args: {
+          p_actor: string
+          p_author_hash: string
+          p_external_id?: string
+          p_now: string
+          p_request_id: string
+          p_source: string
+        }
+        Returns: number
+      }
+      submit_removal_request: {
+        Args: {
+          p_contact_email: string
+          p_daily_limit: number
+          p_details: string
+          p_ip_hash: string
+          p_link_or_handle: string
+          p_now: string
+          p_source: string
+        }
+        Returns: string | null
+      }
       apply_billing_patch: {
         Args: { p_event_at: string; p_patch: Json; p_user_id: string }
         Returns: boolean
