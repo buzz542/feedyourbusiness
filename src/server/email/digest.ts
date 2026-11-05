@@ -8,11 +8,11 @@ import { listUnsubscribeHeaders, unsubscribeToken, unsubscribeUrl } from "./unsu
 
 /**
  * The daily posts email and the first run's "feed ready" email (docs/PLAN.md 7.3, 11), as
- * `digest_daily` jobs. Each is sent once: the job records its send in the database just before
- * sending (claim, then send, as the trial reminders do), so another run of the same job never
- * sends again whatever its attempt count; a failed send releases the record and is retried with
- * the same idempotency key, so the provider never delivers it twice either. A daily email whose
- * London day has passed ends unsent.
+ * `digest_daily` jobs. Each is sent once: the job records when its first send began, in the
+ * database, before sending; every attempt sends with the same Resend idempotency key, so a retry
+ * after a crash, a timeout or an error delivers nothing twice. A retry is made only while the key
+ * still holds (23 hours, inside Resend's 24): after that the email is given up rather than risk a
+ * second copy. A daily email whose London day has passed ends unsent.
  */
 
 export interface DigestPostRow {
@@ -35,10 +35,12 @@ export interface DigestStore {
   categoryCounts(productId: string): Promise<{ category: FeedCategory; count: number }[]>;
   /** True while any first-run job for the product is still to finish. */
   firstRunPending(productId: string): Promise<boolean>;
-  /** Record that this job's email is being sent. False when it already was. */
-  claimSend(jobId: string): Promise<boolean>;
-  /** Undo the record after a send that failed, so the retry may send. */
-  releaseSend(jobId: string): Promise<void>;
+  /**
+   * Record that this job's email is being sent, if no record exists, and return when the first
+   * attempt began. The record outlives a crash, so a retry knows whether the provider's
+   * idempotency key still covers it.
+   */
+  claimSend(jobId: string, now: Date): Promise<Date>;
 }
 
 export interface DigestDeps {
@@ -50,6 +52,34 @@ export interface DigestDeps {
 }
 
 const TOP = 5;
+/** Resend keeps an idempotency key for 24 hours; retry only well inside that. */
+const KEY_HOLDS_MS = 23 * 3_600_000;
+/** One send may take this long, so the run's deadline is never reached mid-send. */
+const SEND_TIMEOUT_MS = 15_000;
+
+class SendTimeoutError extends Error {
+  override name = "SendTimeoutError";
+}
+
+async function sendWithin(send: () => Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      send(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new SendTimeoutError()), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The key was used before with another body (a re-rendered retry): the first one went out. */
+const alreadySent = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  (error as { code?: unknown }).code === "invalid_idempotent_request";
 const DAY_MS = 24 * 3_600_000;
 const WAIT_MS = 2 * 60_000;
 
@@ -117,14 +147,26 @@ export function createDigestHandler(deps: DigestDeps): JobHandler {
       };
     }
 
-    // Claim, then send.
-    if (!(await deps.store.claimSend(job.id)))
+    // Record the first attempt, then send with the job's key; retry only while the key holds.
+    const firstAttempt = await deps.store.claimSend(job.id, now());
+    if (now().getTime() - firstAttempt.getTime() > KEY_HOLDS_MS)
       return { status: "done", payload: { result: "not_resent" } };
+    const send = () =>
+      sendWithin(
+        () => mailer.send({ to: to.email!, ...message, idempotencyKey: `digest:${job.id}` }),
+        SEND_TIMEOUT_MS,
+      );
     try {
-      await mailer.send({ to: to.email, ...message, idempotencyKey: `digest:${job.id}` });
+      await send();
     } catch (error) {
-      await deps.store.releaseSend(job.id);
-      throw error;
+      if (alreadySent(error)) return { status: "done", payload: { result: "sent" } };
+      // One more try at once: on Hobby the next run is a day away, past the London day.
+      try {
+        await send();
+      } catch (again) {
+        if (alreadySent(again)) return { status: "done", payload: { result: "sent" } };
+        throw again;
+      }
     }
     return { status: "done", payload: { result: "sent" } };
   };

@@ -19,8 +19,8 @@ const claim = (key: string, at: Date) =>
     async () =>
       (
         await db.query(
-          `insert into public.jobs (kind, product_id, status, dedupe_key, payload, finished_at)
-         values ('digest_daily', null, 'done', $1, '{"send_record": true}', $2)
+          `insert into public.jobs (kind, product_id, status, dedupe_key, payload, run_after, finished_at)
+         values ('digest_daily', null, 'done', $1, '{"send_record": true}', $2, $2)
          on conflict (dedupe_key) do nothing returning id`,
           [key, at.toISOString()],
         )
@@ -35,10 +35,14 @@ afterAll(async () => db?.close());
 describe("send record", () => {
   const now = new Date("2026-11-05T06:00:00Z");
 
-  it("is written once: a second claim for the same job does nothing", async () => {
+  it("is written once and keeps the first attempt's time", async () => {
     expect(await claim("sent:job-1", now)).toBe(1);
-    expect(await claim("sent:job-1", now)).toBe(0);
+    expect(await claim("sent:job-1", new Date(now.getTime() + 3_600_000))).toBe(0);
     expect(await claim("sent:job-2", now)).toBe(1);
+    const first = await db.query<{ finished_at: Date }>(
+      "select finished_at from public.jobs where dedupe_key = 'sent:job-1'",
+    );
+    expect(new Date(first.rows[0]!.finished_at).toISOString()).toBe(now.toISOString());
   });
 
   it("is never claimed as work", async () => {
@@ -52,11 +56,14 @@ describe("send record", () => {
     expect(claimed).toEqual([]);
   });
 
-  it("can be released, so a failed send is retried", async () => {
+  it("survives the purge for 30 days", async () => {
     await withRole(db, "service_role", null, () =>
-      db.query("delete from public.jobs where dedupe_key = 'sent:job-2'"),
+      db.query("select public.purge_expired($1)", [
+        new Date(now.getTime() + 29 * DAY).toISOString(),
+      ]),
     );
-    expect(await claim("sent:job-2", now)).toBe(1);
+    const left = await db.query("select id from public.jobs where dedupe_key like 'sent:%'");
+    expect(left.rows).toHaveLength(2);
   });
 
   it("is invisible and unwritable to API roles", async () => {

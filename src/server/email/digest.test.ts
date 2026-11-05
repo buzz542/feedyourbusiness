@@ -27,6 +27,7 @@ const EXCERPT = "Is there a tool that chases unpaid invoices for freelancers?";
 class Outbox implements Mailer {
   sent: Parameters<Mailer["send"]>[0][] = [];
   keys = new Set<string>();
+  bodies = new Map<string, string>();
   failAfterSend = false;
   failBeforeSend = 0;
   async send(message: Parameters<Mailer["send"]>[0]) {
@@ -35,8 +36,14 @@ class Outbox implements Mailer {
       throw new Error("provider unavailable");
     }
     const key = message.idempotencyKey;
+    // Resend answers 409 when a key is reused with a different body.
+    if (key && this.bodies.has(key) && this.bodies.get(key) !== message.text)
+      throw Object.assign(new Error("409"), { code: "invalid_idempotent_request" });
     if (!key || !this.keys.has(key)) this.sent.push(message);
-    if (key) this.keys.add(key);
+    if (key) {
+      this.keys.add(key);
+      this.bodies.set(key, message.text);
+    }
     if (this.failAfterSend) {
       this.failAfterSend = false;
       throw new Error("connection reset after the send");
@@ -44,18 +51,14 @@ class Outbox implements Mailer {
   }
 }
 
-/** The send records, as the jobs table holds them (one finished row per key). */
+/** The send records, as the jobs table holds them: the first attempt's time per job. */
 function sendLedger() {
-  const keys = new Set<string>();
+  const first = new Map<string, Date>();
   return {
-    keys,
-    claimSend: async (jobId: string) => {
-      if (keys.has(jobId)) return false;
-      keys.add(jobId);
-      return true;
-    },
-    releaseSend: async (jobId: string) => {
-      keys.delete(jobId);
+    first,
+    claimSend: async (jobId: string, now: Date) => {
+      if (!first.has(jobId)) first.set(jobId, now);
+      return first.get(jobId)!;
     },
   };
 }
@@ -207,7 +210,7 @@ describe("daily posts email", () => {
     expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "sent" } });
   });
 
-  it("is not lost when the provider fails before sending: the next attempt sends it", async () => {
+  it("is not lost when the provider fails once: it is tried again at once", async () => {
     const outbox = new Outbox();
     outbox.failBeforeSend = 1;
     const { jobs } = await runDigest(store({}, [post]), outbox);
@@ -215,34 +218,72 @@ describe("daily posts email", () => {
     expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "sent" } });
   });
 
-  it("is sent at most once per job whatever its attempt count says (a job handed back, a retry)", async () => {
-    const s = store({}, [post]);
-    const outbox = new Outbox();
-    const handler = createDigestHandler({
+  const job = {
+    id: "job-x",
+    kind: "digest_daily" as const,
+    productId: PRODUCT,
+    source: null,
+    status: "running" as const,
+    payload: { email: "daily", day: "2026-11-02" },
+    attempts: 1,
+    runAfter: NOW,
+  };
+  const at = (ms: number) => ({ now: () => new Date(ms), deadline: Number.MAX_SAFE_INTEGER });
+  const handlerFor = (s: DigestStore, outbox: Outbox) =>
+    createDigestHandler({
       store: s,
       mailer: () => outbox,
       siteUrl: () => "https://askedfor.app",
       secret: () => SECRET,
     });
-    const job = {
-      id: "job-x",
-      kind: "digest_daily" as const,
-      productId: PRODUCT,
-      source: null,
-      status: "running" as const,
-      payload: { email: "daily", day: "2026-11-02" },
-      attempts: 1,
-      runAfter: NOW,
-    };
-    const ctx = { now: () => NOW, deadline: Number.MAX_SAFE_INTEGER };
-    expect(await handler(job, ctx)).toMatchObject({ status: "done", payload: { result: "sent" } });
-    // The same job again, with an attempt count that drifted: the send record says no.
-    outbox.keys.clear();
-    for (const attempts of [1, 2, 5])
-      expect(await handler({ ...job, attempts }, ctx)).toMatchObject({
-        payload: { result: "not_resent" },
-      });
+
+  it("a crash after the record but before the provider got it is sent on the retry, once", async () => {
+    const s = store({}, [post]);
+    const outbox = new Outbox();
+    const handler = handlerFor(s, outbox);
+    // The first attempt recorded itself, then the function died before Resend answered.
+    await s.claimSend(job.id, NOW);
+    expect(await handler({ ...job, attempts: 2 }, at(NOW.getTime() + 600_000))).toMatchObject({
+      payload: { result: "sent" },
+    });
+    // Another run of the same job: the same key, so the provider sends nothing new.
+    expect(await handler({ ...job, attempts: 5 }, at(NOW.getTime() + 600_000))).toMatchObject({
+      payload: { result: "sent" },
+    });
     expect(outbox.sent).toHaveLength(1);
+  });
+
+  it("a re-rendered retry the provider refuses as a reused key counts as sent", async () => {
+    const s = store({}, [post]);
+    const outbox = new Outbox();
+    const handler = handlerFor(s, outbox);
+    await handler(job, at(NOW.getTime()));
+    // Two hours later the ages differ, so the body differs: Resend answers 409.
+    expect(await handler(job, at(NOW.getTime() + 2 * 3_600_000))).toMatchObject({
+      payload: { result: "sent" },
+    });
+    expect(outbox.sent).toHaveLength(1);
+  });
+
+  it("gives up rather than risk a second copy once the key no longer holds", async () => {
+    const s = store({}, [post]);
+    const outbox = new Outbox();
+    await s.claimSend("job-feed", NOW);
+    const feed = { ...job, id: "job-feed", payload: { email: "feed_ready" } };
+    expect(await handlerFor(s, outbox)(feed, at(NOW.getTime() + 24 * 3_600_000))).toMatchObject({
+      payload: { result: "not_resent" },
+    });
+    expect(outbox.sent).toHaveLength(0);
+  });
+
+  it.each([
+    ["2026-07-01", "2026-07-01T23:30:00Z", "day_passed"],
+    ["2026-11-01", "2026-11-01T23:30:00Z", "sent"],
+  ])("a daily email for %s at %s: %s (London time)", async (day, now, result) => {
+    const handler = handlerFor(store({}, [post]), new Outbox());
+    expect(
+      await handler({ ...job, payload: { email: "daily", day } }, at(Date.parse(now))),
+    ).toMatchObject({ payload: { result } });
   });
 
   it("ends unsent once its London day has passed", async () => {

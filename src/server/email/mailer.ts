@@ -2,6 +2,14 @@ import "server-only";
 import { Resend } from "resend";
 import type { Mailer } from "@/server/billing/trial-reminders";
 
+/** Resend refused or failed the request; `code` is Resend's error name, never a message. */
+export class MailerSendError extends Error {
+  override name = "MailerSendError";
+  constructor(readonly code: string) {
+    super(`Resend rejected the message: ${code}`);
+  }
+}
+
 export class MailerNotConfiguredError extends Error {
   constructor() {
     super("RESEND_API_KEY and EMAIL_FROM must be set");
@@ -31,7 +39,7 @@ export function createResendMailer(env: Env = process.env): Mailer {
         },
         idempotencyKey ? { idempotencyKey } : undefined,
       );
-      if (error) throw new Error(`Resend rejected the message: ${error.name}`);
+      if (error) throw new MailerSendError(error.name);
     },
   };
 }
