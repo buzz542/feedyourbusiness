@@ -91,6 +91,32 @@ export function createSupabaseDigestStore(admin: AdminClient): DigestStore {
         counts.set(r.category as FeedCategory, (counts.get(r.category as FeedCategory) ?? 0) + 1);
       return [...counts].map(([category, count]) => ({ category, count }));
     },
+    /**
+     * The send record is a finished jobs row keyed `sent:<job id>`, inserted only if absent: the
+     * jobs table's unique dedupe key makes the claim atomic, and the purge drops it after 30 days.
+     */
+    async claimSend(jobId) {
+      const rows = must(
+        await admin
+          .from("jobs")
+          .upsert(
+            {
+              kind: "digest_daily",
+              product_id: null,
+              status: "done",
+              dedupe_key: `sent:${jobId}`,
+              payload: { send_record: true },
+              finished_at: new Date().toISOString(),
+            },
+            { onConflict: "dedupe_key", ignoreDuplicates: true },
+          )
+          .select("id"),
+      );
+      return (rows ?? []).length > 0;
+    },
+    async releaseSend(jobId) {
+      must(await admin.from("jobs").delete().eq("dedupe_key", `sent:${jobId}`));
+    },
     async firstRunPending(productId) {
       const rows = must(
         await admin

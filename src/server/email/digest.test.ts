@@ -23,17 +23,46 @@ const PRODUCT = "product-1";
 const NOW = new Date("2026-11-02T06:00:00Z");
 const EXCERPT = "Is there a tool that chases unpaid invoices for freelancers?";
 
+/** Like Resend: a repeated idempotency key within a day sends nothing new. */
 class Outbox implements Mailer {
   sent: Parameters<Mailer["send"]>[0][] = [];
+  keys = new Set<string>();
   failAfterSend = false;
+  failBeforeSend = 0;
   async send(message: Parameters<Mailer["send"]>[0]) {
-    this.sent.push(message);
-    if (this.failAfterSend) throw new Error("connection reset after the send");
+    if (this.failBeforeSend > 0) {
+      this.failBeforeSend--;
+      throw new Error("provider unavailable");
+    }
+    const key = message.idempotencyKey;
+    if (!key || !this.keys.has(key)) this.sent.push(message);
+    if (key) this.keys.add(key);
+    if (this.failAfterSend) {
+      this.failAfterSend = false;
+      throw new Error("connection reset after the send");
+    }
   }
+}
+
+/** The send records, as the jobs table holds them (one finished row per key). */
+function sendLedger() {
+  const keys = new Set<string>();
+  return {
+    keys,
+    claimSend: async (jobId: string) => {
+      if (keys.has(jobId)) return false;
+      keys.add(jobId);
+      return true;
+    },
+    releaseSend: async (jobId: string) => {
+      keys.delete(jobId);
+    },
+  };
 }
 
 function store(over: Partial<DigestStore> = {}, posts: DigestPostRow[] = []): DigestStore {
   return {
+    ...sendLedger(),
     recipient: async () => ({
       userId: USER,
       email: "maker@example.test",
@@ -172,8 +201,57 @@ describe("daily posts email", () => {
     const outbox = new Outbox();
     outbox.failAfterSend = true;
     const { jobs } = await runDigest(store({}, [post]), outbox);
+    // The retry carries the same idempotency key, so the provider sends nothing new.
     expect(outbox.sent).toHaveLength(1);
-    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "not_resent" } });
+    expect(outbox.sent[0]!.idempotencyKey).toBe(`digest:${jobs.jobs[0]!.id}`);
+    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "sent" } });
+  });
+
+  it("is not lost when the provider fails before sending: the next attempt sends it", async () => {
+    const outbox = new Outbox();
+    outbox.failBeforeSend = 1;
+    const { jobs } = await runDigest(store({}, [post]), outbox);
+    expect(outbox.sent).toHaveLength(1);
+    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "sent" } });
+  });
+
+  it("is sent at most once per job whatever its attempt count says (a job handed back, a retry)", async () => {
+    const s = store({}, [post]);
+    const outbox = new Outbox();
+    const handler = createDigestHandler({
+      store: s,
+      mailer: () => outbox,
+      siteUrl: () => "https://askedfor.app",
+      secret: () => SECRET,
+    });
+    const job = {
+      id: "job-x",
+      kind: "digest_daily" as const,
+      productId: PRODUCT,
+      source: null,
+      status: "running" as const,
+      payload: { email: "daily", day: "2026-11-02" },
+      attempts: 1,
+      runAfter: NOW,
+    };
+    const ctx = { now: () => NOW, deadline: Number.MAX_SAFE_INTEGER };
+    expect(await handler(job, ctx)).toMatchObject({ status: "done", payload: { result: "sent" } });
+    // The same job again, with an attempt count that drifted: the send record says no.
+    outbox.keys.clear();
+    for (const attempts of [1, 2, 5])
+      expect(await handler({ ...job, attempts }, ctx)).toMatchObject({
+        payload: { result: "not_resent" },
+      });
+    expect(outbox.sent).toHaveLength(1);
+  });
+
+  it("ends unsent once its London day has passed", async () => {
+    const { outbox, jobs } = await runDigest(store({}, [post]), new Outbox(), {
+      email: "daily",
+      day: "2026-11-01",
+    });
+    expect(outbox.sent).toHaveLength(0);
+    expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "day_passed" } });
   });
 
   it("renders no excerpt field at all", () => {

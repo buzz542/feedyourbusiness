@@ -71,7 +71,7 @@ export async function enqueueDaily(input: {
         source: null,
         dedupeKey: `digest_daily:${product}:${londonDate(input.now)}`,
         runAfter: digestRunAfter(input.now),
-        payload: { email: "daily" },
+        payload: { email: "daily", day: londonDate(input.now) },
       });
   if (input.kinds.has("purge"))
     jobs.push({

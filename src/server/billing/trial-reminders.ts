@@ -17,6 +17,8 @@ export interface Mailer {
     html: string;
     /** List-Unsubscribe and List-Unsubscribe-Post for the daily and weekly emails (11). */
     headers?: Record<string, string>;
+    /** The same key again within a day sends nothing new (Resend's Idempotency-Key). */
+    idempotencyKey?: string;
   }): Promise<void>;
 }
 
@@ -158,7 +160,9 @@ export async function runTrialReminders(args: {
         },
         settingsUrl: `${config.siteUrl}${BILLING_PATHS.settings}`,
       });
-      await withTimeout(mailer.send({ to, ...email }), sendTimeoutMs);
+      // A send that timed out after it went out is retried with the same key: sent once.
+      const idempotencyKey = `trial-reminder:${profile.id}:${profile.trialEnd.toISOString()}`;
+      await withTimeout(mailer.send({ to, ...email, idempotencyKey }), sendTimeoutMs);
       result.sent++;
     } catch {
       await store.releaseTrialReminder(profile.id);

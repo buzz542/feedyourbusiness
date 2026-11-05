@@ -3,12 +3,16 @@ import type { Mailer } from "@/server/billing/trial-reminders";
 import type { Job, JobHandler } from "@/server/pipeline/ports";
 import { CATEGORY_LABELS, SOURCE_LABELS } from "@/server/reply/tips";
 import type { FeedCategory } from "@/server/store/feed";
+import { londonDate } from "./schedule";
 import { listUnsubscribeHeaders, unsubscribeToken, unsubscribeUrl } from "./unsubscribe";
 
 /**
  * The daily posts email and the first run's "feed ready" email (docs/PLAN.md 7.3, 11), as
- * `digest_daily` jobs. Each is sent at most once: a job first records which attempt may send, so a
- * crash after the send never sends again (claim, then send, as in the trial reminders).
+ * `digest_daily` jobs. Each is sent once: the job records its send in the database just before
+ * sending (claim, then send, as the trial reminders do), so another run of the same job never
+ * sends again whatever its attempt count; a failed send releases the record and is retried with
+ * the same idempotency key, so the provider never delivers it twice either. A daily email whose
+ * London day has passed ends unsent.
  */
 
 export interface DigestPostRow {
@@ -31,6 +35,10 @@ export interface DigestStore {
   categoryCounts(productId: string): Promise<{ category: FeedCategory; count: number }[]>;
   /** True while any first-run job for the product is still to finish. */
   firstRunPending(productId: string): Promise<boolean>;
+  /** Record that this job's email is being sent. False when it already was. */
+  claimSend(jobId: string): Promise<boolean>;
+  /** Undo the record after a send that failed, so the retry may send. */
+  releaseSend(jobId: string): Promise<void>;
 }
 
 export interface DigestDeps {
@@ -55,17 +63,18 @@ const where = (source: string, community: string | null) => {
   return community && community !== label ? `${label} · ${community}` : label;
 };
 
-/** The attempt that may send; any later attempt means a crash happened after it began. */
-const mayNotSend = (job: Job) =>
-  typeof job.payload.sendAttempt === "number" && job.attempts !== job.payload.sendAttempt;
+/** A daily email belongs to its London day; a job still running after that day sends nothing. */
+const dayPassed = (job: Job, now: Date) =>
+  typeof job.payload.day === "string" && londonDate(now) > job.payload.day;
 
 export function createDigestHandler(deps: DigestDeps): JobHandler {
   return async (job, { now }) => {
     if (!job.productId) return { status: "done", payload: { result: "no_product" } };
     const mailer = deps.mailer();
     if (!mailer) return { status: "done", payload: { result: "mail_off" } };
-    if (mayNotSend(job)) return { status: "done", payload: { result: "not_resent" } };
     const feedReady = job.payload.email === "feed_ready";
+    if (!feedReady && dayPassed(job, now()))
+      return { status: "done", payload: { result: "day_passed" } };
     if (feedReady && (await deps.store.firstRunPending(job.productId)))
       return { status: "waiting", runAfter: new Date(now().getTime() + WAIT_MS) };
 
@@ -108,10 +117,15 @@ export function createDigestHandler(deps: DigestDeps): JobHandler {
       };
     }
 
-    // Claim, then send: record which attempt sends before sending.
-    if (typeof job.payload.sendAttempt !== "number")
-      return { status: "waiting", runAfter: now(), payload: { sendAttempt: job.attempts + 1 } };
-    await mailer.send({ to: to.email, ...message });
+    // Claim, then send.
+    if (!(await deps.store.claimSend(job.id)))
+      return { status: "done", payload: { result: "not_resent" } };
+    try {
+      await mailer.send({ to: to.email, ...message, idempotencyKey: `digest:${job.id}` });
+    } catch (error) {
+      await deps.store.releaseSend(job.id);
+      throw error;
+    }
     return { status: "done", payload: { result: "sent" } };
   };
 }
