@@ -46,9 +46,15 @@ export interface CreateDbOptions {
 /** How many migrations each database has had applied, so a resume can never skip one. */
 const applied = new WeakMap<PGlite, number>();
 
-export async function createDb(options: CreateDbOptions = {}): Promise<PGlite> {
+/** The Supabase bootstrap with no migrations, to rebuild a live database's own history. */
+export async function createBareDb(): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_BOOTSTRAP);
+  return db;
+}
+
+export async function createDb(options: CreateDbOptions = {}): Promise<PGlite> {
+  const db = await createBareDb();
   const files = listMigrations();
   const stop = options.stopBefore
     ? files.findIndex((f) => f.includes(options.stopBefore as string))
