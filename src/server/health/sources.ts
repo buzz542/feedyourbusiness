@@ -1,4 +1,4 @@
-import { killSwitchName, sources, vendorClearance } from "@/sources/registry";
+import { heldOutOfLaunch, killSwitchName, sources, vendorClearance } from "@/sources/registry";
 import type { CollectSource } from "@/sources/types";
 import type { CheckResult } from "./checks";
 
@@ -8,7 +8,7 @@ type Env = Readonly<Record<string, string | undefined>>;
  * The `sources` health check (docs/PLAN.md M3): which collect sources are switched on, and for each
  * one that cannot run, why, by env name only: a missing credential, a configuration problem the
  * module reports, or a vendor source held back until its DPA date and snapshot retention are set
- * (2.1.7). Never a value.
+ * (2.1.7), or a source held off because it is not in the launch list. Never a value.
  */
 export function checkSources(env: Env, now: Date): CheckResult {
   const on = sources.filter(
@@ -24,6 +24,7 @@ export function checkSources(env: Env, now: Date): CheckResult {
     const read = (name: string) => (source.credentials.includes(name) ? env[name] : undefined);
     for (const problem of source.configProblems?.(read) ?? [])
       problems.push(`${source.id}: ${problem}`);
+    if (heldOutOfLaunch(source, env)) problems.push(`${source.id} held: not in launch`);
     const clearance = vendorClearance(source, env, now);
     if (clearance === "dpa_missing")
       problems.push(`${source.id} held: ${source.vendor?.dpaSignedOnEnv ?? "DPA date"}`);

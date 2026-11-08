@@ -1,5 +1,5 @@
 import { isHostAllowed } from "@/server/net/safe-fetch";
-import { isPlatformWebHost } from "@/server/net/platform-hosts";
+import { isPlatformWebHost, matchesDomain } from "@/server/net/platform-hosts";
 import { bluesky } from "./bluesky";
 import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
@@ -112,8 +112,18 @@ export function dpaSignedOn(
 export function isEnabled(source: Source, env: Env = process.env): boolean {
   const value = env[killSwitchName(source)];
   if (source.mode === "link") return value !== "false";
+  if (heldOutOfLaunch(source, env)) return false;
   const clearance = vendorClearance(source, env);
   return value === "true" && (clearance === "cleared" || clearance === "not_vendor");
+}
+
+/**
+ * A collect source outside LAUNCH_COLLECT_SOURCES stays off on every deployment, whatever its
+ * switch says (the founder, 8 Nov 2026): X is out of launch. Local runs are not held back, so its
+ * tests still run.
+ */
+export function heldOutOfLaunch(source: Source, env: Env = process.env): boolean {
+  return !isLaunchSource(source) && !isLocalRun(env);
 }
 
 export function enabledSources(env: Env = process.env): Source[] {
@@ -156,6 +166,50 @@ export const NEVER_COLLECTED = [
   "producthunt",
 ] as const;
 
+/**
+ * The domains of the platforms that are never collected, every subdomain included (docs/PLAN.md
+ * 2.1.5): a collect source that calls, links to or takes its terms from one of them is refused.
+ */
+const NEVER_COLLECTED_DOMAINS = [
+  "indiehackers.com",
+  "linkedin.com",
+  "lnkd.in",
+  "licdn.com",
+  "facebook.com",
+  "fb.com",
+  "fb.me",
+  "fb.watch",
+  "fbcdn.net",
+  "messenger.com",
+  "instagram.com",
+  "instagr.am",
+  "cdninstagram.com",
+  "tiktok.com",
+  "tiktokcdn.com",
+  "tiktokv.com",
+  "threads.net",
+  "threads.com",
+  "youtube.com",
+  "youtu.be",
+  "youtube-nocookie.com",
+  "ytimg.com",
+  "youtube.googleapis.com",
+  "discord.com",
+  "discord.gg",
+  "discordapp.com",
+  "discordapp.net",
+  "discord.media",
+  "producthunt.com",
+] as const;
+
+const hostOf = (raw: string) => {
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return "";
+  }
+};
+
 const isHttps = (raw: string) => {
   try {
     return new URL(raw).protocol === "https:";
@@ -192,9 +246,22 @@ export function registryProblems(list: readonly Source[]): string[] {
   }
   for (const source of collect) {
     const id = source.id;
-    // By the platform name inside the id too: "linkedin_jobs" is LinkedIn.
-    if (NEVER_COLLECTED.some((platform) => id.replaceAll("_", "").includes(platform)))
+    // By the platform name inside the id or the display name too: "linkedin_jobs" is LinkedIn,
+    // and so is a source called "LinkedIn posts"; and by every host it names.
+    const names = [id, source.displayName].map((n) => n.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    if (NEVER_COLLECTED.some((platform) => names.some((n) => n.includes(platform))))
       problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);
+    const hosts = [
+      ...source.allowedHosts,
+      ...source.linkHosts,
+      hostOf(source.termsUrl),
+      ...(source.vendor ? [hostOf(source.vendor.dpaUrl)] : []),
+    ];
+    for (const host of hosts)
+      if (matchesDomain(host, NEVER_COLLECTED_DOMAINS))
+        problems.push(
+          `${id}: ${host} belongs to a platform that is never collected (docs/PLAN.md 2.1)`,
+        );
     // D1 and 2.1.9 by what a source calls, not by the label it gives itself.
     const vendorHosts = source.allowedHosts.filter(isVendorHost);
     if (vendorHosts.length > 0 && (id !== "reddit" || source.access !== "vendor_api"))
