@@ -26,7 +26,7 @@ const FAQ: Array<[string, string]> = [
   ],
   [
     "What do you store and for how long?",
-    "For each post: the link, the community, when it was posted, a short excerpt, our labels and a keyed hash of the author, never their username. Posts are deleted from AskedFor after 30 days, or 7 days for Reddit and X.",
+    "For each post: the link, the community, when it was posted, a short excerpt, our labels and a keyed hash of the author, never their username. Posts are deleted from AskedFor after 30 days, or 7 days for Reddit.",
   ],
   [
     "You show a post I wrote. How do I remove it?",
@@ -126,13 +126,12 @@ export default function Home() {
         </h2>
         <p>
           Hacker News and Bluesky through their official APIs. Reddit through a web data company
-          that collects public Reddit pages for us, named on our sources page. X through its
-          official API when it is switched on. LinkedIn, Facebook and Threads as one-tap searches
-          you open yourself.
+          that collects public Reddit pages for us, named on our sources page. X is coming later.
+          LinkedIn, Facebook and Threads as one-tap searches you open yourself.
         </p>
         <p>
           We never post, reply or message for you, and we never write your replies. Posts are
-          deleted from AskedFor after 30 days, or 7 days for Reddit and X.
+          deleted from AskedFor after 30 days, or 7 days for Reddit.
         </p>
         <p>
           <Link href="/sources" className="underline">

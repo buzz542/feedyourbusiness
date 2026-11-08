@@ -28,6 +28,16 @@ export const sources: readonly Source[] = [
   xLinks,
 ];
 
+/**
+ * The collect sources in Launch 1 (the founder, 8 Nov 2026): Hacker News, Bluesky and Reddit, Reddit
+ * once 2.1.7 holds. X is out of launch: its code stays, switched off, and the public pages say it is
+ * coming later. Adding X here is the founder's decision after launch (F18).
+ */
+export const LAUNCH_COLLECT_SOURCES = ["hackernews", "bluesky", "reddit"] as const;
+
+export const isLaunchSource = (source: Pick<Source, "id" | "mode">): boolean =>
+  source.mode === "link" || (LAUNCH_COLLECT_SOURCES as readonly string[]).includes(source.id);
+
 type Env = Readonly<Record<string, string | undefined>>;
 
 export function killSwitchName(source: Pick<Source, "id">): string {

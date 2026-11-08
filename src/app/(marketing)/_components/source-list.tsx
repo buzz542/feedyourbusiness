@@ -1,18 +1,18 @@
-import { isEnabled, vendorClearance } from "@/sources/registry";
+import { isEnabled, isLaunchSource, vendorClearance } from "@/sources/registry";
 import type { CollectSource, LinkSource, Source } from "@/sources/types";
 
 /**
- * Every registered source as the sources page states it (docs/PLAN.md 4.2, 9.6 item 4, D12): how
- * posts are collected, how long they are kept, and the vendor for a vendor source. `HOW` must have
- * an entry for every collect source in the registry (a test checks), so a source cannot be added
- * without saying where its posts come from.
+ * Every launch source as the sources page states it (docs/PLAN.md 4.2, 9.6 item 4, D12): how posts
+ * are collected, how long they are kept, and the vendor for a vendor source. `HOW` must have an entry
+ * for every launch collect source (`LAUNCH_COLLECT_SOURCES`; a test checks), so a source cannot be
+ * added without saying where its posts come from. X is out of launch (8 Nov 2026): no card, and
+ * the page says it is coming later.
  */
 export const HOW: Record<string, string> = {
   hackernews: "Through the official Hacker News search API (run by Algolia) and the item API.",
   bluesky: "Through the official Bluesky API, from AskedFor's own Bluesky account. Read only.",
   reddit:
     "Through Bright Data, a web data company that collects public Reddit pages for us. This is not a data license from Reddit.",
-  x: "Through the official X API, only when we switch it on. It is off by default.",
 };
 
 export const NEVER_COLLECTED = [
@@ -46,7 +46,9 @@ const isOn = (source: CollectSource) =>
   vendorClearance(source) !== "notice_missing";
 
 export function SourceList({ sources }: { sources: readonly Source[] }) {
-  const collect = sources.filter((s): s is CollectSource => s.mode === "collect");
+  const collect = sources.filter(
+    (s): s is CollectSource => s.mode === "collect" && isLaunchSource(s),
+  );
   // Only the searches the app offers today: a link source switched off is not listed.
   const links = sources.filter((s): s is LinkSource => s.mode === "link" && isEnabled(s));
   return (
@@ -67,9 +69,16 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
               <p className="mt-1 text-sm text-muted">
                 {isOn(source) ? "Switched on." : "Not switched on yet."}
               </p>
+              {source.vendor && !isOn(source) ? (
+                <p className="mt-1 text-sm text-muted">
+                  It stays off until our data processing agreement with {source.vendor.name} and our
+                  privacy impact assessment are signed.
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
+        <p>X is coming later.</p>
       </section>
       <section aria-labelledby="searches" className="mt-8 space-y-3">
         <h2 id="searches" className="font-serif text-2xl tracking-tight">

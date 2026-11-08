@@ -40,6 +40,12 @@ describe("landing page", () => {
     expect(text).toContain("$29 a month, tax included where it applies");
   });
 
+  it("says X is coming later, and no other sentence mentions X (out of launch, 8 Nov 2026)", () => {
+    expect(text).toContain("X is coming later.");
+    const sentences = text.split(/(?<=[.?!])\s+/);
+    expect(sentences.filter((s) => /\bX\b/.test(s))).toEqual(["X is coming later."]);
+  });
+
   it("shows no testimonials, counts or badges", () => {
     expect(text).not.toMatch(/testimonial|customers love|trusted by|as seen on|users\b/i);
   });

@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { loadDenylist } from "../../../../compliance/lib/denylist.mjs";
 import { checkCopy, claimNumbers } from "../../../../compliance/lib/scan-copy";
-import { sources } from "@/sources/registry";
+import { LAUNCH_COLLECT_SOURCES, sources } from "@/sources/registry";
 import type { CollectSource, Source } from "@/sources/types";
 import { HOW, NEVER_COLLECTED, SourceList } from "../_components/source-list";
 import { unclaimedBlocks } from "../../../../compliance/lib/claims-blocks";
@@ -20,11 +20,33 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 const page = text(renderToStaticMarkup(<SourcesPage />));
-const collect = sources.filter((s): s is CollectSource => s.mode === "collect");
+const collect = sources.filter(
+  (s): s is CollectSource =>
+    s.mode === "collect" && (LAUNCH_COLLECT_SOURCES as readonly string[]).includes(s.id),
+);
 
 describe("sources page", () => {
-  it("describes exactly the collect sources in the registry, no more and no fewer", () => {
+  it("describes exactly the launch collect sources, no more and no fewer (8 Nov 2026)", () => {
+    expect(collect.map((s) => s.id).sort()).toEqual(["bluesky", "hackernews", "reddit"]);
     expect(Object.keys(HOW).sort()).toEqual(collect.map((s) => s.id).sort());
+    const cards = renderToStaticMarkup(<SourcesPage />).match(/<h3[^>]*>[^<]*<\/h3>/g) ?? [];
+    expect(cards.map((h) => h.replace(/<[^>]+>/g, "")).sort()).toEqual(
+      ["Bluesky", "Hacker News", "Reddit"].sort(),
+    );
+  });
+
+  it("says X is coming later, and lists no X collection", () => {
+    expect(page).toContain("X is coming later.");
+    expect(page).not.toContain("official X API");
+  });
+
+  it("marks Reddit as off until its paperwork with the vendor is done", () => {
+    const reddit = collect.find((s) => s.id === "reddit")!;
+    const block = text(renderToStaticMarkup(<SourceList sources={[reddit]} />));
+    expect(block).toContain("Not switched on yet.");
+    expect(block).toContain(
+      "It stays off until our data processing agreement with Bright Data and our privacy impact assessment are signed.",
+    );
   });
 
   it.each(collect.map((s) => [s.id, s] as const))("%s: access, retention and status", (_, s) => {
@@ -36,10 +58,9 @@ describe("sources page", () => {
     if (s.vendor) expect(block).toContain(`Data provider: ${s.vendor.name}.`);
   });
 
-  it("says plainly that the Reddit vendor is not a data license, and how X is used", () => {
+  it("says plainly that the Reddit vendor is not a data license", () => {
     expect(page).toContain("Through Bright Data");
     expect(page).toContain("This is not a data license from Reddit.");
-    expect(page).toContain("off by default");
   });
 
   it("names every link source as a search the user opens, and every platform never collected", () => {
@@ -48,11 +69,18 @@ describe("sources page", () => {
     expect(page).toContain("we never collect anything from Product Hunt");
   });
 
-  it("shows a source as off when its kill switch is off", () => {
-    const off = { ...collect[0]!, id: "nonexistent_source" } as Source;
-    expect(text(renderToStaticMarkup(<SourceList sources={[off]} />))).toContain(
-      "Not switched on yet.",
-    );
+  it("shows a source as off when its kill switch is off, and leaves out a non-launch source", () => {
+    vi.stubEnv("SOURCE_HACKERNEWS_ENABLED", "false");
+    try {
+      const off = collect.find((s) => s.id === "hackernews")! as Source;
+      expect(text(renderToStaticMarkup(<SourceList sources={[off]} />))).toContain(
+        "Not switched on yet.",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    const planted = { ...collect[0]!, id: "x", displayName: "Planted" } as Source;
+    expect(text(renderToStaticMarkup(<SourceList sources={[planted]} />))).not.toContain("Planted");
   });
 
   it("has a claims row for every paragraph, the cards' lines included", () => {
