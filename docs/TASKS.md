@@ -14,32 +14,30 @@ with fakes and fixtures, tick the build box, and leave the live check in the mat
 
 ## Launch order
 
-The founder set this order on 31 Oct 2026. It changes the order of the milestones below, not their scope or
-acceptance tests. Work Launch 1 first, then 2. Every subscription gets the same four collect sources: Hacker
-News, Bluesky, Reddit and X. No other platform is added (section 2 still applies).
+The founder set this order on 8 Nov 2026; it replaces the 31 Oct order. It changes the order of the
+milestones below, not their scope or acceptance tests.
 
-**Launch 1: the Reply tab with four sources.**
+**Launch 1: Reply, Rivals and Build, collecting from Hacker News, Bluesky and Reddit.**
 
-1. Finish M2 (model wrapper, drafts, onboarding UI).
-2. M3: migration, contract v2, author hashing, jobs and crons, Hacker News, Bluesky, Reddit, X, the collect
-   step, purge and deletion sync, kill switches and caps, Reddit rotation, the `sources` health check.
-   Reddit goes live only when 2.1.7 holds (F8 and its paperwork). X goes live only after F18, its deletion
-   compliance in `checkDeleted`, and a founder-confirmed `X_DAILY_READS_PER_PRODUCT` (see section 18).
-3. M4: migration, schema and guard, classification, caching, dedupe, spend caps. The eval script can follow.
-4. M5: everything except keyboard shortcuts and the 200-card performance test, which can follow.
-5. M8: every build box.
-6. M9: migration `launch` only if the preview ships; landing, sources page, `/bot`, remove-my-post and its
-   admin queue, legal drafts, security headers, the launch switch. Admin metrics and the instant preview
-   can follow.
+1. Collect sources: Hacker News and Bluesky through their official APIs (built), and Reddit through
+   Bright Data's REST API once its paperwork is done (`docs/PLAN.md` 2.1.7: DPA, transfer mechanism,
+   DPIA, the privacy notice naming Bright Data; then the founder sets `BRIGHTDATA_DPA_SIGNED_ON`).
+   `LAUNCH_COLLECT_SOURCES` in `src/sources/registry.ts` names these three; any other collect source
+   stays off on every deployment, whatever its switch says (`tests/compliance/collect-sources.test.ts`).
+2. X is out of launch. Its code stays, switched off; its open boxes are marked "after launch". The
+   public pages say "X is coming later." The founder decides when to add it (founder list, item 8).
+3. LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube, Discord and Product Hunt are never
+   collected, at any time; the first seven get search links the user opens, Product Hunt nothing.
+4. Build order: M9's open boxes (the instant preview and its `launch` migration last), then M6
+   Rivals and M7 Build, then M3's open boxes not waiting on the founder, then M5 and M8.
+5. The launch switch waits for the founder to say "launch".
 
-**Launch 2: the upgrade.** M6 (Rivals), M7 (Build) and everything deferred above.
+## Founder list (8 Nov 2026)
 
-## Founder to-do (7 Nov 2026)
+Each step, its exact action and where to do it, in the order that unblocks the most. Each is also in
+its milestone's `(you)` box below.
 
-The build session's open asks, in the order that unblocks the most. Each is also in its milestone's
-`(you)` box below.
-
-1. **Databases.** Checked live on 7 Nov 2026: production (`askedfor`) has only the first four
+1. **Databases.** Checked live again on 8 Nov 2026: neither catch-up has run yet. On 7 Nov 2026: production (`askedfor`) has only the first four
    migrations; development (`askedfor-dev`) has those, a 2 Nov copy of onboarding and the scrapped
    `access_requests`. Neither has `jobs`, `llm_reservations`, `profiles.service_consent_at`,
    `posts.community` or the removal form columns. The two files below bring each to exactly the
@@ -63,7 +61,8 @@ The build session's open asks, in the order that unblocks the most. Each is also
       the session.
    3. Same editor, once step 2 shows the ten migrations: run `drop table public.access_requests;`
       to remove the empty leftover table (the session's request to drop it got no answer to the
-      Supabase prompt on 7 Nov). Do this before step 4, so the regenerated types do not include it.
+      Supabase prompt on 7 Nov, and again on 8 Nov; it is empty). Do this before step 4, so the
+      regenerated types do not include it.
    4. Tell the session "dev catch-up done". It checks the tables on `askedfor-dev`, runs the security
       and performance advisors there, regenerates `src/types/database.ts`, then shows you the
       production file and its passing test and asks you.
@@ -83,17 +82,42 @@ The build session's open asks, in the order that unblocks the most. Each is also
       `claude/askedfor-foundations`.
    7. After both: the migrations added since (`launch` onward) are applied the usual way, dev first,
       and the session asks you before each reaches production.
-2. **Production merge gate.** Read the landing, pricing, sources and `/bot` claims against
-   `docs/claims.md` (the rows marked "founder" or "Not verified"). The landing's "Coming next" says
-   Rivals and Build "come with the same plan": confirm or strike.
-3. **Before the first real user:** F6 and F10 (Resend, the domain; then set `CONTACT_EMAIL_LIVE` in
-   `src/lib/contact.ts`), F11 (Stripe test mode, tax-inclusive $29 price; check Managed Payments shows
-   USD, not a converted currency), F12 (session keys, then `npm run test:e2e`: billing, reply,
-   onboarding and sign-in specs), F13 (Anthropic key), F2 and F7 (Hacker News and Bluesky on), F15
-   (solicitor: the legal drafts in `docs/legal/` and the four public drafts, the consent wording,
-   and the cooling-off and refund terms).
-4. **Decisions:** whether a lapsed subscriber gets a second free trial (checkout always adds one);
-   whether removal lookups may run while Bluesky or X collection is off (today they cannot).
+      Then, in the same SQL Editor on `askedfor`, before step 5: run
+      `select count(*) from public.products;` and go on only if it answers 0 (the production file
+      assumes no products exist).
+2. **Vercel Pro.** Upgrade in Vercel, Settings, Billing (team "buzz542's projects"). Then write
+   "Vercel Pro is on" to the session. Until then every cron stays daily (`vercel.json`), and live
+   billing refuses to start, because the trial reminder must run hourly (`src/server/billing/config.ts`).
+3. **Supabase Pro, decide before the first paying client.** On the free plan there are no backups
+   and an idle project pauses; a lost database would lose every customer's product, terms and feed.
+   Upgrade in the Supabase dashboard, Organization, Billing, or tell the session you accept the risk.
+   The build uses nothing that needs a paid plan.
+4. **Solicitor review.** Take the terms, privacy notice, acceptable use, cookies page, the consent
+   wording (`CONSENT_WORDING` in `src/server/billing/consent.ts`) and the processor agreements in
+   `docs/legal/` to a UK solicitor (F15). Bring back their changes as text for the session to apply.
+5. **ICO fee and trading address.** Pay the data protection fee at ico.org.uk, register, and send the
+   session the trading name and address for the footer and the privacy notice.
+6. **Bright Data (F8).** Accept their DPA and keep a copy; record the transfer mechanism; sign the
+   DPIA covering vendor collection (`docs/legal/dpia.md`); get written confirmation that the Reddit
+   dataset collects only logged-out public pages, how long snapshots are kept and whether they can be
+   deleted (the session then states the retention in `src/sources/reddit-brightdata.ts`, which the
+   privacy notice and sources page show). Then, in Vercel, Settings, Environment Variables
+   (Production): set `BRIGHTDATA_DPA_SIGNED_ON` to that date and `SOURCE_REDDIT_ENABLED=true`. Only
+   you set these; the session never does.
+7. **Live mode.** Follow the checklist in `docs/BILLING.md` yourself, only after steps 2, 4 and 5,
+   then enter the live Stripe keys in Vercel. The session never sees them. The live-mode box (M8, F14)
+   is ticked only when you confirm steps 4 and 5.
+8. **X, after launch, your call.** An X developer account with pay-per-use credits and the use case
+   declared honestly, then the X budget (`X_DAILY_READS_PER_PRODUCT`) and a session to add X to
+   `LAUNCH_COLLECT_SOURCES` (F18). Until then X stays off everywhere.
+9. **Before the first real user:** F6 and F10 (Resend, the domain; then `CONTACT_EMAIL_LIVE` in
+   `src/lib/contact.ts`), F11 (Stripe test mode, the tax-inclusive $29 price; check Managed Payments
+   shows USD), F12 (session keys, then `npm run test:e2e`), F13 (Anthropic key, through the secure
+   form: the session then runs one real draft on your product URL and records it in M2 for you to
+   check), F2 and F7 (Hacker News and Bluesky on). Read the landing, pricing, sources and `/bot` claims
+   against `docs/claims.md` before the production merge (rows marked "founder" or "Not verified").
+10. **Decisions:** whether a lapsed subscriber gets a second free trial (checkout always adds one);
+    whether removal lookups may run while Bluesky collection is off (today they cannot).
 
 ---
 
@@ -156,7 +180,8 @@ The build session's open asks, in the order that unblocks the most. Each is also
 - [x] Draft from a description when there is no site or it cannot be read. Test: same output contract; with neither site text nor a description the model is not called and the user is asked for a sentence.
 - [x] Onboarding UI (4.3): one box, progress by step, "Here's what we found" with "Looks right" as the one click, "Change something" for optional edits, "Not my product?". Test: E2E on localhost with fake services (`E2E_FAKE_SERVICES=1`, honored only when `VERCEL_ENV` is unset and the site URL is localhost; a unit test proves it is refused otherwise): paste a link, see the found screen, one click sets `active` and the database stamps `confirmed_at`; a description works the same way; a platform link shows the refusal and fetches nothing; edits under "Change something" persist, and a subreddit the user adds that is on the sensitive-community list is refused with a message; "Not my product?" drafts again into the same product; checked at 375px and in dark mode. Also, after review: every edit is saved in one transaction (`apply_onboarding_edits`, security invoker, so RLS and column grants apply; a refused value rolls everything back, planted), case-only edits update the row and competitors keep their aliases; "Looks right" confirms only the version the user saw (`updated_at`) and never a product with no terms; a refused save keeps what the user typed and announces the error; competitor domains follow the draft's rules and "Acme, Inc." stays one name; handles, emails and links are refused in the summary, description and audience. The E2E is written against the fixes (allowlisted test address, unambiguous selectors, no race, 375px overflow, persisted terms) and skips until F12.
 - [ ] (you) After F12, run `npm run test:e2e`: the onboarding E2E (`tests/e2e/onboarding.spec.ts`) must pass on localhost with `E2E_FAKE_SERVICES=1`, with `VERCEL_ENV` unset.
-- [ ] (you) F13: Anthropic key. Then one real draft on your own product URL, checked by you.
+- [ ] (you) F13: Anthropic key, through the secure form only. Then the session runs one real draft on your own product URL and records the result here for you to check (no real post goes into a fixture).
+- [x] Draft term count (8 Nov 2026). Test (model faked, `draft.test.ts`): 20, 25 and 30 terms saved as given, more than 30 cut to 30, and an answer that leaves fewer than 20 usable terms after cleaning is asked again once and, if still short, saves nothing (`MIN_DRAFT_TERMS`). Within the 40-term cap.
 
 ## M3 Collection
 
@@ -171,18 +196,21 @@ The build session's open asks, in the order that unblocks the most. Each is also
 - [x] Jobs runner and cron routes `/api/cron/daily`, `/api/cron/tick`, `/api/cron/weekly` (7.2, 13). Test (fake clock, fake sources): a pending vendor run resumes on a later tick; a crash mid-step re-runs without double-charging a budget or double-inserting a post; the time budget stops new claims; three failures mark a job `failed`; daily enqueue is idempotent; `tests/deploy/vercel-config.test.ts` covers the new routes. Also, after review: a paid source is started at most once per reservation (the reservation, written in the same transaction that charges the budget, is the checkpoint): a job that comes back reserved with no vendor handle counts its whole reservation and ends as `interrupted`; units are settled as soon as the source returns, before classification; a failed paid run settles what it read (X reports partial reads) and is not retried; claimed jobs not yet started at the time limit are handed back, not counted as crashes; a paid official source with no approved monthly cap gets 0 (2.1.8: X spends nothing until the founder approves a cap); the purge on Pro runs every 10-minute tick. Only the purge is wired so far: collect and deletion sync are wired once the classifier exists (M4).
 - [x] Hacker News source (7.4). Test: synthetic fixtures in `tests/fixtures/hackernews/` (invented authors and text); stops at the budget; link back on `news.ycombinator.com`; HTML stripped; 280 characters; deleted and dead items found by `checkDeleted`. Also: 2 requests a second with one back-off on 429; a body that is not JSON is unreadable, never "deleted". Unverified: hn.algolia.com and its docs could not be reached from the build session (17 and 31 Oct 2026), so the Algolia parameters follow the plan; recorded in the module header.
 - [x] Bluesky source (7.5). First confirm hosts and auth against docs.bsky.app and record the date and hosts in the module header. Test: synthetic fixtures; adult self-labels dropped as NSFW; one session per invocation; links use the DID; `checkDeleted` via `getPosts`; the module references no write method (no `com.atproto.repo` calls). Also: `!hide` and `!no-unauthenticated` posts dropped; adult-labeled posts dropped in the module; parallel jobs share one sign-in and a session is renewed at most once per invocation, then the run fails fast (planted persistent 401). Unverified: docs.bsky.app is refused by the build session's proxy (17 and 31 Oct 2026); a web search on 31 Oct confirmed search needs an authenticated session and that authenticated reads go through the PDS or the `bsky.social` entryway. The module uses `bsky.social` only; the read host and session limits are recorded as unverified in its header.
-- [ ] (you) Before switching each source on, confirm what its module header records as unverified: Hacker News (Algolia parameters), Bluesky (which host serves authenticated reads, session limits), Reddit (record fields and the NSFW field name, `sort_by`, field limiting, snapshot deletion and retention, price per 1,000), X (search and lookup response shapes, per-read price). Re-read each source's terms in launch week.
+- [ ] (you) Before switching each source on, confirm what its module header records as unverified: Hacker News (Algolia parameters), Bluesky (which host serves authenticated reads, session limits), Reddit (record fields and the NSFW field name, `sort_by`, field limiting, snapshot deletion and retention, price per 1,000). X (search and lookup response shapes, per-read price): after launch. Re-read each source's terms in launch week.
 - [x] Reddit source through Bright Data (7.7). First confirm the dataset, parameters, fields and price against Bright Data's docs and record the date in the module header. Test: fixtures for trigger, progress (running, then ready) and snapshot; error records, NSFW, deleted authors, profile posts (`u_` communities, `/user/` and `/u/` URLs), sensitive communities and non-Reddit URLs dropped; budget and monthly cap stop calls; cost recorded; 5 MB cap; `safeFetch` refuses every Reddit host; a request with an unpinned dataset id (planted: a LinkedIn dataset id) is refused before it is sent, including when it comes from the env; the source's `ctx.fetch` refuses every other source's host; a request to any other path on the vendor host (planted: a general unlocking or search API path) is refused; only `reddit` may declare `access: "vendor_api"` (registry test with a planted violation); the vendor host appears in no file outside `src/sources/reddit*.ts` (static check with a planted violation); if the docs confirm the features, the trigger requests only the mapped fields and the snapshot is deleted after download; every committed fixture's author fields match the invented pattern. `isPlatformHost()` refuses the vendor host, imported from the Reddit module (12.3). Done with unverified parts: docs.brightdata.com is refused by the build session's proxy; a web search on 31 Oct 2026 confirmed the dataset id `gd_lvz8ah06191smkebj4`, the async `/datasets/v3/trigger` flow and the `keyword`, `date` and `num_of_posts` inputs. Unverified, recorded in `src/sources/reddit-brightdata.ts`: `sort_by`, the record fields and the NSFW field name (the check fails closed: a record with no NSFW or over-18 boolean is unreadable), field limiting, snapshot deletion and retention, and the price; so the trigger does not limit fields and no snapshot is deleted yet. Budget, monthly cap and cost are tested through the collect handler (`src/server/pipeline/runner.test.ts`).
 - [ ] (you) F8, then run `scripts/capture-brightdata-fixture.ts` once on your machine: it checks a real response against the schema locally, prints pass or fail and the field names, and deletes the capture. Real responses never enter the build session.
 - [x] Minimal privacy-notice section and sources-page entry naming Bright Data, what it collects (public Reddit pages, logged out), that this is not a data license from Reddit, and its snapshot retention. Test: both pages render it; in production the Reddit source refuses to start until `BRIGHTDATA_DPA_SIGNED_ON` holds a date (the founder sets it after F8's DPA, transfer mechanism and DPIA steps), and `/api/health`'s `sources` check reports the same. Also, after review: the wording matches what the code enforces (off on every deployment until the module states the retention; local runs are not held back), every sentence has a row in `docs/claims.md` (the logged-out claim marked unverified until F8), the stated-retention text is rendered in a test and the copy gate runs over it (a number without a claims row fails), and the footer links `/sources`.
 - [ ] (you) Review `src/sources/sensitive-communities.ts` before Reddit is switched on.
 - [x] X source (7.6), shipped off. Test: synthetic fixtures; a budget of 0 makes no call; the source refuses to start until deletion compliance is implemented; `possibly_sensitive` posts dropped; links on `x.com`. Also: deletion compliance is built in `checkDeleted` by post lookups on `api.x.com` (up to 100 ids a request; any id not returned is deleted here), because batch compliance jobs need a storage host the plan does not list and are reported broken for pay-per-use apps (web search, 31 Oct 2026); the refusal to start is tested with compliance off (no request made). `X_DAILY_READS_PER_PRODUCT` stays 0. Unverified: docs.x.com is refused by the build session's proxy, so the search and lookup shapes and the per-read price follow the plan.
 - [x] Collect step end to end (7.3) with fake sources and a fake classifier. Test: suppressed authors never stored from any source; posts already linked are skipped; posts stored for another product are classified for this one; `term_stats` updated; only entitled, confirmed, unpaused products of accounts on `SIGNUP_ALLOWLIST` are collected (12.10, until the launch switch). Built with a `Classifier` port and a fake classifier; production wires it with the M4 classifier. Also, after review: no batch starts with less than 75 seconds of the runner's budget left (a free source resumes on the next run, a paid one is never read twice); an answer that never fits the schema skips its batch and is counted; a model outage stops classification and is reported; a tool, rival summary or reason that names a person or a link is dropped (planted); text is cut by code points; lookups go in chunks of 50; owners off `SIGNUP_ALLOWLIST`, or whose email cannot be read, are never collected.
+- [x] Core path, domain to feed (the founder, 8 Nov 2026). Test: `tests/db/core-path.test.ts`, on real Postgres with every migration, the model and the source faked: a domain is read (its own site only), drafted into a product with 20 to 30 terms and a rival, confirmed by the owner under RLS (the database stamps `confirmed_at`), nothing is collectable before that or before entitlement, the daily cron enqueues one collect job for the enabled source, the real classifier rates one of two posts relevant, Today shows exactly that post, and the other was never stored.
 - [x] Purge (every tick on Pro, daily before), reads that exclude rows past `delete_after`, deletion sync, and the Reddit deletion re-check (7.7) running before new collection with its reserved share of the monthly cap. Test: expired posts gone the next day; Hacker News and Bluesky posts deleted at source removed here; a stored Reddit post the vendor reports gone or removed at about 72 hours is deleted, within the budget, and `REDDIT_DELETION_RECHECK=false` turns it off. Done with the tests already in place: `tests/db/collection.test.ts` (purge, reads hidden past `delete_after` before the purge), `src/server/pipeline/deletion-sync.test.ts` (Hacker News and Bluesky removals, the Reddit re-check within its own ledger key and the monthly cap, `REDDIT_DELETION_RECHECK=false`). The purge and deletion sync are enqueued daily (Hobby) and run before collection.
-- [x] Kill switches and caps. Test: `SOURCE_<ID>_ENABLED=false` stops that source within one run; the monthly vendor cap stops Reddit and shows in the job result. Done: `src/server/pipeline/runner.test.ts` switches Hacker News off while its first request is out and the run stops; the vendor's monthly cap stops a Reddit run before any vendor call and shows `monthly_cap` in the job result.
+- [x] Launch guards (the founder, 8 Nov 2026). Test: `tests/compliance/collect-sources.test.ts`, part of `compliance:hosts`, each rule seen to fail on a planted violation: no collect source for a never-collected platform by id, display name or any host it names (API, link, terms; LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube, Discord, Indie Hackers, Product Hunt); a collect source module imports only its own code, `zod` and `server-only` (a denylisted, browser or other package, or a dynamic import, is refused, `compliance/lib/scan-sources.ts`) and names only hosts in its own registry entry; each launch source's `ctx.fetch` refuses every other source's host with no request made; a collect source outside `LAUNCH_COLLECT_SOURCES` (X today) stays off on every deployment whatever its switch says, and `/api/health` reports it as "held: not in launch".
+- [x] Kill switches and caps. Test: `SOURCE_<ID>_ENABLED=false` stops that source within one run; the monthly vendor cap stops Reddit and shows in the job result. Done: `src/server/pipeline/runner.test.ts` switches Hacker News off while its first request is out and the run stops; the vendor's monthly cap stops a Reddit run before any vendor call and shows `monthly_cap` in the job result. Each cap, 8 Nov 2026: the per-product daily budget ("finishes a collect job without calling the source when the budget is spent", result `budget`), the Bright Data monthly cap (result `monthly_cap`), both in `runner.test.ts`; the model spend caps, per product per month and global per day, in `src/server/classify/classifier.test.ts` ("shows a cap reached during classification in the job result").
 - [x] Reddit term rotation (7.3 step 2). Test: over three days every active term is collected at least once with 12 terms a day. Done: `tests/db/collection.test.ts` collects 36 active terms in three days at 12 a day, never the paused one; the collect handler asks `collect_terms` for 12 Reddit terms and 40 for free sources.
 - [x] `/api/health` gains a `sources` check: enabled collect sources and any missing credentials, no secrets. Test: unit tests. Also: Reddit held without `BRIGHTDATA_DPA_SIGNED_ON` or a stated snapshot retention shows as held and makes the report 503; a source's configuration problems are read with only the names it declares, as a run reads them.
 - [ ] Switch to the Pro schedule (13) only after F2: trial reminders hourly with `REMINDER_CRON_PERIOD_HOURS = 1`, `/api/cron/tick` every 10 minutes, `tests/deploy/vercel-config.test.ts` updated in the same commit. Confirm Pro with the founder or `get_auth_user` (`billing.plan` is `pro`). Until then leave this box open.
+- [ ] X boxes: after launch (the founder, 8 Nov 2026). No X token is requested and `X_DAILY_READS_PER_PRODUCT` stays unset; the code stays in place, held off on deployments.
 - [ ] (you) F2 Vercel Pro and F7 Bluesky account, then turn Hacker News and Bluesky on in Vercel. Turn Reddit on only when `docs/PLAN.md` 2.1.7 holds: DPA signed, transfer mechanism recorded, DPIA covering the vendor signed, Bright Data named in the privacy notice and on the sources page.
 
 ## M4 Classifier
@@ -271,7 +299,8 @@ The build session's open asks, in the order that unblocks the most. Each is also
 - [ ] (you) F11: Stripe set up in test mode; `/api/health` shows `stripe_config`, `stripe_price` and `stripe_webhook` ok. The price must be $29 a month in USD, tax-inclusive, or checkout refuses it; check that Managed Payments shows that amount, not a converted currency.
 - [ ] (you) After F11, F12 and the database catch-up, run `npm run test:e2e`: `tests/e2e/billing.spec.ts` must pass (checkout redirect, signed event, two-click cancel and resume, past_due banner, export and deletion).
 - [ ] (you) The consent wording reviewed by a solicitor.
-- [ ] (you) F14: click through test mode yourself, then switch to live with the checklist in `docs/BILLING.md`. Also cancel a past-due test subscription and confirm Stripe stops retrying its open invoice.
+- [x] Live mode, the code side (8 Nov 2026). Test: the live-mode guard (`config.test.ts`: a live or restricted live key needs `BILLING_LIVE_ENABLED=true`, Managed Payments and hourly reminders); the tax-inclusive price check (`m8.test.ts`: checkout refuses a price that is not tax-inclusive; `checks.test.ts`: `stripe_price` is invalid for an exclusive or unspecified tax behavior, a missing amount or any amount but the advertised one); the Stripe health checks (`stripe_config`, `stripe_price`, `stripe_webhook` in `checks.test.ts`), all with test keys and fakes. No copy says tax is added at checkout. Live mode itself is not switched.
+- [ ] (you) F14: click through test mode yourself, then switch to live with the checklist in `docs/BILLING.md`. Ticked only when you confirm the solicitor review, the ICO fee and the trading address (founder list, items 4 and 5). Also cancel a past-due test subscription and confirm Stripe stops retrying its open invoice.
 
 ## M9 Launch surface
 
@@ -280,13 +309,13 @@ The build session's open asks, in the order that unblocks the most. Each is also
 ```
 
 - [ ] Migration `launch` (6.8). Test: `preview_runs` expiry check; both tables deny-all for API roles. 5 Nov 2026: split. Its `removal_requests` columns shipped as migration `removal_form` with the removal form (below); `preview_runs` waits for the instant preview.
-- [ ] Landing page (9.6) with labeled example data and rows in `docs/claims.md`. Test: `compliance:copy` passes; every claim on the page has a row; example cards contain no handles.
+- [x] Landing page (9.6) with labeled example data and rows in `docs/claims.md`. Test: `compliance:copy` passes; every claim on the page has a row; example cards contain no handles. Done: `src/app/(marketing)/page.test.tsx`. 8 Nov 2026: X is out of launch, so the page says "X is coming later." and its retention lines name Reddit only; exactly one sentence names X (tested).
 - [ ] Instant preview (8.5, 12.7). Test: 3 per IP hash per day and the global cap enforced; no Reddit or X call is possible from the preview; a platform URL is refused; suppressed authors are dropped; the stored result validates against a schema with no author fields; only relevance 40 or more is shown or stored; results expire within 24 hours and the purge removes them.
-- [x] Sources page. Test: lists exactly the registry, with access method, retention and the vendor for vendor sources. Done: `src/app/(marketing)/sources/page.test.tsx` (the access map equals the registry's collect sources; each card's access, retention, vendor and whether it is switched on; link sources that are on; the platforms never collected; every sentence has a claims row; the copy gate over the rendered page).
+- [x] Sources page. Test: lists exactly the registry, with access method, retention and the vendor for vendor sources. Done: `src/app/(marketing)/sources/page.test.tsx` (the access map equals the registry's collect sources; each card's access, retention, vendor and whether it is switched on; link sources that are on; the platforms never collected; every sentence has a claims row; the copy gate over the rendered page). 8 Nov 2026: the page lists the launch sources only (Hacker News, Bluesky, Reddit), says "X is coming later.", and while Reddit is off its card says it stays off until the DPA with Bright Data and the DPIA are signed.
 - [x] `/bot` page (12.3): what the site reader fetches and why, its robots token `AskedFor`, and a monitored contact email; the User-Agent links to it. Test: renders the token and the contact; `compliance:copy` passes. Done: `src/app/(marketing)/bot/page.test.tsx`. The contact address is shown only once `CONTACT_EMAIL_LIVE` in `src/lib/contact.ts` is true, which waits for F10 (the inbox does not exist yet); until then the page says one is added before launch.
-- [ ] Remove-my-post form and admin queue (4.8). Test: rate limit; one admin click deletes matching posts, suppresses the author hash, closes the request, emails the requester and writes `audit_log`; the author is never stored again; a request by post link suppresses that post's author; a request by Bluesky handle resolves to the DID and suppresses the DID-keyed author; an X username resolves to the user id.
-- [ ] Admin pages: source health, costs, metrics (4.8). Test: a non-admin gets 404; metrics contain no post text or emails.
-- [ ] Legal drafts and `docs/legal/` (12.9). Note in the privacy notice and ROPA that Google sign-in makes Supabase keep the Google account name and picture URL in its auth tables (the app never reads them), and list the Supabase cookies on the cookies page (the session cookie, split into numbered chunks when large, and the PKCE verifier). Test: every page footer links them; the privacy notice names every processor in `src/server/net/hosts.ts`, every collect source in the registry and every vendor `name` (test compares the lists), and states the vendor's snapshot retention.
+- [x] Remove-my-post form and admin queue (4.8). Test: rate limit; one admin click deletes matching posts, suppresses the author hash, closes the request, emails the requester and writes `audit_log`; the author is never stored again; a request by post link suppresses that post's author; a request by Bluesky handle resolves to the DID and suppresses the DID-keyed author; an X username resolves to the user id. Done: `tests/db/removal.test.ts` (rate limit 5 a day per IP hash, one call deletes, suppresses, closes and audits, never stored again), `src/server/privacy/removal.test.ts` (post link, usernames, Bluesky DID, X user id, the requester's emails), `src/sources/removal-lookups.test.ts`. The X lookup runs only while X is on, so after launch.
+- [x] Admin pages: source health, costs, metrics (4.8). Test: a non-admin gets 404; metrics contain no post text or emails. Done: `src/server/auth/route-guard.test.ts` (404 for a non-admin and an anonymous visitor), `src/server/auth/admin.test.ts` (the page and every admin action call `requireAdmin` first), `src/server/admin/views.test.ts`, `src/components/app/admin-views.test.tsx` (no post text or email rendered).
+- [x] Legal drafts and `docs/legal/` (12.9). Note in the privacy notice and ROPA that Google sign-in makes Supabase keep the Google account name and picture URL in its auth tables (the app never reads them), and list the Supabase cookies on the cookies page (the session cookie, split into numbered chunks when large, and the PKCE verifier). Test: every page footer links them; the privacy notice names every processor in `src/server/net/hosts.ts`, every collect source in the registry and every vendor `name` (test compares the lists), and states the vendor's snapshot retention. Done: `src/app/(marketing)/privacy/page.test.tsx` and the other legal pages' tests; `docs/legal/` holds `lia.md`, `dpia.md`, `ropa.md`, `processors.md`, `breach-plan.md`. Drafts until the solicitor signs off (founder list, item 4).
 - [x] Security headers (12.8). Test: present on `/` and `/app`. Done: `tests/deploy/headers.test.ts` (per route) and curl on a production build: nosniff, strict-origin-when-cross-origin, DENY and `frame-ancestors 'none'`, HSTS for two years, a minimal Permissions-Policy. No script CSP yet (12.8 makes it conditional).
 - [ ] (you) Read every claim on the landing, pricing, sources and `/bot` pages against `docs/claims.md` before they merge to production (rows marked "founder" or "Not verified" first).
 - [ ] (you) Paste the two catch-up files (founder to-do 1; `removal_form` is in both), then say so: the session checks each project, runs the advisors and regenerates the types.
