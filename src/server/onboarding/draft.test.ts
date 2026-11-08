@@ -217,6 +217,46 @@ function setup({
   return { deps, client, usage, store, fetched };
 }
 
+describe("draftFromInput: 20 to 30 search terms (the founder, 8 Nov 2026)", () => {
+  const withTerms = (list: Draft["terms"]) => reply({ ...DRAFT, terms: list });
+  const handles = (n: number): Draft["terms"] =>
+    Array.from({ length: n }, (_, i) => ({ term: `@someone${i} invoice`, intent: "problem" }));
+
+  it.each([20, 25, 30])("saves %i terms as given", async (n) => {
+    const { deps, store, client } = setup({ replies: [withTerms(terms(n))] });
+    expect((await draftFromInput("owner-1", "acme.example", deps)).kind).toBe("drafted");
+    expect(store.saved[0]?.draft.terms).toHaveLength(n);
+    expect(client.requests).toHaveLength(1);
+  });
+
+  it("cuts an answer with more than 30 terms to 30", async () => {
+    const { deps, store } = setup({ replies: [withTerms(terms(34))] });
+    await draftFromInput("owner-1", "acme.example", deps);
+    expect(store.saved[0]?.draft.terms).toHaveLength(30);
+  });
+
+  it("asks again once when fewer than 20 terms are usable, and saves the second answer", async () => {
+    const { deps, store, client } = setup({
+      replies: [withTerms(terms(19)), withTerms(terms(21))],
+    });
+    expect((await draftFromInput("owner-1", "acme.example", deps)).kind).toBe("drafted");
+    expect(client.requests).toHaveLength(2);
+    expect(store.saved[0]?.draft.terms).toHaveLength(21);
+  });
+
+  it("counts only the terms left after cleaning: 25 with 6 handles is 19, so it asks again", async () => {
+    const { deps, store, client } = setup({
+      replies: [withTerms([...terms(19), ...handles(6)]), withTerms(terms(19))],
+    });
+    expect(await draftFromInput("owner-1", "acme.example", deps)).toEqual({
+      kind: "failed",
+      reason: "invalid",
+    });
+    expect(client.requests).toHaveLength(2);
+    expect(store.saved).toEqual([]);
+  });
+});
+
 describe("draftFromInput", () => {
   it("reads the site, drafts once, and saves the cleaned draft", async () => {
     const { deps, client, store } = setup();

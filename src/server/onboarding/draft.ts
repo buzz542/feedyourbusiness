@@ -68,24 +68,30 @@ export type Draft = z.infer<typeof Draft>;
 /**
  * What the answer is validated with. The API treats lengths, counts and patterns in the JSON schema
  * as hints, so one 61-character term would fail the whole draft (and spend 2 of the 6 daily calls);
- * cleanDraft enforces every limit instead.
+ * cleanDraft enforces every limit instead. The one count it cannot make up is the floor: an answer
+ * that leaves fewer than 20 usable terms after cleaning (8.3: 20 to 30) is invalid, so the wrapper
+ * asks once more, and a second short answer saves nothing.
  */
-const DraftAnswer: z.ZodType<Draft> = z.object({
-  name: z.string(),
-  one_liner: z.string(),
-  description: z.string(),
-  audience: z.string(),
-  competitors: z.array(
-    z.object({ name: z.string(), domain: z.string().nullable(), aliases: z.array(z.string()) }),
-  ),
-  terms: z.array(
-    z.object({
-      term: z.string(),
-      intent: z.enum(["problem", "category", "alternative", "competitor"]),
-    }),
-  ),
-  subreddits: z.array(z.string()),
-});
+export const MIN_DRAFT_TERMS = 20;
+
+const DraftAnswer: z.ZodType<Draft> = z
+  .object({
+    name: z.string(),
+    one_liner: z.string(),
+    description: z.string(),
+    audience: z.string(),
+    competitors: z.array(
+      z.object({ name: z.string(), domain: z.string().nullable(), aliases: z.array(z.string()) }),
+    ),
+    terms: z.array(
+      z.object({
+        term: z.string(),
+        intent: z.enum(["problem", "category", "alternative", "competitor"]),
+      }),
+    ),
+    subreddits: z.array(z.string()),
+  })
+  .refine((answer) => cleanDraft(answer, null, null).terms.length >= MIN_DRAFT_TERMS);
 
 /** What is saved: the same shape after the 8.3 rules, which may leave fewer terms or rivals. */
 export interface CleanDraft {
