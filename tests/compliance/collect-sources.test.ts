@@ -95,7 +95,13 @@ describe("never-collected platforms", () => {
     expect(registryProblems([planted(over)]).join("\n")).toMatch(/never collected/);
   });
 
-  it("does not refuse a name that only mentions a platform word later on", () => {
+  it("refuses a platform name anywhere in the display name, and Threads only as its first word", () => {
+    expect(registryProblems([planted({ displayName: "Jobs from LinkedIn" })]).join()).toMatch(
+      /never collected/,
+    );
+    expect(registryProblems([planted({ displayName: "Threads" })]).join()).toMatch(
+      /never collected/,
+    );
     expect(registryProblems([planted({ displayName: "Lobsters threads" })])).toEqual([]);
   });
 });
@@ -143,6 +149,27 @@ describe("collect source modules", () => {
   ])("a planted import is caught: %s", (code, rule) => {
     const findings = findSourceImports(code, "src/sources/planted.ts", loadDenylist());
     expect(formatFindings(findings)).toMatch(rule);
+  });
+
+  it("collect source modules import nothing from @/server/, where the fetch builders live", () => {
+    const denylist = loadDenylist();
+    const findings = collect.flatMap((s) =>
+      sourceModuleFiles(s.id, files, read).flatMap((file) =>
+        findSourceImports(read(file), file, denylist, { strict: true }),
+      ),
+    );
+    expect(formatFindings(findings)).toBe("");
+  });
+
+  it.each([
+    'import { createSafeFetch } from "@/server/net/safe-fetch";',
+    'import { createSourceFetch } from "@/server/net/source-fetch";',
+    'import { fetchOwnSite } from "@/server/net/own-site";',
+  ])("a planted @/server import in a source module is caught: %s", (code) => {
+    const findings = findSourceImports(code, "src/sources/planted.ts", loadDenylist(), {
+      strict: true,
+    });
+    expect(formatFindings(findings)).toMatch(/may import only @\/lib\/ and @\/sources\//);
   });
 
   it("allows the source's own imports: relative, @/ and zod", () => {

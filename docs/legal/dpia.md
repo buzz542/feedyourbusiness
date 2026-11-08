@@ -6,8 +6,9 @@ Reddit), and the site reader.
 ## Processing
 
 - **What.** Public posts from Hacker News (official API), Bluesky (official API, a dedicated
-  account), X (official API, off by default) and Reddit (Bright Data's Web Scraper API, Reddit posts
-  dataset, logged-out public pages). Stored: link, community, posted time, excerpt (at most 280
+  account) and Reddit (Bright Data's Web Scraper API, Reddit posts dataset, logged-out public pages).
+  X (official API) is out of Launch 1 (the founder, 8 Nov 2026): its code stays switched off and
+  every deployment holds it off; this assessment is updated before it is added. Stored: link, community, posted time, excerpt (at most 280
   characters), labels, keyed hash of the author id.
 - **Invisible processing.** Posters are not told directly. Mitigation: the Article 14 notice in
   every footer, the sources page, and the removal form. **Question:** is that enough for Article

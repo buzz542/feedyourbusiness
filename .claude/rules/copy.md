@@ -18,7 +18,8 @@ mechanical parts.
 - Describe what the product does, not outcomes it cannot promise. No "find your first customers in
   24 hours".
 - Say plainly where posts come from: Hacker News and Bluesky through official APIs, Reddit through a
-  third-party data provider, X through its official API when it is on, the rest as searches the user opens.
+  third-party data provider, the rest as searches the user opens. X is out of Launch 1 (the founder,
+  8 Nov 2026): the public pages say "X is coming later." and nothing else about X collection.
   Never claim "we don't scrape", "official APIs only" or anything that hides the data provider
   (`compliance:copy` blocks those phrases). The sources page and privacy notice name Bright Data and say it
   is not a data license from Reddit.

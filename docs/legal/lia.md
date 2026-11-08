@@ -20,7 +20,8 @@ Draft, 5 Nov 2026. Controller: AskedFor (trading name and address to be added).
   labels and a keyed hash of the author id. No usernames, avatars, bios or follower counts.
 - Only posts the classifier rates relevant (40 or more out of 100) are stored; the rest are
   discarded in memory.
-- Retention: 7 days for Reddit and X, 30 days for Hacker News and Bluesky, enforced by the database.
+- Retention: 7 days for Reddit (and X, which is out of Launch 1 and not collected), 30 days for
+  Hacker News and Bluesky, enforced by the database.
 - Less intrusive alternatives considered: search links the user opens (used for LinkedIn, Facebook,
   Threads and others, which are never collected); a licensed Reddit feed (requested, F9).
 

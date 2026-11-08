@@ -10,15 +10,14 @@ const ERRORS: Record<string, string> = {
   unavailable: "We could not take your request just now. Please try again in a minute.",
 };
 
-const SOURCES = [
-  ["reddit", "Reddit"],
-  ["hackernews", "Hacker News"],
-  ["bluesky", "Bluesky"],
-  ["x", "X"],
-] as const;
-
-/** The removal form (docs/PLAN.md 4.8). */
-export function RemovalForm({ submit }: { submit: (form: unknown) => Promise<Result> }) {
+/** The removal form (docs/PLAN.md 4.8): one option per source the page passes, as [value, label]. */
+export function RemovalForm({
+  submit,
+  sources,
+}: {
+  submit: (form: unknown) => Promise<Result>;
+  sources: readonly (readonly [string, string])[];
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -56,7 +55,7 @@ export function RemovalForm({ submit }: { submit: (form: unknown) => Promise<Res
           required
           className="rounded-[2px] border border-rule bg-paper px-2 py-1.5"
         >
-          {SOURCES.map(([value, label]) => (
+          {sources.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>

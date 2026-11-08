@@ -216,16 +216,18 @@ export function registryProblems(list: readonly Source[]): string[] {
     const id = source.id;
     // By the platform name inside the id or the display name too: "linkedin_jobs" is LinkedIn,
     // and so is a source called "LinkedIn posts"; and by every host it names.
-    // The display name by the words it starts with, so "Product Hunt" and "LinkedIn posts" are
-    // refused and "Lobsters threads" is not.
+    // The display name by whole words anywhere ("Jobs from LinkedIn"), two words joined for
+    // "Product Hunt" and "Indie Hackers"; "threads" is an ordinary word, so only as the first.
     const words = source.displayName
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter(Boolean);
-    const leading = [words[0], `${words[0] ?? ""}${words[1] ?? ""}`];
+    const named = new Set([...words, ...words.slice(1).map((w, i) => `${words[i]}${w}`)]);
+    named.delete("threads");
+    if (words[0] === "threads") named.add("threads");
     if (
       NEVER_COLLECTED.some(
-        (platform) => id.replaceAll("_", "").includes(platform) || leading.includes(platform),
+        (platform) => id.replaceAll("_", "").includes(platform) || named.has(platform),
       )
     )
       problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);

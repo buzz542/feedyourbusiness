@@ -53,6 +53,16 @@ describe("sources page", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+    // The DPA date set, held only for the snapshot retention: the sentence would be false.
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("SOURCE_REDDIT_ENABLED", "true");
+    vi.stubEnv("BRIGHTDATA_DPA_SIGNED_ON", "2026-11-01");
+    try {
+      expect(render()).toContain("Not switched on yet.");
+      expect(render()).not.toContain(line);
+    } finally {
+      vi.unstubAllEnvs();
+    }
     // Switched off by its own switch where the vendor gate is cleared: no paperwork claim.
     vi.stubEnv("SOURCE_REDDIT_ENABLED", "false");
     try {

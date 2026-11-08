@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { unclaimedBlocks } from "../../../../compliance/lib/claims-blocks";
 import { loadDenylist } from "../../../../compliance/lib/denylist.mjs";
 import { checkCopy, claimNumbers } from "../../../../compliance/lib/scan-copy";
-import { REMOVAL_SOURCES } from "@/server/privacy/removal";
+import { FORM_SOURCES } from "@/server/privacy/removal";
 import Page, { metadata } from "./page";
 
 /** Remove my post (docs/PLAN.md 4.8, M9). */
@@ -13,7 +13,9 @@ const html = renderToStaticMarkup(<Page />);
 
 describe("/remove-my-post", () => {
   it("offers every source we collect from, and asks for a link or username and an email", () => {
-    for (const source of REMOVAL_SOURCES) expect(html).toContain(`value="${source}"`);
+    for (const source of FORM_SOURCES) expect(html).toContain(`value="${source}"`);
+    // X is out of launch (8 Nov 2026): no option for a request its lookup could not handle.
+    expect(html).not.toContain('value="x"');
     expect(html).toContain("Link to the post, or your username");
     expect(html).toContain('type="email"');
     expect(html).toContain('name="confirm"');

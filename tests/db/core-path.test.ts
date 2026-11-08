@@ -69,9 +69,9 @@ const TERMS = [
   "invoice dunning",
   "chasing payments",
   "freelance cash flow",
-  "alternative to Invoicely",
-  "Invoicely alternative",
-  "better than Invoicely",
+  "alternative to Acme Reminders",
+  "Acme Reminders alternative",
+  "better than Acme Reminders",
   "invoice reminders without spreadsheets",
 ];
 
@@ -80,7 +80,7 @@ const DRAFT = {
   one_liner: "Chases late invoices for freelancers.",
   description: "LatePay sends polite reminders until a client pays.",
   audience: "Freelancers and small studios.",
-  competitors: [{ name: "Invoicely", domain: "invoicely.example", aliases: [] }],
+  competitors: [{ name: "Acme Reminders", domain: "acme-reminders.example", aliases: [] }],
   terms: TERMS.map((term, i) => ({
     term,
     intent: i >= 20 ? "alternative" : i % 2 ? "category" : "problem",
@@ -366,7 +366,7 @@ describe("domain to feed", () => {
     });
     expect(saved.terms).toBeGreaterThanOrEqual(20);
     expect(saved.terms).toBeLessThanOrEqual(30);
-    expect(saved.rivals).toEqual(["Invoicely"]);
+    expect(saved.rivals).toEqual(["Acme Reminders"]);
   });
 
   it("collects nothing while the product is a draft or the account is not entitled", async () => {

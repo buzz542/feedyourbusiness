@@ -51,8 +51,8 @@ export const PROCESSORS: readonly Processor[] = [
   {
     name: "Bright Data",
     purpose: "collecting public Reddit pages for us",
-    where: "Israel",
-    transfer: "the UK's adequacy decision for Israel",
+    where: "Israel, to be confirmed with Bright Data before Reddit collection is switched on",
+    transfer: "the UK's adequacy decision for Israel, if processing runs there",
     hosts: [],
   },
 ];

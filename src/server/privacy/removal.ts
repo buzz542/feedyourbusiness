@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LAUNCH_COLLECT_SOURCES } from "@/sources/registry";
 
 /**
  * Remove my post (docs/PLAN.md 4.8, 2.3.5, 12.5). A person gives a link to a post or their username
@@ -10,6 +11,15 @@ import { z } from "zod";
 
 export const REMOVAL_SOURCES = ["reddit", "hackernews", "bluesky", "x"] as const;
 export type RemovalSource = (typeof REMOVAL_SOURCES)[number];
+
+/**
+ * The sources the public form takes requests for: those in the launch list (8 Nov 2026). X is out
+ * of launch, so its username lookup cannot run and a request for it could never be handled; X
+ * returns to the form when it joins LAUNCH_COLLECT_SOURCES.
+ */
+export const FORM_SOURCES: readonly RemovalSource[] = REMOVAL_SOURCES.filter((s) =>
+  (LAUNCH_COLLECT_SOURCES as readonly string[]).includes(s),
+);
 export const REMOVAL_DAILY_LIMIT = 5;
 
 export type RemovalTarget =
@@ -129,7 +139,7 @@ function parseLink(
 }
 
 export const RemovalForm = z.object({
-  source: z.enum(REMOVAL_SOURCES),
+  source: z.enum(REMOVAL_SOURCES).refine((s) => FORM_SOURCES.includes(s)),
   linkOrHandle: z.string().trim().min(1).max(500),
   contactEmail: z.email().max(320),
   details: z.string().trim().max(1000).optional().default(""),

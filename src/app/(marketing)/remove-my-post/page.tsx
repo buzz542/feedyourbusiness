@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FORM_SOURCES } from "@/server/privacy/removal";
+import { sources } from "@/sources/registry";
 import { requestRemoval } from "./actions";
 import { RemovalForm } from "./removal-form";
 
@@ -8,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Ask AskedFor to delete the posts we hold from you on a platform and never store your posts from it again.",
 };
+
+/** One option per source the form takes, labeled with the registry's display name. */
+const FORM_OPTIONS = FORM_SOURCES.map(
+  (id) => [id, sources.find((s) => s.id === id)?.displayName ?? id] as const,
+);
 
 /** Remove my post (docs/PLAN.md 2.3.5, 4.8): the public form. Every paragraph has a claims row. */
 export default function Page() {
@@ -20,7 +27,7 @@ export default function Page() {
         from it again.
       </p>
       <p>We handle every request within 30 days, and we aim to do it within 72 hours.</p>
-      <RemovalForm submit={requestRemoval} />
+      <RemovalForm submit={requestRemoval} sources={FORM_OPTIONS} />
       <p className="text-sm text-muted">
         We use your email only to handle this request. More in our{" "}
         <Link href="/privacy" className="underline">

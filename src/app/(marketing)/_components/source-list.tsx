@@ -40,11 +40,12 @@ const retention = (days: number) =>
       ? "Deleted from AskedFor 30 days after we collect it."
       : null;
 
-/** A vendor source held back on deployments until its DPA date and snapshot retention (2.1.7). */
-const awaitsPaperwork = (source: CollectSource) => {
-  const clearance = vendorClearance(source);
-  return clearance === "dpa_missing" || clearance === "notice_missing";
-};
+/**
+ * A vendor source held back on deployments because its DPA date is not set (2.1.7). Once the date
+ * is set the paperwork sentence would be false; a hold for the snapshot retention is explained by
+ * DataProviderNotice instead.
+ */
+const awaitsPaperwork = (source: CollectSource) => vendorClearance(source) === "dpa_missing";
 
 const isOn = (source: CollectSource) =>
   isEnabled(source) &&

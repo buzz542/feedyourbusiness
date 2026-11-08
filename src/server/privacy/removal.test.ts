@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { LAUNCH_COLLECT_SOURCES } from "@/sources/registry";
 import { authorHasher, hashAuthors } from "./author-hash";
 import {
   closeRemoval,
+  FORM_SOURCES,
   handleRemoval,
   parseRemovalTarget,
   RemovalForm,
@@ -248,8 +250,13 @@ describe("RemovalForm", () => {
   it("accepts a complete form", () => {
     expect(RemovalForm.safeParse(ok).success).toBe(true);
   });
+  it("offers exactly the launch collect sources", () => {
+    expect([...FORM_SOURCES].sort()).toEqual([...LAUNCH_COLLECT_SOURCES].sort());
+  });
   it.each([
     [{ source: "linkedin" }],
+    // X is out of launch (8 Nov 2026): its lookup cannot run, so the form takes no X request.
+    [{ source: "x" }],
     [{ contactEmail: "not an email" }],
     [{ confirm: false }],
     [{ linkOrHandle: "" }],

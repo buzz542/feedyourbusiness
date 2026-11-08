@@ -84,13 +84,27 @@ const lineOf = (sf: ts.SourceFile, node: ts.Node) =>
 const isOwnPath = (specifier: string) =>
   specifier.startsWith("./") || specifier.startsWith("../") || specifier.startsWith("@/");
 
-export function findSourceImports(code: string, file: string, deny: Denylist): Finding[] {
+/**
+ * `strict` is for a collect source's own module files: they may import `@/lib/` helpers and other
+ * `@/sources/` modules, never `@/server/` (where safeFetch, the fetch builders and fetchOwnSite
+ * live), so a source cannot build a fetch for another source's host. Its ctx.fetch is the only way.
+ */
+export function findSourceImports(
+  code: string,
+  file: string,
+  deny: Denylist,
+  options: { strict?: boolean } = {},
+): Finding[] {
   const sf = parse(code, file);
   const findings: Finding[] = [];
   const add = (node: ts.Node, detail: string) =>
     findings.push({ file, line: lineOf(sf, node), rule: "source-import", detail });
 
   const check = (node: ts.Node, specifier: string) => {
+    if (options.strict && specifier.startsWith("@/") && !/^@\/(lib|sources)\//.test(specifier)) {
+      add(node, `"${specifier}": a source module may import only @/lib/ and @/sources/`);
+      return;
+    }
     if (isOwnPath(specifier)) return;
     const name = moduleName(specifier);
     if (BROWSER_PACKAGES.has(name)) add(node, `"${name}" drives a browser`);
