@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { loadDenylist } from "../../../../compliance/lib/denylist.mjs";
 import { checkCopy, claimNumbers } from "../../../../compliance/lib/scan-copy";
 import { PROCESSOR_HOSTS } from "@/server/net/hosts";
-import { sources } from "@/sources/registry";
+import { isLaunchSource, sources } from "@/sources/registry";
 import AcceptableUse from "../acceptable-use/page";
 import Cookies from "../cookies/page";
 import { PROCESSORS } from "../_components/processors";
@@ -31,12 +31,15 @@ describe("privacy notice", () => {
     for (const p of PROCESSORS) expect(privacy).toContain(`${p.name}: ${p.purpose}.`);
   });
 
-  it("names every collect source and every vendor in the registry", () => {
+  it("names every launch collect source and every vendor, and says X is not collected", () => {
     for (const s of sources) {
-      if (s.mode !== "collect") continue;
+      if (s.mode !== "collect" || !isLaunchSource(s)) continue;
       expect(privacy).toContain(s.displayName);
       if (s.vendor) expect(privacy).toContain(s.vendor.name);
     }
+    expect(privacy).toContain("We collect public posts from Hacker News, Bluesky and Reddit.");
+    expect(privacy).toContain("We do not collect posts from X.");
+    expect(privacy).not.toMatch(/Reddit and X posts|X through/);
   });
 
   it("states the vendor's snapshot retention, or that Reddit stays off until it does", () => {
@@ -45,7 +48,7 @@ describe("privacy notice", () => {
 
   it("says retention by source, the removal form, the ICO, and the Google sign-in records", () => {
     expect(privacy).toContain(
-      "Reddit and X posts are deleted from AskedFor 7 days after we collect them",
+      "Reddit posts are deleted from AskedFor 7 days after we collect them",
     );
     expect(privacy).toContain("remove my post form");
     expect(privacy).toContain("Information Commissioner");

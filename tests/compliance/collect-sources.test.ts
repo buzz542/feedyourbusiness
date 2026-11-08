@@ -33,6 +33,8 @@ import { checkSources } from "@/server/health/sources";
 const collect = sources.filter((s): s is CollectSource => s.mode === "collect");
 const SOURCE_DIR = "src/sources";
 const files = readdirSync(SOURCE_DIR).map((f) => `${SOURCE_DIR}/${f}`);
+const read = (file: string) => readFileSync(file, "utf8");
+const isTest = (file: string) => /\.test\.tsx?$/.test(file);
 
 /**
  * A source's own hosts: its registry entry (API hosts, link hosts and the link hosts' bare domain,
@@ -85,8 +87,16 @@ describe("never-collected platforms", () => {
     ["Threads", { linkHosts: ["www.threads.com"] }],
     ["Facebook", { allowedHosts: ["graph.facebook.com"] }],
     ["Product Hunt by host", { allowedHosts: ["api.producthunt.com"] }],
+    ["by a name it starts with", { displayName: "LinkedIn posts" }],
+    ["by a wrapped host", { allowedHosts: ["www-linkedin-com.proxy.example"] }],
+    ["by a host with the domain inside it", { allowedHosts: ["www.instagram.com.mirror.example"] }],
+    ["by a messenger short link", { linkHosts: ["m.me"] }],
   ])("a planted collect source %s is caught", (_, over) => {
     expect(registryProblems([planted(over)]).join("\n")).toMatch(/never collected/);
+  });
+
+  it("does not refuse a name that only mentions a platform word later on", () => {
+    expect(registryProblems([planted({ displayName: "Lobsters threads" })])).toEqual([]);
   });
 });
 
@@ -96,15 +106,28 @@ describe("collect source modules", () => {
       expect(sourceModuleFiles(id, files).length).toBeGreaterThan(0);
     expect(sourceModuleFiles("reddit", files)).toContain("src/sources/reddit-brightdata.ts");
     expect(sourceModuleFiles("x", files)).toEqual(["src/sources/x.ts"]);
+    // Helpers a source imports by a relative path are read too, transitively.
+    expect(sourceModuleFiles("hackernews", files, read)).toContain("src/sources/text.ts");
   });
 
-  it("import no scraping, browser or other outside package", () => {
+  it("follows a planted helper import, so a host hidden in it is caught", () => {
+    const planted: Record<string, string> = {
+      "src/sources/planted.ts": 'import { client } from "./planted-free/helper";',
+      "src/sources/planted-free/helper.ts": 'export { x } from "../deep";',
+      "src/sources/deep.ts": 'export const u = "https://www.reddit.com/r/a.json";',
+    };
+    const all = Object.keys(planted);
+    const found = sourceModuleFiles("planted", all, (f) => planted[f]!);
+    expect(found).toEqual(all.slice().sort());
+    const hosts = found.flatMap((f) => findSourceHosts(planted[f]!, f, new Set(["api.p.example"])));
+    expect(formatFindings(hosts)).toMatch(/www\.reddit\.com/);
+  });
+
+  it("no file under src/sources imports a scraping, browser or other outside package", () => {
     const denylist = loadDenylist();
-    const findings = collect.flatMap((s) =>
-      sourceModuleFiles(s.id, files).flatMap((file) =>
-        findSourceImports(readFileSync(file, "utf8"), file, denylist),
-      ),
-    );
+    const findings = files
+      .filter((f) => /\.tsx?$/.test(f) && !isTest(f))
+      .flatMap((file) => findSourceImports(read(file), file, denylist));
     expect(formatFindings(findings)).toBe("");
   });
 
@@ -135,8 +158,8 @@ describe("collect source modules", () => {
 
   it("name no host outside their own registry entry", () => {
     const findings = collect.flatMap((s) =>
-      sourceModuleFiles(s.id, files).flatMap((file) =>
-        findSourceHosts(readFileSync(file, "utf8"), file, ownHostsOf(s)),
+      sourceModuleFiles(s.id, files, read).flatMap((file) =>
+        findSourceHosts(read(file), file, ownHostsOf(s)),
       ),
     );
     expect(formatFindings(findings)).toBe("");

@@ -16,18 +16,12 @@ import { VENDOR_DOMAINS } from "@/sources/reddit-vendor";
  * only file allowed to name it (2.1.9).
  */
 
-/** Platforms' own domains, every subdomain included. */
-const PLATFORM_SITE_DOMAINS = [
-  "reddit.com",
-  "redd.it",
-  "redditmedia.com",
-  "redditstatic.com",
-  "x.com",
-  "twitter.com",
-  "t.co",
-  "twimg.com",
-  "periscope.tv",
-  "pscp.tv",
+/**
+ * The domains of the platforms that are never collected, by us or by a vendor (docs/PLAN.md 2.1.5):
+ * LinkedIn, Facebook, Instagram, Threads, TikTok, YouTube, Discord, and Product Hunt and Indie
+ * Hackers. The registry refuses a collect source that names one of them (registryProblems).
+ */
+export const NEVER_COLLECTED_DOMAINS = [
   "linkedin.com",
   "lnkd.in",
   "licdn.com",
@@ -45,21 +39,38 @@ const PLATFORM_SITE_DOMAINS = [
   "threads.com",
   "tiktok.com",
   "tiktokcdn.com",
+  "tiktokv.com",
   "youtube.com",
   "youtu.be",
   "youtube-nocookie.com",
   "ytimg.com",
+  "youtube.googleapis.com",
   "discord.com",
   "discord.gg",
   "discordapp.com",
   "discordapp.net",
   "discord.media",
+  "producthunt.com",
+  "indiehackers.com",
+] as const;
+
+/** Platforms' own domains, every subdomain included. */
+const PLATFORM_SITE_DOMAINS = [
+  "reddit.com",
+  "redd.it",
+  "redditmedia.com",
+  "redditstatic.com",
+  "x.com",
+  "twitter.com",
+  "t.co",
+  "twimg.com",
+  "periscope.tv",
+  "pscp.tv",
   "bsky.app",
   "bsky.social",
   "bsky.network",
   "ycombinator.com",
-  "producthunt.com",
-  "indiehackers.com",
+  ...NEVER_COLLECTED_DOMAINS,
 ] as const;
 
 /** API hosts of platforms on other domains. */
@@ -158,10 +169,18 @@ export const matchesDomain = (host: string, domains: readonly string[]): boolean
  * hyphens as a whole label or a label's end (`www-reddit-com.proxy.example`).
  */
 export function isPlatformHost(host: string): boolean {
+  return matchesOrWraps(host, PLATFORM_DOMAINS);
+}
+
+/**
+ * True for a domain in `domains`, any subdomain of one, or a host that wraps one (see
+ * isPlatformHost).
+ */
+export function matchesOrWraps(host: string, domains: readonly string[]): boolean {
   const h = normalize(host);
-  if (matchesDomain(h, PLATFORM_DOMAINS)) return true;
+  if (matchesDomain(h, domains)) return true;
   const labels = h.split(".");
-  return PLATFORM_DOMAINS.some((d) => {
+  return domains.some((d) => {
     if (h.startsWith(`${d}.`) || h.includes(`.${d}.`)) return true;
     const hyphenated = d.replace(/\./g, "-");
     return labels.some((l) => l === hyphenated || l.endsWith(`-${hyphenated}`));

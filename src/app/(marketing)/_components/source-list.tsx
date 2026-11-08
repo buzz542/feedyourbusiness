@@ -40,6 +40,12 @@ const retention = (days: number) =>
       ? "Deleted from AskedFor 30 days after we collect it."
       : null;
 
+/** A vendor source held back on deployments until its DPA date and snapshot retention (2.1.7). */
+const awaitsPaperwork = (source: CollectSource) => {
+  const clearance = vendorClearance(source);
+  return clearance === "dpa_missing" || clearance === "notice_missing";
+};
+
 const isOn = (source: CollectSource) =>
   isEnabled(source) &&
   vendorClearance(source) !== "dpa_missing" &&
@@ -69,7 +75,7 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
               <p className="mt-1 text-sm text-muted">
                 {isOn(source) ? "Switched on." : "Not switched on yet."}
               </p>
-              {source.vendor && !isOn(source) ? (
+              {source.vendor && awaitsPaperwork(source) ? (
                 <p className="mt-1 text-sm text-muted">
                   It stays off until our data processing agreement with {source.vendor.name} and our
                   privacy impact assessment are signed.

@@ -18,10 +18,60 @@ export const SOURCE_PACKAGES: ReadonlySet<string> = new Set(["zod", "server-only
 /** Packages that drive a browser: never in a source, whatever the denylist's dev-only list says. */
 const BROWSER_PACKAGES = new Set(["playwright", "playwright-core", "@playwright/test"]);
 
-/** `src/sources/<id>.ts` and `src/sources/<id>-*.ts`, never a test. */
-export function sourceModuleFiles(id: string, files: readonly string[]): string[] {
+const isTest = (file: string) => /\.test\.tsx?$/.test(file);
+
+/**
+ * A collect source's module files: `src/sources/<id>.ts` and `src/sources/<id>-*.ts`, plus every
+ * file in `files` they import by a relative path, followed transitively, so a helper module cannot
+ * hide a host from the scan. Never a test. `@/` imports leave `src/sources` and are covered by the
+ * repo-wide hosts gate; at run time a source reaches only its own hosts (createSourceFetch).
+ */
+export function sourceModuleFiles(
+  id: string,
+  files: readonly string[],
+  read?: (file: string) => string,
+): string[] {
   const own = new RegExp(`^src/sources/${id}(-[a-z0-9-]+)?\\.ts$`);
-  return files.filter((f) => own.test(f) && !/\.test\.ts$/.test(f)).sort();
+  const found = new Set(files.filter((f) => own.test(f) && !isTest(f)));
+  const queue = read ? [...found] : [];
+  while (queue.length > 0) {
+    const file = queue.pop() as string;
+    for (const specifier of relativeImports(read!(file), file)) {
+      const target = resolveRelative(file, specifier, files);
+      if (target && !isTest(target) && !found.has(target)) {
+        found.add(target);
+        queue.push(target);
+      }
+    }
+  }
+  return [...found].sort();
+}
+
+/** The relative module specifiers a file imports or re-exports. */
+function relativeImports(code: string, file: string): string[] {
+  const out: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text.startsWith(".")
+    )
+      out.push(node.moduleSpecifier.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(parse(code, file));
+  return out;
+}
+
+function resolveRelative(from: string, specifier: string, files: readonly string[]): string | null {
+  const parts = from.split("/").slice(0, -1);
+  for (const segment of specifier.split("/")) {
+    if (segment === "..") parts.pop();
+    else if (segment !== ".") parts.push(segment);
+  }
+  const base = parts.join("/");
+  return [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((f) => files.includes(f)) ?? null;
 }
 
 function parse(code: string, file: string): ts.SourceFile {

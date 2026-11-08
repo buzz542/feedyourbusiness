@@ -91,7 +91,8 @@ const DraftAnswer: z.ZodType<Draft> = z
     ),
     subreddits: z.array(z.string()),
   })
-  .refine((answer) => cleanDraft(answer, null, null).terms.length >= MIN_DRAFT_TERMS);
+  // The same cleaning the save applies to terms (cleanTerms), so the count is what gets saved.
+  .refine((answer) => cleanTerms(answer.terms).length >= MIN_DRAFT_TERMS);
 
 /** What is saved: the same shape after the 8.3 rules, which may leave fewer terms or rivals. */
 export interface CleanDraft {
@@ -176,6 +177,16 @@ const uniqueBy = <T>(items: T[], key: (item: T) => string): T[] => {
   });
 };
 
+/** Terms by the 8.3 rules: tidy, product labels of 2 to 60 characters, unique ignoring case, at most 30. */
+function cleanTerms(raw: Draft["terms"]): CleanDraft["terms"] {
+  return uniqueBy(
+    raw
+      .map((t) => ({ term: tidy(t.term), intent: t.intent }))
+      .filter((t) => t.term.length >= 2 && isProductLabel(t.term, 60)),
+    (t) => t.term.toLowerCase(),
+  ).slice(0, 30);
+}
+
 /** The 8.3 rules, applied to the model's answer before anything is saved. */
 export function cleanDraft(
   raw: Draft,
@@ -210,12 +221,7 @@ export function cleanDraft(
     ).slice(0, 10),
   }));
 
-  const terms = uniqueBy(
-    raw.terms
-      .map((t) => ({ term: tidy(t.term), intent: t.intent }))
-      .filter((t) => t.term.length >= 2 && isProductLabel(t.term, 60)),
-    (t) => t.term.toLowerCase(),
-  ).slice(0, 30);
+  const terms = cleanTerms(raw.terms);
 
   const subreddits = uniqueBy(
     raw.subreddits

@@ -1,5 +1,9 @@
 import { isHostAllowed } from "@/server/net/safe-fetch";
-import { isPlatformWebHost, matchesDomain } from "@/server/net/platform-hosts";
+import {
+  isPlatformWebHost,
+  matchesOrWraps,
+  NEVER_COLLECTED_DOMAINS,
+} from "@/server/net/platform-hosts";
 import { bluesky } from "./bluesky";
 import { hackernews } from "./hackernews";
 import { facebook, indiehackers, linkedin, redditLinks, threads, xLinks } from "./link-sources";
@@ -166,42 +170,6 @@ export const NEVER_COLLECTED = [
   "producthunt",
 ] as const;
 
-/**
- * The domains of the platforms that are never collected, every subdomain included (docs/PLAN.md
- * 2.1.5): a collect source that calls, links to or takes its terms from one of them is refused.
- */
-const NEVER_COLLECTED_DOMAINS = [
-  "indiehackers.com",
-  "linkedin.com",
-  "lnkd.in",
-  "licdn.com",
-  "facebook.com",
-  "fb.com",
-  "fb.me",
-  "fb.watch",
-  "fbcdn.net",
-  "messenger.com",
-  "instagram.com",
-  "instagr.am",
-  "cdninstagram.com",
-  "tiktok.com",
-  "tiktokcdn.com",
-  "tiktokv.com",
-  "threads.net",
-  "threads.com",
-  "youtube.com",
-  "youtu.be",
-  "youtube-nocookie.com",
-  "ytimg.com",
-  "youtube.googleapis.com",
-  "discord.com",
-  "discord.gg",
-  "discordapp.com",
-  "discordapp.net",
-  "discord.media",
-  "producthunt.com",
-] as const;
-
 const hostOf = (raw: string) => {
   try {
     return new URL(raw).hostname;
@@ -248,8 +216,18 @@ export function registryProblems(list: readonly Source[]): string[] {
     const id = source.id;
     // By the platform name inside the id or the display name too: "linkedin_jobs" is LinkedIn,
     // and so is a source called "LinkedIn posts"; and by every host it names.
-    const names = [id, source.displayName].map((n) => n.toLowerCase().replace(/[^a-z0-9]/g, ""));
-    if (NEVER_COLLECTED.some((platform) => names.some((n) => n.includes(platform))))
+    // The display name by the words it starts with, so "Product Hunt" and "LinkedIn posts" are
+    // refused and "Lobsters threads" is not.
+    const words = source.displayName
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    const leading = [words[0], `${words[0] ?? ""}${words[1] ?? ""}`];
+    if (
+      NEVER_COLLECTED.some(
+        (platform) => id.replaceAll("_", "").includes(platform) || leading.includes(platform),
+      )
+    )
       problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);
     const hosts = [
       ...source.allowedHosts,
@@ -258,7 +236,7 @@ export function registryProblems(list: readonly Source[]): string[] {
       ...(source.vendor ? [hostOf(source.vendor.dpaUrl)] : []),
     ];
     for (const host of hosts)
-      if (matchesDomain(host, NEVER_COLLECTED_DOMAINS))
+      if (matchesOrWraps(host, NEVER_COLLECTED_DOMAINS))
         problems.push(
           `${id}: ${host} belongs to a platform that is never collected (docs/PLAN.md 2.1)`,
         );

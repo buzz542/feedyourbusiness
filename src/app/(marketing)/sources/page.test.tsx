@@ -40,13 +40,27 @@ describe("sources page", () => {
     expect(page).not.toContain("official X API");
   });
 
-  it("marks Reddit as off until its paperwork with the vendor is done", () => {
+  it("marks Reddit as off until its paperwork with the vendor is done, and only then", () => {
     const reddit = collect.find((s) => s.id === "reddit")!;
-    const block = text(renderToStaticMarkup(<SourceList sources={[reddit]} />));
-    expect(block).toContain("Not switched on yet.");
-    expect(block).toContain(
-      "It stays off until our data processing agreement with Bright Data and our privacy impact assessment are signed.",
-    );
+    const line =
+      "It stays off until our data processing agreement with Bright Data and our privacy impact assessment are signed.";
+    const render = () => text(renderToStaticMarkup(<SourceList sources={[reddit]} />));
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("SOURCE_REDDIT_ENABLED", "true");
+    try {
+      expect(render()).toContain("Not switched on yet.");
+      expect(render()).toContain(line);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    // Switched off by its own switch where the vendor gate is cleared: no paperwork claim.
+    vi.stubEnv("SOURCE_REDDIT_ENABLED", "false");
+    try {
+      expect(render()).toContain("Not switched on yet.");
+      expect(render()).not.toContain(line);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it.each(collect.map((s) => [s.id, s] as const))("%s: access, retention and status", (_, s) => {

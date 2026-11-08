@@ -13,6 +13,7 @@ import { runDailyCron } from "@/server/pipeline/cron";
 import { FakeBudget, FakeJobStore } from "@/server/pipeline/fakes";
 import { feedConditions, parseFeedParams } from "@/server/store/feed";
 import type { CollectSource, CollectTerm } from "@/sources/types";
+import { feedSql as toSql } from "./feed-sql";
 import { createDb, withRole } from "./harness";
 
 /**
@@ -25,6 +26,11 @@ import { createDb, withRole } from "./harness";
  */
 
 const OWNER = "00000000-0000-4000-8000-00000000c0de";
+/**
+ * The wall clock, not a fixed date: product_posts.created_at is stamped by the database's now(),
+ * and Today is the last 24 hours before the reader's clock, so both must be the same clock. Post
+ * times are relative to it (a few hours old), so the test does not depend on the time of day.
+ */
 const NOW = new Date();
 const HOUR = 3_600_000;
 
@@ -258,7 +264,7 @@ const profiles: ProfileStore = {
       const product = rows[0];
       if (!product) return null;
       const competitors = await db.query<{ id: string; name: string; aliases: string[] }>(
-        "select id, name, aliases from public.competitors where product_id = $1",
+        "select id, name, aliases from public.competitors where product_id = $1 order by created_at, id limit 20",
         [productId],
       );
       return {
@@ -457,25 +463,3 @@ describe("domain to feed", () => {
     expect(stored.rows[0]!.n).toBe(1);
   });
 });
-
-/** feedConditions as SQL, as tests/db/feed.test.ts reads them. */
-function toSql(conditions: ReturnType<typeof feedConditions>) {
-  const params: unknown[] = [];
-  const where = conditions.map((c) => {
-    params.push(c.value);
-    const p = `$${params.length}`;
-    switch (c.op) {
-      case "eq":
-        return `${c.column} = ${p}`;
-      case "neq":
-        return `${c.column} <> ${p}`;
-      case "gte":
-        return `${c.column} >= ${p}`;
-      case "in":
-        return `${c.column} = any(${p})`;
-      case "ilike":
-        return `${c.column} ilike ${p}`;
-    }
-  });
-  return { where: where.join(" and "), params };
-}

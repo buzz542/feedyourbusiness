@@ -5,10 +5,10 @@ import {
   FEED_SOURCES,
   feedConditions,
   parseFeedParams,
-  type Condition,
   type FeedFilter,
   type FeedView,
 } from "@/server/store/feed";
+import { feedSql as toSql } from "./feed-sql";
 import { applyMigrationsFrom, createDb, withRole } from "./harness";
 
 /**
@@ -43,27 +43,6 @@ const seeded: Seed[] = [];
 
 const one = async <T>(sql: string, params: unknown[] = []) =>
   (await db.query<T>(sql, params)).rows[0] as T;
-
-function toSql(conditions: Condition[]) {
-  const params: unknown[] = [];
-  const where = conditions.map((c) => {
-    params.push(c.value);
-    const p = `$${params.length}`;
-    switch (c.op) {
-      case "eq":
-        return `${c.column} = ${p}`;
-      case "neq":
-        return `${c.column} <> ${p}`;
-      case "gte":
-        return `${c.column} >= ${p}`;
-      case "in":
-        return `${c.column} = any(${p})`;
-      case "ilike":
-        return `${c.column} ilike ${p}`;
-    }
-  });
-  return { where: where.join(" and "), params };
-}
 
 async function read(productId: string, filter: FeedFilter, view: FeedView = filter.view) {
   const { where, params } = toSql(feedConditions(productId, filter, view, now, 60));

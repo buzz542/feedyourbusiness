@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { sources } from "@/sources/registry";
+import { isLaunchSource, sources } from "@/sources/registry";
 import type { CollectSource } from "@/sources/types";
 import { DataProviderNotice } from "../_components/data-provider-notice";
 import { LegalDraft, Section } from "../_components/legal-draft";
@@ -15,7 +15,10 @@ export const metadata: Metadata = { title: "Privacy notice" };
  * and vendors come from the code (tests compare the lists).
  */
 export default function Page() {
-  const collect = sources.filter((s): s is CollectSource => s.mode === "collect");
+  // The launch sources only: X is out of launch, and the notice says so (8 Nov 2026).
+  const collect = sources.filter(
+    (s): s is CollectSource => s.mode === "collect" && isLaunchSource(s),
+  );
   return (
     <LegalDraft title="Privacy notice">
       <p>
@@ -27,9 +30,9 @@ export default function Page() {
 
       <Section id="authors" title="If you wrote a public post we show">
         <p>
-          We collect public posts from {listInWords(collect.map((s) => s.displayName))}. Hacker
-          News, Bluesky and X through their official APIs; Reddit through Bright Data, as set out
-          below. X is collected only when we switch it on.
+          We collect public posts from {listInWords(collect.map((s) => s.displayName))}. Hacker News
+          and Bluesky through their official APIs; Reddit through Bright Data, as set out below. We
+          do not collect posts from X.
         </p>
         <p>
           From each post we keep the link, the community, when it was posted, an excerpt of at most
@@ -38,11 +41,11 @@ export default function Page() {
           the author&apos;s DID, a public id that leads to their handle.
         </p>
         <p>
-          We keep only posts our classifier rates relevant. Reddit and X posts are deleted from
-          AskedFor 7 days after we collect them, and Hacker News and Bluesky posts after 30 days. We
-          drop Reddit posts from communities about health, sexuality, religion, politics, ethnicity
-          and similar topics, and from user profiles, before they are labeled or stored. We never
-          infer anything sensitive about anyone.
+          We keep only posts our classifier rates relevant. Reddit posts are deleted from AskedFor 7
+          days after we collect them, and Hacker News and Bluesky posts after 30 days. We drop
+          Reddit posts from communities about health, sexuality, religion, politics, ethnicity and
+          similar topics, and from user profiles, before they are labeled or stored. We never infer
+          anything sensitive about anyone.
         </p>
         <p>
           Why: to show our customers public conversations they can join. Our lawful basis is
