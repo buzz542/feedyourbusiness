@@ -1534,7 +1534,7 @@ checks that depend on them.
 - **F15. Legal** (before taking money). Solicitor review of the drafts in 12.9, ICO fee paid, LIA and DPIA signed off, DPAs signed with every processor in 12.4, trading name, address and email in the footer, HMRC registration if needed.
 - **F16. Label 100 posts** (M4). Label the posts in `eval/labeled.jsonl` for the classifier eval; the session prepares the file from your own feed.
 - **F17. Supabase Pro** (before real users). Backups and no pausing, for the production project. Pause or delete the old `buzz542's Project` in `eu-west-1` if you did not reuse it for development in F12.
-- **F18. X, optional.** A developer account with pay-per-use credits, an app bearer token and the use case declared honestly. Then set `X_BEARER_TOKEN`, a budget in `X_DAILY_READS_PER_PRODUCT`, and `SOURCE_X_ENABLED=true`.
+- **F18. X, optional, after launch.** A developer account with pay-per-use credits, an app bearer token and the use case declared honestly. Then ask a build session to add `x` to `LAUNCH_COLLECT_SOURCES` (until then every deployment holds X off and `/api/health` reports it as "held: not in launch"), and set `X_BEARER_TOKEN`, a budget in `X_DAILY_READS_PER_PRODUCT`, and `SOURCE_X_ENABLED=true`.
 
 ---
 

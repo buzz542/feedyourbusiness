@@ -22,23 +22,32 @@ const isTest = (file: string) => /\.test\.tsx?$/.test(file);
 
 /**
  * A collect source's module files: `src/sources/<id>.ts` and `src/sources/<id>-*.ts`, plus every
- * file in `files` they import by a relative path, followed transitively, so a helper module cannot
- * hide a host from the scan. Never a test. `@/` imports leave `src/sources` and are covered by the
- * repo-wide hosts gate; at run time a source reaches only its own hosts (createSourceFetch).
+ * file they import by a relative, `@/sources/` or `@/lib/` path, followed transitively and in any
+ * subdirectory, so a helper module cannot hide a host from the scan. Never a test. `files` is every
+ * file under `src/` (walk), and an import that resolves to none of them is reported in `problems`
+ * rather than skipped. Other `@/` imports are refused in a source module (findSourceImports, strict).
  */
 export function sourceModuleFiles(
   id: string,
   files: readonly string[],
   read?: (file: string) => string,
+  problems: Finding[] = [],
 ): string[] {
   const own = new RegExp(`^src/sources/${id}(-[a-z0-9-]+)?\\.ts$`);
   const found = new Set(files.filter((f) => own.test(f) && !isTest(f)));
   const queue = read ? [...found] : [];
   while (queue.length > 0) {
     const file = queue.pop() as string;
-    for (const specifier of relativeImports(read!(file), file)) {
-      const target = resolveRelative(file, specifier, files);
-      if (target && !isTest(target) && !found.has(target)) {
+    for (const { specifier, line } of followedImports(read!(file), file)) {
+      const target = resolveImport(file, specifier, files);
+      if (!target)
+        problems.push({
+          file,
+          line,
+          rule: "source-import",
+          detail: `"${specifier}" resolves to no file the gate can read`,
+        });
+      else if (!isTest(target) && !found.has(target)) {
         found.add(target);
         queue.push(target);
       }
@@ -47,31 +56,37 @@ export function sourceModuleFiles(
   return [...found].sort();
 }
 
-/** The relative module specifiers a file imports or re-exports. */
-function relativeImports(code: string, file: string): string[] {
-  const out: string[] = [];
+const FOLLOWED = /^(\.{1,2}\/|@\/(sources|lib)\/)/;
+
+/** The relative, `@/sources/` and `@/lib/` specifiers a file imports or re-exports. */
+function followedImports(code: string, file: string): { specifier: string; line: number }[] {
+  const sf = parse(code, file);
+  const out: { specifier: string; line: number }[] = [];
   const visit = (node: ts.Node) => {
     if (
       (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier) &&
-      node.moduleSpecifier.text.startsWith(".")
+      FOLLOWED.test(node.moduleSpecifier.text)
     )
-      out.push(node.moduleSpecifier.text);
+      out.push({ specifier: node.moduleSpecifier.text, line: lineOf(sf, node) });
     ts.forEachChild(node, visit);
   };
-  visit(parse(code, file));
+  visit(sf);
   return out;
 }
 
-function resolveRelative(from: string, specifier: string, files: readonly string[]): string | null {
-  const parts = from.split("/").slice(0, -1);
-  for (const segment of specifier.split("/")) {
+function resolveImport(from: string, specifier: string, files: readonly string[]): string | null {
+  const parts = specifier.startsWith("@/") ? ["src"] : from.split("/").slice(0, -1);
+  const rest = specifier.startsWith("@/") ? specifier.slice(2) : specifier;
+  for (const segment of rest.split("/")) {
     if (segment === "..") parts.pop();
     else if (segment !== ".") parts.push(segment);
   }
   const base = parts.join("/");
-  return [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((f) => files.includes(f)) ?? null;
+  return (
+    [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, base].find((f) => files.includes(f)) ?? null
+  );
 }
 
 function parse(code: string, file: string): ts.SourceFile {
@@ -155,7 +170,13 @@ const looksLikeHost = (text: string): boolean => {
 };
 
 /** Every host a source module names, in a URL or as a bare host string, must be its own. */
-export function findSourceHosts(code: string, file: string, own: ReadonlySet<string>): Finding[] {
+export function findSourceHosts(
+  code: string,
+  file: string,
+  own: ReadonlySet<string>,
+  /** Hosts refused whatever their top-level domain (platforms, proxies, mirrors): isPlatformHost. */
+  refused: (host: string) => boolean = () => false,
+): Finding[] {
   const findings: Finding[] = findUrlHosts(code, file).flatMap(({ host, line }) =>
     host !== null && own.has(host)
       ? []
@@ -180,7 +201,8 @@ export function findSourceHosts(code: string, file: string, own: ReadonlySet<str
       return;
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       const text = node.text.trim().toLowerCase();
-      if (looksLikeHost(text) && !own.has(text))
+      const dotted = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(text);
+      if (dotted && (looksLikeHost(text) || refused(text)) && !own.has(text))
         findings.push({
           file,
           line: lineOf(sf, node),

@@ -1,13 +1,17 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadDenylist } from "../../compliance/lib/denylist.mjs";
-import { formatFindings } from "../../compliance/lib/finding";
+import { formatFindings, walk, type Finding } from "../../compliance/lib/finding";
 import {
   findSourceHosts,
   findSourceImports,
   sourceModuleFiles,
 } from "../../compliance/lib/scan-sources";
 import { OWN_HOSTS, STANDARDS_HOSTS } from "@/server/net/hosts";
+import { isPlatformHost } from "@/server/net/platform-hosts";
+import { SafeFetchError } from "@/server/net/safe-fetch";
 import { createSourceFetch } from "@/server/net/source-fetch";
 import {
   allowedHosts,
@@ -31,8 +35,9 @@ import { checkSources } from "@/server/health/sources";
  */
 
 const collect = sources.filter((s): s is CollectSource => s.mode === "collect");
-const SOURCE_DIR = "src/sources";
-const files = readdirSync(SOURCE_DIR).map((f) => `${SOURCE_DIR}/${f}`);
+/** Every file under src/, subdirectories included, as the gate resolves imports against them. */
+const files = walk("src");
+const sourceFiles = files.filter((f) => f.startsWith("src/sources/"));
 const read = (file: string) => readFileSync(file, "utf8");
 const isTest = (file: string) => /\.test\.tsx?$/.test(file);
 
@@ -91,6 +96,15 @@ describe("never-collected platforms", () => {
     ["by a wrapped host", { allowedHosts: ["www-linkedin-com.proxy.example"] }],
     ["by a host with the domain inside it", { allowedHosts: ["www.instagram.com.mirror.example"] }],
     ["by a messenger short link", { linkHosts: ["m.me"] }],
+    ["by the TikTok API", { allowedHosts: ["open.tiktokapis.com"] }],
+    [
+      "by Google's API host, where the YouTube Data API lives",
+      { allowedHosts: ["www.googleapis.com"] },
+    ],
+    ["by a short id", { id: "yt_comments" }],
+    ["by a short id for Facebook", { id: "fb_groups" }],
+    ["by a short id for Instagram", { id: "ig_posts" }],
+    ["by a short id for Product Hunt", { id: "ph_launches" }],
   ])("a planted collect source %s is caught", (_, over) => {
     expect(registryProblems([planted(over)]).join("\n")).toMatch(/never collected/);
   });
@@ -114,24 +128,48 @@ describe("collect source modules", () => {
     expect(sourceModuleFiles("x", files)).toEqual(["src/sources/x.ts"]);
     // Helpers a source imports by a relative path are read too, transitively.
     expect(sourceModuleFiles("hackernews", files, read)).toContain("src/sources/text.ts");
+    expect(sourceModuleFiles("x", files, read)).toContain("src/lib/html-entities.ts");
   });
 
-  it("follows a planted helper import, so a host hidden in it is caught", () => {
-    const planted: Record<string, string> = {
-      "src/sources/planted.ts": 'import { client } from "./planted-free/helper";',
-      "src/sources/planted-free/helper.ts": 'export { x } from "../deep";',
-      "src/sources/deep.ts": 'export const u = "https://www.reddit.com/r/a.json";',
-    };
-    const all = Object.keys(planted);
-    const found = sourceModuleFiles("planted", all, (f) => planted[f]!);
-    expect(found).toEqual(all.slice().sort());
-    const hosts = found.flatMap((f) => findSourceHosts(planted[f]!, f, new Set(["api.p.example"])));
-    expect(formatFindings(hosts)).toMatch(/www\.reddit\.com/);
+  it("follows planted helpers through subdirectories and @/sources, and reports one it cannot read", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "sources-gate-"));
+    try {
+      const plant = (file: string, code: string) => {
+        mkdirSync(path.join(root, path.dirname(file)), { recursive: true });
+        writeFileSync(path.join(root, file), code);
+      };
+      plant(
+        "src/sources/planted.ts",
+        'import { a } from "./planted-free/helper";\nimport "./gone";',
+      );
+      plant("src/sources/planted-free/helper.ts", 'export { b } from "@/sources/deep/hosts";');
+      plant("src/sources/deep/hosts.ts", 'export const u = "https://www.reddit.com/r/a.json";');
+      const tree = walk("src", root);
+      const problems: Finding[] = [];
+      const found = sourceModuleFiles(
+        "planted",
+        tree,
+        (f) => readFileSync(path.join(root, f), "utf8"),
+        problems,
+      );
+      expect(found).toEqual([
+        "src/sources/deep/hosts.ts",
+        "src/sources/planted-free/helper.ts",
+        "src/sources/planted.ts",
+      ]);
+      const hosts = found.flatMap((f) =>
+        findSourceHosts(readFileSync(path.join(root, f), "utf8"), f, new Set(["api.p.example"])),
+      );
+      expect(formatFindings(hosts)).toMatch(/www\.reddit\.com/);
+      expect(formatFindings(problems)).toMatch(/"\.\/gone" resolves to no file/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("no file under src/sources imports a scraping, browser or other outside package", () => {
     const denylist = loadDenylist();
-    const findings = files
+    const findings = sourceFiles
       .filter((f) => /\.tsx?$/.test(f) && !isTest(f))
       .flatMap((file) => findSourceImports(read(file), file, denylist));
     expect(formatFindings(findings)).toBe("");
@@ -183,13 +221,14 @@ describe("collect source modules", () => {
     expect(findSourceImports(code, "src/sources/planted.ts", loadDenylist())).toEqual([]);
   });
 
-  it("name no host outside their own registry entry", () => {
+  it("name no host outside their own registry entry, and every import they follow is readable", () => {
+    const problems: Finding[] = [];
     const findings = collect.flatMap((s) =>
-      sourceModuleFiles(s.id, files, read).flatMap((file) =>
-        findSourceHosts(read(file), file, ownHostsOf(s)),
+      sourceModuleFiles(s.id, files, read, problems).flatMap((file) =>
+        findSourceHosts(read(file), file, ownHostsOf(s), isPlatformHost),
       ),
     );
-    expect(formatFindings(findings)).toBe("");
+    expect(formatFindings([...problems, ...findings])).toBe("");
   });
 
   it.each([
@@ -197,9 +236,12 @@ describe("collect source modules", () => {
     ["const u = `https://api.x.com/2/tweets/search/recent?q=${q}`;", /api\.x\.com/],
     ['const HOST = "hn.algolia.com";', /hn\.algolia\.com/],
     ['const u = new URL("/v1", "https://api.other.example");', /api\.other\.example/],
+    ['const PROXY = "translate.goog";', /translate\.goog/],
+    ['const MIRROR = "piped.video";', /piped\.video/],
   ])("a planted host in the Bluesky module is caught: %s", (code, host) => {
     const own = ownHostsOf(collect.find((s) => s.id === "bluesky")!);
-    expect(formatFindings(findSourceHosts(code, "src/sources/bluesky.ts", own))).toMatch(host);
+    const findings = findSourceHosts(code, "src/sources/bluesky.ts", own, isPlatformHost);
+    expect(formatFindings(findings)).toMatch(host);
   });
 
   it("refuses at run time every host but the source's own, through its ctx.fetch", async () => {
@@ -209,16 +251,21 @@ describe("collect source modules", () => {
       calls++;
       return new Response("{}");
     }) as typeof fetch;
-    for (const source of collect.filter(isLaunchSource)) {
+    const launch = collect.filter(isLaunchSource);
+    for (const source of launch) {
       const sourceFetch = createSourceFetch(source, { env, fetchImpl });
+      // Positive control: its own host is reached.
+      await expect(sourceFetch(`https://${source.allowedHosts[0]}/`)).resolves.toBeInstanceOf(
+        Response,
+      );
       for (const other of collect.filter((o) => o.id !== source.id))
-        for (const host of other.allowedHosts)
-          await expect(
-            sourceFetch(`https://${host}/`),
-            `${source.id} -> ${host}`,
-          ).rejects.toThrow();
+        for (const host of other.allowedHosts) {
+          const refused = await sourceFetch(`https://${host}/`).catch((error: unknown) => error);
+          expect(refused, `${source.id} -> ${host}`).toBeInstanceOf(SafeFetchError);
+          expect((refused as SafeFetchError).code).toBe("host_not_allowed");
+        }
     }
-    expect(calls).toBe(0);
+    expect(calls).toBe(launch.length);
   });
 });
 

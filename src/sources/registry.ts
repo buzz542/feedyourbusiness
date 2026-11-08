@@ -1,6 +1,7 @@
 import { isHostAllowed } from "@/server/net/safe-fetch";
 import {
   isPlatformWebHost,
+  matchesDomain,
   matchesOrWraps,
   NEVER_COLLECTED_DOMAINS,
 } from "@/server/net/platform-hosts";
@@ -170,6 +171,16 @@ export const NEVER_COLLECTED = [
   "producthunt",
 ] as const;
 
+/** Short forms of never-collected platforms, as an id part: fb_groups, ig_posts, yt_comments. */
+const NEVER_COLLECTED_SHORT_IDS = new Set(["fb", "ig", "yt", "tt", "ph", "li"]);
+
+/**
+ * API domains a collect source never calls although a user's site may live there: the YouTube Data
+ * API is on www.googleapis.com, so googleapis.com is refused for collect sources only, not by
+ * fetchOwnSite (a product site on storage.googleapis.com is still readable).
+ */
+const COLLECT_REFUSED_API_DOMAINS = ["googleapis.com"];
+
 const hostOf = (raw: string) => {
   try {
     return new URL(raw).hostname;
@@ -228,7 +239,8 @@ export function registryProblems(list: readonly Source[]): string[] {
     if (
       NEVER_COLLECTED.some(
         (platform) => id.replaceAll("_", "").includes(platform) || named.has(platform),
-      )
+      ) ||
+      id.split("_").some((part) => NEVER_COLLECTED_SHORT_IDS.has(part))
     )
       problems.push(`${id} is never collected (docs/PLAN.md 2.1)`);
     const hosts = [
@@ -238,7 +250,10 @@ export function registryProblems(list: readonly Source[]): string[] {
       ...(source.vendor ? [hostOf(source.vendor.dpaUrl)] : []),
     ];
     for (const host of hosts)
-      if (matchesOrWraps(host, NEVER_COLLECTED_DOMAINS))
+      if (
+        matchesOrWraps(host, NEVER_COLLECTED_DOMAINS) ||
+        matchesDomain(host, COLLECT_REFUSED_API_DOMAINS)
+      )
         problems.push(
           `${id}: ${host} belongs to a platform that is never collected (docs/PLAN.md 2.1)`,
         );

@@ -369,7 +369,12 @@ describe("domain to feed", () => {
     expect(saved.rivals).toEqual(["Acme Reminders"]);
   });
 
-  it("collects nothing while the product is a draft or the account is not entitled", async () => {
+  it("collects nothing while the account is not entitled, nor while the product is a draft", async () => {
+    expect(await termsFor(productId, fakeHackerNews(seenTerms))).toBeNull();
+    // Checkout: the webhook's billing patch makes the account entitled. Still a draft: nothing.
+    await db.query("update public.profiles set subscription_status = 'trialing' where id = $1", [
+      OWNER,
+    ]);
     expect(await termsFor(productId, fakeHackerNews(seenTerms))).toBeNull();
   });
 
@@ -385,10 +390,8 @@ describe("domain to feed", () => {
     );
     expect(confirmed).toHaveLength(1);
     expect(confirmed[0]!.confirmed_at).not.toBeNull();
-    // Checkout: the webhook's billing patch makes the account entitled.
-    await db.query("update public.profiles set subscription_status = 'trialing' where id = $1", [
-      OWNER,
-    ]);
+    // Confirmed and entitled: now the product's terms are collectable.
+    expect(await termsFor(productId, fakeHackerNews(seenTerms))).toHaveLength(TERMS.length);
   });
 
   it("runs the daily collect job on the enabled source, classifies, stores only relevant posts and shows them in Today", async () => {

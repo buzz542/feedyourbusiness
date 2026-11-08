@@ -40,6 +40,7 @@ export const NEVER_COLLECTED_DOMAINS = [
   "tiktok.com",
   "tiktokcdn.com",
   "tiktokv.com",
+  "tiktokapis.com",
   "youtube.com",
   "youtu.be",
   "youtube-nocookie.com",
