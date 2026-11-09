@@ -1,16 +1,13 @@
-import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { captureBrightdataFixture } from "./capture-brightdata-fixture";
 
 /**
  * The F8 capture, run by the founder on their own machine (it costs a few cents):
- *   SOURCE_REDDIT_ENABLED=true CAPTURE_LIVE=1 npm run capture:brightdata
- * See scripts/capture-brightdata-fixture.ts. Skipped unless CAPTURE_LIVE=1.
+ *   SOURCE_REDDIT_ENABLED=true CAPTURE_LIVE=1 BRIGHTDATA_API_TOKEN=... \
+ *     BRIGHTDATA_REDDIT_DATASET_ID=gd_lvz8ah06191smkebj4 npm run capture:brightdata
+ * The keys go in the shell for this run only, not in .env.local (docs/PLAN.md F8). See scripts/capture-brightdata-fixture.ts. Skipped unless CAPTURE_LIVE=1.
  */
-// Loaded first, so CAPTURE_LIVE and the keys may live there too. Shell values win over the file.
-if (existsSync(".env.local")) process.loadEnvFile(".env.local");
-
 describe("Bright Data capture (live)", () => {
   const live = process.env.CAPTURE_LIVE === "1";
   it.runIf(live)(
@@ -23,7 +20,7 @@ describe("Bright Data capture (live)", () => {
           mkdir: async (path) => void (await mkdir(path, { recursive: true })),
           writeFile: (path, text) => writeFile(path, text, { flag: "wx" }),
           readFile: (path) => readFile(path, "utf8"),
-          rm: (path) => rm(path),
+          rm: (path) => rm(path, { force: true }),
         },
         print: (line) => console.log(line),
         sleep: (ms) => new Promise((done) => setTimeout(done, ms)),

@@ -231,6 +231,8 @@ describe("scripts/capture-brightdata-fixture.ts", () => {
     ["the dataset id is not pinned", { BRIGHTDATA_REDDIT_DATASET_ID: "gd_l1viktl72bvl7bjuj0" }],
     ["it runs on a deployment", { VERCEL_ENV: "production" }],
     ["it runs as a production server off Vercel", { NODE_ENV: "production" }],
+    ["it runs in CI", { CI: "true" }],
+    ["it runs in a Claude Code session", { CLAUDECODE: "1" }],
   ])("refuses to start when %s, with no request and no file", async (_case, env) => {
     const http = fakeVendor(snapshot);
     const base = deps(http);
@@ -238,6 +240,54 @@ describe("scripts/capture-brightdata-fixture.ts", () => {
     expect(result.pass).toBe(false);
     expect(http).not.toHaveBeenCalled();
     expect(writes).toEqual([]);
+  });
+
+  it("refuses a keyword outside 2 to 100 characters, with no request", async () => {
+    for (const keyword of ["x", "y".repeat(101)]) {
+      const http = fakeVendor(snapshot);
+      const result = await captureBrightdataFixture(deps(http, { keyword }));
+      expect(result.pass).toBe(false);
+      expect(http).not.toHaveBeenCalled();
+    }
+  });
+
+  it("stops at once when the vendor run fails, writing nothing", async () => {
+    const http = fakeVendor(snapshot, ["failed"]);
+    const result = await captureBrightdataFixture(deps(http));
+    expect(result.pass).toBe(false);
+    expect(printed.join("\n")).toContain("VendorRunFailed");
+    expect(http.mock.calls.filter(([url]) => String(url).includes("/progress/"))).toHaveLength(1);
+    expect(writes).toEqual([]);
+  });
+
+  it("gives up after more than 3 vendor errors in a row, writing nothing", async () => {
+    const http = vi.fn<Http>(async (input) =>
+      String(input).includes("/trigger")
+        ? json({ snapshot_id: "s_capture1" })
+        : new Response("", { status: 503 }),
+    );
+    const result = await captureBrightdataFixture(deps(http));
+    expect(result.pass).toBe(false);
+    expect(printed.join("\n")).toContain("Http503");
+    expect(http.mock.calls.filter(([url]) => String(url).includes("/progress/"))).toHaveLength(4);
+    expect(writes).toEqual([]);
+  });
+
+  it("prints only the schema's own field names when there is one record", async () => {
+    const [first] = JSON.parse(snapshot) as Record<string, unknown>[];
+    const one = [{ ...first, example_maker_zq: true }];
+    await captureBrightdataFixture(deps(fakeVendor(JSON.stringify(one))));
+    const out = printed.join("\n");
+    expect(out).toContain("post_id");
+    expect(out).not.toContain("example_maker_zq");
+  });
+
+  it("refuses a .gitignore that un-ignores fixtures-local/", async () => {
+    writeFileSync(join(root, ".gitignore"), "fixtures-local/\n!fixtures-local/*.json\n");
+    const http = fakeVendor(snapshot);
+    const result = await captureBrightdataFixture(deps(http));
+    expect(result.pass).toBe(false);
+    expect(http).not.toHaveBeenCalled();
   });
 
   it("refuses to start unless fixtures-local/ is git-ignored", async () => {

@@ -6,6 +6,7 @@ import {
   brightdataProvider,
   classifySnapshotRecord,
   downloadSnapshot,
+  KNOWN_RECORD_FIELDS,
   parseSnapshot,
 } from "@/sources/reddit-brightdata";
 import { isEnabled, isLocalRun } from "@/sources/registry";
@@ -13,16 +14,22 @@ import type { CollectContext } from "@/sources/types";
 
 /**
  * F8's live check of the Reddit schema (docs/PLAN.md 2.3.13, 7.7; docs/TASKS.md M3). The founder runs
- * it once, on their own machine, never in a build session or CI:
+ * it once, on their own machine, never in a build session or CI (it refuses when CI or CLAUDECODE is
+ * set), with the two keys in the shell for this one run only (docs/PLAN.md F8 keeps them in Vercel):
  *
- *   SOURCE_REDDIT_ENABLED=true CAPTURE_LIVE=1 npm run capture:brightdata
+ *   SOURCE_REDDIT_ENABLED=true CAPTURE_LIVE=1 BRIGHTDATA_API_TOKEN=... \
+ *     BRIGHTDATA_REDDIT_DATASET_ID=gd_lvz8ah06191smkebj4 npm run capture:brightdata
  *
- * with BRIGHTDATA_API_TOKEN and BRIGHTDATA_REDDIT_DATASET_ID in the shell or in `.env.local`. It asks
+ * It asks
  * Bright Data for at most 5 posts on one keyword (CAPTURE_KEYWORD, a few cents), through the Reddit
  * source's own pinned requests and safeFetch. The snapshot is written only to the git-ignored
  * `fixtures-local/`, read back and checked against the schema the Reddit source uses, then deleted,
  * whatever the outcome. It prints PASS or FAIL, counts and field names only: never a value, the
  * snapshot id or the token. Real responses never enter the build session or the repo.
+ *
+ * It runs outside the pipeline, so it reserves no `consume_budget` units and does not count toward
+ * BRIGHTDATA_MONTHLY_RECORD_CAP: one founder-run request for at most 5 records, under the spend limit
+ * set in Bright Data at F8.
  */
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -74,8 +81,14 @@ function capturePath(root: string, now: Date): string {
 
 async function isGitIgnored(deps: CaptureDeps): Promise<boolean> {
   try {
-    const lines = (await deps.fs.readFile(join(deps.root, ".gitignore"))).split(/\r?\n/);
-    return lines.some((line) => ["fixtures-local/", "/fixtures-local/"].includes(line.trim()));
+    const lines = (await deps.fs.readFile(join(deps.root, ".gitignore")))
+      .split(/\r?\n/)
+      .map((line) => line.trim());
+    // A negation that names it ("!fixtures-local/...") could un-ignore the capture.
+    if (lines.some((line) => line.startsWith("!") && line.includes("fixtures-local"))) return false;
+    return lines.some((line) =>
+      ["fixtures-local", "fixtures-local/", "/fixtures-local", "/fixtures-local/"].includes(line),
+    );
   } catch {
     return false;
   }
@@ -93,8 +106,10 @@ export function summarizeSnapshot(records: readonly unknown[]) {
       for (const key of Object.keys(raw)) seen.set(key, (seen.get(key) ?? 0) + 1);
     }
   }
+  // One record cannot show which keys recur, so then only the names the schema knows are printed.
   const shown = (key: string, count: number) =>
-    FIELD_NAME.test(key) && (objects === 1 || count > objects / 2);
+    FIELD_NAME.test(key) &&
+    (objects === 1 ? KNOWN_RECORD_FIELDS.includes(key) : count > objects / 2);
   const fields = [...seen].filter(([key, count]) => shown(key, count)).map(([key]) => key);
   return {
     pass: counts.post > 0 && counts.unreadable === 0,
@@ -112,6 +127,8 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<{ pas
   };
 
   if (!isLocalRun(deps.env)) return fail("run this on your own machine, not on a deployment");
+  if (deps.env.CI || deps.env.CLAUDECODE)
+    return fail("run this yourself in your own terminal, not in CI or a Claude Code session");
   if (!(await isGitIgnored(deps)))
     return fail("fixtures-local/ is not in .gitignore; nothing was requested");
   if (!isEnabled(reddit, deps.env))
@@ -151,8 +168,10 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<{ pas
           text = download.text;
           break;
         }
+        errors = 0;
       } catch (error) {
-        // A failed vendor run or an oversized snapshot is final; a 5xx or a dropped connection is not.
+        // A failed vendor run, an oversized or unreadable snapshot is final (a re-run costs cents);
+        // a 5xx or a dropped connection on a progress check is not.
         const name = errorClass(error);
         const transient =
           /^Http5\d\d$/.test(name) || name === "TypeError" || name === "TimeoutError";

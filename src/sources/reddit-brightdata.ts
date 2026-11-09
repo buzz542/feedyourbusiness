@@ -190,27 +190,30 @@ const Input = z.object({ keyword: z.string() }).partial().nullish();
  * (2.1.2, private and quarantined communities): likewise unconfirmed, so each likely field is read
  * and anything but "public" restricts the post.
  */
+const POST_RECORD_FIELDS = {
+  post_id: z.string().min(1).max(40),
+  url: z.string().max(2_000),
+  user_posted: z.string().max(100).nullish(),
+  title: z.string().nullish(),
+  description: z.string().nullish(),
+  date_posted: z.string().max(40),
+  community_name: z.string().max(100).nullish(),
+  nsfw: z.boolean().nullish(),
+  is_nsfw: z.boolean().nullish(),
+  over_18: z.boolean().nullish(),
+  over18: z.boolean().nullish(),
+  tags: z.array(z.string()).nullish(),
+  quarantine: z.boolean().nullish(),
+  is_quarantined: z.boolean().nullish(),
+  community_type: z.string().max(40).nullish(),
+  subreddit_type: z.string().max(40).nullish(),
+  discovery_input: Input,
+  input: Input,
+};
+/** The field names the schema reads (plus `error` on error records), for the F8 capture's output. */
+export const KNOWN_RECORD_FIELDS: readonly string[] = [...Object.keys(POST_RECORD_FIELDS), "error"];
 const PostRecord = z
-  .object({
-    post_id: z.string().min(1).max(40),
-    url: z.string().max(2_000),
-    user_posted: z.string().max(100).nullish(),
-    title: z.string().nullish(),
-    description: z.string().nullish(),
-    date_posted: z.string().max(40),
-    community_name: z.string().max(100).nullish(),
-    nsfw: z.boolean().nullish(),
-    is_nsfw: z.boolean().nullish(),
-    over_18: z.boolean().nullish(),
-    over18: z.boolean().nullish(),
-    tags: z.array(z.string()).nullish(),
-    quarantine: z.boolean().nullish(),
-    is_quarantined: z.boolean().nullish(),
-    community_type: z.string().max(40).nullish(),
-    subreddit_type: z.string().max(40).nullish(),
-    discovery_input: Input,
-    input: Input,
-  })
+  .object(POST_RECORD_FIELDS)
   .refine((r) => [r.nsfw, r.is_nsfw, r.over_18, r.over18].some((f) => typeof f === "boolean"));
 
 const PENDING_STATUSES = new Set(["starting", "running", "building", "collecting", "digesting"]);
