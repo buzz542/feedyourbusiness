@@ -132,16 +132,58 @@ describe("scripts/capture-brightdata-fixture.ts", () => {
     await captureBrightdataFixture(deps(fakeVendor(JSON.stringify(records))));
     const out = printed.join("\n");
     expect(out).not.toContain("Example Person");
-    expect(out).toMatch(/1 other key not shown/);
+    expect(out).toMatch(/\d+ other keys? not shown/);
+  });
+
+  it("never prints a key found in only one record of several (a value used as a key)", async () => {
+    const records = JSON.parse(snapshot) as Record<string, unknown>[];
+    expect(records.length).toBeGreaterThan(2);
+    records[0] = { ...records[0], example_maker_zq: { said: "hi" } };
+    await captureBrightdataFixture(deps(fakeVendor(JSON.stringify(records))));
+    const out = printed.join("\n");
+    expect(out).not.toContain("example_maker_zq");
+    expect(out).toContain("post_id");
+  });
+
+  it("deletes a partly written capture when the write fails", async () => {
+    const fs = trackedFs();
+    const failing: CaptureFs = {
+      ...fs,
+      writeFile: async (path, text) => {
+        await fs.writeFile(path, text.slice(0, 20));
+        throw Object.assign(new Error("disk full"), { name: "ENOSPC" });
+      },
+    };
+    const result = await captureBrightdataFixture(deps(fakeVendor(snapshot), { fs: failing }));
+    expect(result.pass).toBe(false);
+    expect(writes.length).toBe(1);
+    expect(filesUnder(root).map((f) => relative(root, f))).toEqual([".gitignore"]);
+  });
+
+  it("rides out a brief vendor error while it waits, without buying a new snapshot", async () => {
+    const good = fakeVendor(snapshot);
+    let failedOnce = false;
+    const http = vi.fn<Http>(async (input, init) => {
+      if (!failedOnce && String(input).includes("/progress/")) {
+        failedOnce = true;
+        return new Response("", { status: 502 });
+      }
+      return good(input, init);
+    });
+    const result = await captureBrightdataFixture(deps(http));
+    expect(result.pass).toBe(true);
+    expect(http.mock.calls.filter(([url]) => String(url).includes("/trigger"))).toHaveLength(1);
   });
 
   it("fails, and still deletes the capture, when a record does not match the schema", async () => {
     const records = JSON.parse(snapshot) as Record<string, unknown>[];
     // The NSFW field renamed: the schema fails closed (src/sources/reddit-brightdata.ts).
-    const renamed: Record<string, unknown> = { ...records[0], adult_content: false };
-    for (const key of ["nsfw", "is_nsfw", "over_18", "over18"]) delete renamed[key];
-    records[0] = renamed;
-    const result = await captureBrightdataFixture(deps(fakeVendor(JSON.stringify(records))));
+    const renamed = records.map((record) => {
+      const copy: Record<string, unknown> = { ...record, adult_content: false };
+      for (const key of ["nsfw", "is_nsfw", "over_18", "over18"]) delete copy[key];
+      return copy;
+    });
+    const result = await captureBrightdataFixture(deps(fakeVendor(JSON.stringify(renamed))));
     expect(result.pass).toBe(false);
     expect(printed.join("\n")).toMatch(/^FAIL/m);
     expect(printed.join("\n")).toContain("adult_content");
@@ -188,6 +230,7 @@ describe("scripts/capture-brightdata-fixture.ts", () => {
     ["the token is missing", { BRIGHTDATA_API_TOKEN: "" }],
     ["the dataset id is not pinned", { BRIGHTDATA_REDDIT_DATASET_ID: "gd_l1viktl72bvl7bjuj0" }],
     ["it runs on a deployment", { VERCEL_ENV: "production" }],
+    ["it runs as a production server off Vercel", { NODE_ENV: "production" }],
   ])("refuses to start when %s, with no request and no file", async (_case, env) => {
     const http = fakeVendor(snapshot);
     const base = deps(http);

@@ -8,12 +8,14 @@ import { captureBrightdataFixture } from "./capture-brightdata-fixture";
  *   SOURCE_REDDIT_ENABLED=true CAPTURE_LIVE=1 npm run capture:brightdata
  * See scripts/capture-brightdata-fixture.ts. Skipped unless CAPTURE_LIVE=1.
  */
+// Loaded first, so CAPTURE_LIVE and the keys may live there too. Shell values win over the file.
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
+
 describe("Bright Data capture (live)", () => {
   const live = process.env.CAPTURE_LIVE === "1";
   it.runIf(live)(
     "checks one real snapshot against the Reddit schema, then deletes it",
     async () => {
-      if (existsSync(".env.local")) process.loadEnvFile(".env.local");
       const result = await captureBrightdataFixture({
         root: process.cwd(),
         env: process.env,

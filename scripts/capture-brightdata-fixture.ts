@@ -8,14 +8,14 @@ import {
   downloadSnapshot,
   parseSnapshot,
 } from "@/sources/reddit-brightdata";
-import { isEnabled } from "@/sources/registry";
+import { isEnabled, isLocalRun } from "@/sources/registry";
 import type { CollectContext } from "@/sources/types";
 
 /**
  * F8's live check of the Reddit schema (docs/PLAN.md 2.3.13, 7.7; docs/TASKS.md M3). The founder runs
  * it once, on their own machine, never in a build session or CI:
  *
- *   SOURCE_REDDIT_ENABLED=true npm run capture:brightdata
+ *   SOURCE_REDDIT_ENABLED=true CAPTURE_LIVE=1 npm run capture:brightdata
  *
  * with BRIGHTDATA_API_TOKEN and BRIGHTDATA_REDDIT_DATASET_ID in the shell or in `.env.local`. It asks
  * Bright Data for at most 5 posts on one keyword (CAPTURE_KEYWORD, a few cents), through the Reddit
@@ -51,16 +51,17 @@ const CAPTURE_DIR = "fixtures-local";
 const POSTS = 5;
 const WINDOW_HOURS = 7 * 24;
 const POLL_MS = 15_000;
+/** Brief vendor or network errors tolerated while waiting, so a paid snapshot is not thrown away. */
+const TRANSIENT_ERRORS = 3;
 const DEADLINE_MS = 30 * 60_000;
-/** Keys printed as field names; anything else is counted, never shown. */
+/**
+ * Keys printed as field names: plain names found in more than half the records (all of them when
+ * there is one), so a value used as a key is never printed. Anything else is counted, never shown.
+ */
 const FIELD_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const DEFAULT_KEYWORD = "invoice software";
 
 const errorClass = (error: unknown) => (error instanceof Error ? error.name : "Error");
-
-function isLocal(env: Env): boolean {
-  return env.VERCEL_ENV === undefined || env.VERCEL_ENV === "development";
-}
 
 /** The capture path, refused unless it sits directly inside <root>/fixtures-local/. */
 function capturePath(root: string, now: Date): string {
@@ -83,19 +84,24 @@ async function isGitIgnored(deps: CaptureDeps): Promise<boolean> {
 /** Counts and top-level field names only. */
 export function summarizeSnapshot(records: readonly unknown[]) {
   const counts = { post: 0, error: 0, unreadable: 0 };
-  const fields = new Set<string>();
-  const hidden = new Set<string>();
+  const seen = new Map<string, number>();
+  let objects = 0;
   for (const raw of records) {
     counts[classifySnapshotRecord(raw)]++;
-    if (raw && typeof raw === "object" && !Array.isArray(raw))
-      for (const key of Object.keys(raw)) (FIELD_NAME.test(key) ? fields : hidden).add(key);
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      objects++;
+      for (const key of Object.keys(raw)) seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
   }
+  const shown = (key: string, count: number) =>
+    FIELD_NAME.test(key) && (objects === 1 || count > objects / 2);
+  const fields = [...seen].filter(([key, count]) => shown(key, count)).map(([key]) => key);
   return {
     pass: counts.post > 0 && counts.unreadable === 0,
     records: records.length,
     ...counts,
-    fields: [...fields].sort(),
-    hiddenKeys: hidden.size,
+    fields: fields.sort(),
+    hiddenKeys: seen.size - fields.length,
   };
 }
 
@@ -105,7 +111,7 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<{ pas
     return { pass: false };
   };
 
-  if (!isLocal(deps.env)) return fail("run this on your own machine, not on a deployment");
+  if (!isLocalRun(deps.env)) return fail("run this on your own machine, not on a deployment");
   if (!(await isGitIgnored(deps)))
     return fail("fixtures-local/ is not in .gitignore; nothing was requested");
   if (!isEnabled(reddit, deps.env))
@@ -137,11 +143,20 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<{ pas
     ]);
     deps.print("Requested. Waiting for Bright Data (up to 30 minutes)...");
     const deadline = deps.now().getTime() + DEADLINE_MS;
+    let errors = 0;
     for (;;) {
-      const download = await downloadSnapshot(ctx, snapshotId);
-      if (download.kind === "ready") {
-        text = download.text;
-        break;
+      try {
+        const download = await downloadSnapshot(ctx, snapshotId);
+        if (download.kind === "ready") {
+          text = download.text;
+          break;
+        }
+      } catch (error) {
+        // A failed vendor run or an oversized snapshot is final; a 5xx or a dropped connection is not.
+        const name = errorClass(error);
+        const transient =
+          /^Http5\d\d$/.test(name) || name === "TypeError" || name === "TimeoutError";
+        if (!transient || ++errors > TRANSIENT_ERRORS) throw error;
       }
       if (deps.now().getTime() >= deadline) return fail("the snapshot was not ready in 30 minutes");
       await deps.sleep(POLL_MS);
@@ -153,12 +168,13 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<{ pas
   let path: string;
   try {
     path = capturePath(deps.root, deps.now());
-    await deps.fs.mkdir(resolve(deps.root, CAPTURE_DIR));
-    await deps.fs.writeFile(path, text);
   } catch (error) {
     return fail(errorClass(error));
   }
+  // From here the file may exist, even half written: every path out deletes it.
   try {
+    await deps.fs.mkdir(resolve(deps.root, CAPTURE_DIR));
+    await deps.fs.writeFile(path, text);
     const snapshot = parseSnapshot(await deps.fs.readFile(path));
     if (snapshot.kind === "pending")
       return fail("the vendor sent a pending status as the snapshot");
@@ -170,7 +186,7 @@ export async function captureBrightdataFixture(deps: CaptureDeps): Promise<{ pas
     deps.print(`Fields: ${summary.fields.join(", ") || "(none)"}`);
     if (summary.hiddenKeys > 0)
       deps.print(
-        `${summary.hiddenKeys} other key${summary.hiddenKeys === 1 ? "" : "s"} not shown (not a plain field name)`,
+        `${summary.hiddenKeys} other key${summary.hiddenKeys === 1 ? "" : "s"} not shown (not a plain field name, or in too few records)`,
       );
     return { pass: summary.pass };
   } catch (error) {

@@ -90,7 +90,7 @@ export function snapshotRetention(source: Source): string | null {
  * at all outside a production build. Anything else (a production server off Vercel, an unknown
  * VERCEL_ENV) is held back like a deployment.
  */
-function isLocalRun(env: Env): boolean {
+export function isLocalRun(env: Env): boolean {
   if (env.VERCEL_ENV !== undefined) return env.VERCEL_ENV === "development";
   return env.NODE_ENV !== "production";
 }

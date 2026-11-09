@@ -251,6 +251,20 @@ describe("reddit source", () => {
     expect(sent).toBeLessThanOrEqual(7);
   });
 
+  it("reports a download cut off mid-stream as InvalidResponse", async () => {
+    const broken = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("[{"));
+        controller.error(new TypeError("terminated"));
+      },
+    });
+    const { state } = await collected([
+      [/\/progress\//, fixture("progress-ready.json")],
+      [/\/snapshot\//, () => new Response(broken)],
+    ]);
+    expect(state).toEqual({ kind: "failed", errorClass: "InvalidResponse" });
+  });
+
   it("fails with a class name when no record matches the schema", async () => {
     const { state } = await collected([
       [/\/progress\//, fixture("progress-ready.json")],

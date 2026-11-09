@@ -273,7 +273,13 @@ export async function downloadSnapshot(
     return { kind: "pending" };
   }
   if (!download.ok) throw httpError(download);
-  return { kind: "ready", text: await readCapped(download) };
+  try {
+    return { kind: "ready", text: await readCapped(download) };
+  } catch (error) {
+    if (error instanceof Error && error.name === "SnapshotTooLarge") throw error;
+    // A download cut off mid-stream reads as an unreadable answer, as before the split.
+    throw named("InvalidResponse", "The snapshot could not be read");
+  }
 }
 
 /** A downloaded snapshot as its list of raw records, or pending when the vendor is still building it. */
