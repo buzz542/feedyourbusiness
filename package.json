@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "eval:classifier": "vitest run --config eval/vitest.eval.config.mts",
+    "capture:brightdata": "vitest run --config scripts/vitest.capture.config.mts",
     "compliance:hosts": "vitest run tests/compliance/hosts.test.ts tests/compliance/collect-sources.test.ts",
     "compliance:deps": "vitest run tests/compliance/deps.test.ts",
     "compliance:schema": "vitest run tests/compliance/schema.test.ts",

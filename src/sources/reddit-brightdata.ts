@@ -245,6 +245,60 @@ function toRecord(raw: unknown): RedditRecord | "error" | null {
   };
 }
 
+/**
+ * A finished snapshot's raw text, or pending: the progress check, then the download behind the 5 MB
+ * cap. Shared by collect() and the founder's F8 capture (scripts/capture-brightdata-fixture.ts).
+ */
+export async function downloadSnapshot(
+  ctx: CollectContext,
+  snapshotId: string,
+): Promise<{ kind: "pending" } | { kind: "ready"; text: string }> {
+  if (!SNAPSHOT_ID.test(snapshotId)) throw named("InvalidHandle", "Not a snapshot id");
+  const call = pinnedFetch(ctx, config(ctx).token);
+  const progress = await call(`${API}/datasets/v3/progress/${snapshotId}`, { method: "GET" });
+  if (progress.status === 429) return { kind: "pending" };
+  if (!progress.ok) throw httpError(progress);
+  const state = ProgressResponse.safeParse(await progress.json());
+  if (!state.success) throw named("InvalidResponse", "The progress answer did not match");
+  const status = state.data.status.toLowerCase();
+  if (FAILED_STATUSES.has(status)) throw named("VendorRunFailed", "The vendor run failed");
+  // Unknown statuses wait too; the job gives up after an hour (src/server/pipeline/collect.ts).
+  if (status !== "ready") return { kind: "pending" };
+
+  const download = await call(`${API}/datasets/v3/snapshot/${snapshotId}?format=json`, {
+    method: "GET",
+  });
+  if (download.status === 202 || download.status === 429) {
+    await download.body?.cancel();
+    return { kind: "pending" };
+  }
+  if (!download.ok) throw httpError(download);
+  return { kind: "ready", text: await readCapped(download) };
+}
+
+/** A downloaded snapshot as its list of raw records, or pending when the vendor is still building it. */
+export function parseSnapshot(
+  text: string,
+): { kind: "pending" } | { kind: "records"; records: unknown[] } {
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw named("InvalidResponse", "The snapshot is not JSON");
+  }
+  if (Array.isArray(body)) return { kind: "records", records: body };
+  const pending = ProgressResponse.safeParse(body);
+  if (pending.success && PENDING_STATUSES.has(pending.data.status.toLowerCase()))
+    return { kind: "pending" };
+  throw named("InvalidResponse", "The snapshot is not a list of records");
+}
+
+/** How each raw record reads against the schema: a post, an error record, or unreadable. */
+export function classifySnapshotRecord(raw: unknown): "post" | "error" | "unreadable" {
+  const record = toRecord(raw);
+  return record === "error" ? "error" : record === null ? "unreadable" : "post";
+}
+
 /** A stored post link exactly as the Reddit source writes it: the only input a re-check sends. */
 const STORED_POST_LINK =
   /^https:\/\/www\.reddit\.com\/r\/[A-Za-z0-9_]{2,21}\/comments\/[A-Za-z0-9]{1,12}(?:\/[^/?#\s]*)?\/?$/;
@@ -292,43 +346,14 @@ export const brightdataProvider: RedditProvider = {
   },
 
   async collect(ctx: CollectContext, snapshotId: string): Promise<RedditRun> {
-    if (!SNAPSHOT_ID.test(snapshotId)) throw named("InvalidHandle", "Not a snapshot id");
-    const call = pinnedFetch(ctx, config(ctx).token);
-    const progress = await call(`${API}/datasets/v3/progress/${snapshotId}`, { method: "GET" });
-    if (progress.status === 429) return { kind: "pending" };
-    if (!progress.ok) throw httpError(progress);
-    const state = ProgressResponse.safeParse(await progress.json());
-    if (!state.success) throw named("InvalidResponse", "The progress answer did not match");
-    const status = state.data.status.toLowerCase();
-    if (FAILED_STATUSES.has(status)) throw named("VendorRunFailed", "The vendor run failed");
-    // Unknown statuses wait too; the job gives up after an hour (src/server/pipeline/collect.ts).
-    if (status !== "ready") return { kind: "pending" };
-
-    const download = await call(`${API}/datasets/v3/snapshot/${snapshotId}?format=json`, {
-      method: "GET",
-    });
-    if (download.status === 202 || download.status === 429) {
-      await download.body?.cancel();
-      return { kind: "pending" };
-    }
-    if (!download.ok) throw httpError(download);
-    let body: unknown;
-    try {
-      body = JSON.parse(await readCapped(download));
-    } catch (error) {
-      if (error instanceof Error && error.name === "SnapshotTooLarge") throw error;
-      throw named("InvalidResponse", "The snapshot is not JSON");
-    }
-    if (!Array.isArray(body)) {
-      const pending = ProgressResponse.safeParse(body);
-      if (pending.success && PENDING_STATUSES.has(pending.data.status.toLowerCase()))
-        return { kind: "pending" };
-      throw named("InvalidResponse", "The snapshot is not a list of records");
-    }
+    const download = await downloadSnapshot(ctx, snapshotId);
+    if (download.kind === "pending") return download;
+    const snapshot = parseSnapshot(download.text);
+    if (snapshot.kind === "pending") return snapshot;
 
     const records: RedditRecord[] = [];
     let unreadable = 0;
-    for (const raw of body) {
+    for (const raw of snapshot.records) {
       const record = toRecord(raw);
       if (record === "error") continue;
       if (record === null) unreadable++;
@@ -337,6 +362,6 @@ export const brightdataProvider: RedditProvider = {
     // Every post record failing the schema means the shape changed: fail loudly, store nothing.
     if (unreadable > 0 && records.length === 0)
       throw named("InvalidResponse", "No record matched the schema");
-    return { kind: "done", records, units: body.length };
+    return { kind: "done", records, units: snapshot.records.length };
   },
 };

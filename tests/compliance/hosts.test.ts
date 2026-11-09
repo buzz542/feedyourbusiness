@@ -25,14 +25,18 @@ import { allowedHosts, declaredHosts, sources } from "@/sources/registry";
 
 const deny = loadDenylist();
 const SCAN_ROOTS = ["src", "emails", "supabase/functions"];
-const files = SCAN_ROOTS.flatMap((root) => walk(root)).filter((f) =>
-  /\.(ts|tsx|mts|js|mjs)$/.test(f),
-);
+// Scripts too (the F8 capture reaches the vendor), except the Claude Code hooks, which run git and
+// npm on the founder's machine and never reach a source.
+const files = [
+  ...SCAN_ROOTS.flatMap((root) => walk(root)),
+  ...walk("scripts").filter((f) => !f.startsWith("scripts/hooks/")),
+].filter((f) => /\.(ts|tsx|mts|js|mjs)$/.test(f));
 
 describe("compliance:hosts (static)", () => {
   it("scans real files", () => {
     expect(files.length).toBeGreaterThan(10);
     expect(files).toContain("src/server/net/safe-fetch.ts");
+    expect(files).toContain("scripts/capture-brightdata-fixture.ts");
   });
 
   it("fonts and styles are self-hosted: no font CDN, no remote stylesheet URL", () => {
