@@ -1,3 +1,11 @@
+// Generated from askedfor-dev with supabase gen types, then corrected by hand where the generator
+// cannot see the schema: it types every function argument as non-null and every view column as
+// nullable. Re-apply these after each regeneration: competitors.name_key is generated (never
+// written); feed_items columns from non-null table columns are non-null; first_linked_product can
+// return null; these arguments accept null: ingest_post.p_community, llm_begin_call.p_product_id and
+// p_task_daily_calls, llm_finish_call.p_product_id, llm_usage_since.p_product_id and p_task,
+// remove_and_suppress.p_external_id, start_product_draft.p_url.
+
 export type Json =
   | string
   | number
@@ -173,7 +181,50 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      llm_reservations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          product_id: string | null
+          reserve_usd: number
+          task: string
+        }
+        Insert: {
+          created_at: string
+          expires_at: string
+          id?: string
+          product_id?: string | null
+          reserve_usd: number
+          task: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          product_id?: string | null
+          reserve_usd?: number
+          task?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "llm_reservations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       llm_usage: {
         Row: {
@@ -267,65 +318,72 @@ export type Database = {
       product_posts: {
         Row: {
           category: string
+          competitor_id: string | null
           created_at: string
+          highlight_end: number | null
+          highlight_start: number | null
           id: string
           post_id: string
           product_id: string
           reason: string
           relevance: number
-          state: string
-          updated_at: string
-          competitor_id: string | null
-          highlight_end: number | null
-          highlight_start: number | null
           rival_issue: string | null
           rival_sentiment: string | null
           rival_summary: string | null
+          state: string
           switching: boolean
           term_id: string | null
           tool_mentioned: string | null
+          updated_at: string
         }
         Insert: {
           category: string
+          competitor_id?: string | null
           created_at?: string
+          highlight_end?: number | null
+          highlight_start?: number | null
           id?: string
           post_id: string
           product_id: string
           reason: string
           relevance: number
-          state?: string
-          updated_at?: string
-          competitor_id?: string | null
-          highlight_end?: number | null
-          highlight_start?: number | null
           rival_issue?: string | null
           rival_sentiment?: string | null
           rival_summary?: string | null
+          state?: string
           switching?: boolean
           term_id?: string | null
           tool_mentioned?: string | null
+          updated_at?: string
         }
         Update: {
           category?: string
+          competitor_id?: string | null
           created_at?: string
+          highlight_end?: number | null
+          highlight_start?: number | null
           id?: string
           post_id?: string
           product_id?: string
           reason?: string
           relevance?: number
-          state?: string
-          updated_at?: string
-          competitor_id?: string | null
-          highlight_end?: number | null
-          highlight_start?: number | null
           rival_issue?: string | null
           rival_sentiment?: string | null
           rival_summary?: string | null
+          state?: string
           switching?: boolean
           term_id?: string | null
           tool_mentioned?: string | null
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "product_posts_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_posts_post_id_fkey"
             columns: ["post_id"]
@@ -338,6 +396,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_posts_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "search_terms"
             referencedColumns: ["id"]
           },
         ]
@@ -403,6 +468,7 @@ export type Database = {
           marketing_opt_in: boolean
           marketing_opt_in_at: string | null
           plan: string
+          service_consent_at: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string | null
@@ -410,7 +476,6 @@ export type Database = {
           trial_end: string | null
           trial_reminder_sent_at: string | null
           updated_at: string
-          service_consent_at: string | null
         }
         Insert: {
           billing_event_at?: string | null
@@ -424,6 +489,7 @@ export type Database = {
           marketing_opt_in?: boolean
           marketing_opt_in_at?: string | null
           plan?: string
+          service_consent_at?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -431,7 +497,6 @@ export type Database = {
           trial_end?: string | null
           trial_reminder_sent_at?: string | null
           updated_at?: string
-          service_consent_at?: string | null
         }
         Update: {
           billing_event_at?: string | null
@@ -445,6 +510,7 @@ export type Database = {
           marketing_opt_in?: boolean
           marketing_opt_in_at?: string | null
           plan?: string
+          service_consent_at?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -452,7 +518,6 @@ export type Database = {
           trial_end?: string | null
           trial_reminder_sent_at?: string | null
           updated_at?: string
-          service_consent_at?: string | null
         }
         Relationships: []
       }
@@ -561,8 +626,20 @@ export type Database = {
         Relationships: []
       }
       term_stats: {
-        Row: { day: string; fetched: number; relevant: number; source: string; term_id: string }
-        Insert: { day: string; fetched?: number; relevant?: number; source: string; term_id: string }
+        Row: {
+          day: string
+          fetched: number
+          relevant: number
+          source: string
+          term_id: string
+        }
+        Insert: {
+          day: string
+          fetched?: number
+          relevant?: number
+          source: string
+          term_id: string
+        }
         Update: {
           day?: string
           fetched?: number
@@ -570,7 +647,15 @@ export type Database = {
           source?: string
           term_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "term_stats_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "search_terms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       themes: {
         Row: {
@@ -675,13 +760,193 @@ export type Database = {
           tool_mentioned: string | null
           url: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "product_posts_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_posts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
-      close_removal_request: {
-        Args: { p_actor: string; p_now: string; p_request_id: string; p_status: string }
+      apply_billing_patch: {
+        Args: { p_event_at: string; p_patch: Json; p_user_id: string }
+        Returns: boolean
+      }
+      apply_onboarding_edits: {
+        Args: {
+          p_competitors: Json
+          p_product_id: string
+          p_profile: Json
+          p_terms: string[]
+        }
         Returns: undefined
+      }
+      claim_billing_event: {
+        Args: { p_event_id: string; p_type: string }
+        Returns: string
+      }
+      claim_jobs: {
+        Args: { p_lease_seconds: number; p_limit: number; p_now: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          locked_until: string | null
+          payload: Json
+          product_id: string | null
+          run_after: string
+          source: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      close_removal_request: {
+        Args: {
+          p_actor: string
+          p_now: string
+          p_request_id: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      collect_terms: {
+        Args: { p_limit: number; p_product_id: string; p_source: string }
+        Returns: {
+          id: string
+          term: string
+        }[]
+      }
+      collectable_products: {
+        Args: never
+        Returns: {
+          id: string
+          owner_id: string
+        }[]
+      }
+      consume_budget: {
+        Args: {
+          p_day: string
+          p_limit: number
+          p_product_id: string
+          p_source: string
+          p_units: number
+        }
+        Returns: boolean
+      }
+      delete_posts_at_source: {
+        Args: { p_external_ids: string[]; p_source: string }
+        Returns: number
+      }
+      finish_job: {
+        Args: {
+          p_error_class?: string
+          p_id: string
+          p_payload?: Json
+          p_run_after?: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      first_linked_product: { Args: { p_post_id: string }; Returns: string | null }
+      ingest_post: {
+        Args: {
+          p_author_hash: string
+          p_community: string | null
+          p_excerpt: string
+          p_external_id: string
+          p_now: string
+          p_posted_at: string
+          p_source: string
+          p_url: string
+        }
+        Returns: string
+      }
+      llm_begin_call: {
+        Args: {
+          p_global_daily_usd: number
+          p_lease_seconds: number
+          p_now: string
+          p_product_id: string | null
+          p_product_monthly_usd: number
+          p_reserve_usd: number
+          p_task: string
+          p_task_daily_calls: number | null
+        }
+        Returns: {
+          reservation_id: string
+          status: string
+        }[]
+      }
+      llm_finish_call: {
+        Args: {
+          p_cache_read_tokens: number
+          p_cache_write_tokens: number
+          p_cost_usd: number
+          p_input_tokens: number
+          p_model: string
+          p_now: string
+          p_output_tokens: number
+          p_product_id: string | null
+          p_reservation_id: string
+          p_task: string
+        }
+        Returns: undefined
+      }
+      llm_usage_since: {
+        Args: { p_product_id: string | null; p_since: string; p_task?: string | null }
+        Returns: {
+          calls: number
+          cost_usd: number
+        }[]
+      }
+      purge_expired: { Args: { p_now: string }; Returns: Json }
+      record_term_stats: {
+        Args: {
+          p_day: string
+          p_job_id: string
+          p_source: string
+          p_stats: Json
+        }
+        Returns: boolean
+      }
+      reddit_recheck_posts: {
+        Args: {
+          p_from: string
+          p_limit: number
+          p_product_id: string
+          p_to: string
+        }
+        Returns: {
+          external_id: string
+          url: string
+        }[]
+      }
+      reddit_recheck_products: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          id: string
+        }[]
       }
       remove_and_suppress: {
         Args: {
@@ -694,24 +959,16 @@ export type Database = {
         }
         Returns: number
       }
-      submit_removal_request: {
+      reserve_job_budget: {
         Args: {
-          p_contact_email: string
-          p_daily_limit: number
-          p_details: string
-          p_ip_hash: string
-          p_link_or_handle: string
-          p_now: string
+          p_day: string
+          p_job_id: string
+          p_limit: number
+          p_monthly_cap?: number
+          p_product_id: string
           p_source: string
+          p_units: number
         }
-        Returns: string | null
-      }
-      apply_billing_patch: {
-        Args: { p_event_at: string; p_patch: Json; p_user_id: string }
-        Returns: boolean
-      }
-      claim_billing_event: {
-        Args: { p_event_id: string; p_type: string }
         Returns: string
       }
       save_product_draft: {
@@ -724,139 +981,40 @@ export type Database = {
         }
         Returns: undefined
       }
+      settle_budget: {
+        Args: {
+          p_actual: number
+          p_cost_usd: number
+          p_day: string
+          p_product_id: string
+          p_reserved: number
+          p_source: string
+        }
+        Returns: undefined
+      }
+      settle_job_budget: {
+        Args: { p_actual: number; p_cost_usd: number; p_job_id: string }
+        Returns: boolean
+      }
       start_product_draft: {
         Args: { p_name: string; p_owner_id: string; p_url: string | null }
         Returns: string
       }
-      ingest_post: {
+      submit_removal_request: {
         Args: {
-          p_source: string
-          p_external_id: string
-          p_url: string
-          p_excerpt: string
-          p_posted_at: string
-          p_author_hash: string
-          p_community: string | null
+          p_contact_email: string
+          p_daily_limit: number
+          p_details: string
+          p_ip_hash: string
+          p_link_or_handle: string
           p_now: string
-        }
-        Returns: string | null
-      }
-      claim_jobs: {
-        Args: { p_now: string; p_limit: number; p_lease_seconds: number }
-        Returns: Database["public"]["Tables"]["jobs"]["Row"][]
-      }
-      finish_job: {
-        Args: {
-          p_id: string
-          p_status: string
-          p_error_class?: string | null
-          p_payload?: Json | null
-          p_run_after?: string | null
-        }
-        Returns: undefined
-      }
-      consume_budget: {
-        Args: { p_product_id: string; p_source: string; p_day: string; p_units: number; p_limit: number }
-        Returns: boolean
-      }
-      settle_budget: {
-        Args: {
-          p_product_id: string
           p_source: string
-          p_day: string
-          p_reserved: number
-          p_actual: number
-          p_cost_usd: number
-        }
-        Returns: undefined
-      }
-      vendor_usage: {
-        Args: { p_source: string; p_month_start: string }
-        Returns: number
-      }
-      reserve_job_budget: {
-        Args: {
-          p_job_id: string
-          p_product_id: string
-          p_source: string
-          p_day: string
-          p_units: number
-          p_limit: number
-          p_monthly_cap?: number | null
         }
         Returns: string
       }
-      settle_job_budget: {
-        Args: { p_job_id: string; p_actual: number; p_cost_usd: number }
-        Returns: boolean
-      }
-      collectable_products: {
-        Args: Record<PropertyKey, never>
-        Returns: { id: string; owner_id: string }[]
-      }
-      record_term_stats: {
-        Args: { p_job_id: string; p_day: string; p_source: string; p_stats: Json }
-        Returns: boolean
-      }
-      collect_terms: {
-        Args: { p_product_id: string; p_source: string; p_limit: number }
-        Returns: { id: string; term: string }[]
-      }
-      first_linked_product: {
-        Args: { p_post_id: string }
-        Returns: string | null
-      }
-      reddit_recheck_products: {
-        Args: { p_from: string; p_to: string }
-        Returns: { id: string }[]
-      }
-      reddit_recheck_posts: {
-        Args: { p_product_id: string; p_from: string; p_to: string; p_limit: number }
-        Returns: { external_id: string; url: string }[]
-      }
-      delete_posts_at_source: {
-        Args: { p_source: string; p_external_ids: string[] }
+      vendor_usage: {
+        Args: { p_month_start: string; p_source: string }
         Returns: number
-      }
-      purge_expired: {
-        Args: { p_now: string }
-        Returns: Json
-      }
-      apply_onboarding_edits: {
-        Args: { p_product_id: string; p_profile: Json; p_terms: string[]; p_competitors: Json }
-        Returns: undefined
-      }
-      llm_begin_call: {
-        Args: {
-          p_product_id: string | null
-          p_task: string
-          p_now: string
-          p_task_daily_calls: number | null
-          p_product_monthly_usd: number
-          p_global_daily_usd: number
-          p_reserve_usd: number
-          p_lease_seconds: number
-        }
-        Returns: { status: string; reservation_id: string | null }[]
-      }
-      llm_finish_call: {
-        Args: {
-          p_reservation_id: string
-          p_product_id: string | null
-          p_task: string
-          p_model: string
-          p_input_tokens: number
-          p_output_tokens: number
-          p_cache_read_tokens: number
-          p_cache_write_tokens: number
-          p_cost_usd: number
-          p_now: string
-        }
-        Returns: undefined
-      }
-      llm_usage_since: {
-        Args: { p_product_id: string | null; p_since: string; p_task?: string | null }
-        Returns: { calls: number; cost_usd: number }[]
       }
     }
     Enums: {
