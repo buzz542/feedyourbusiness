@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FEED_VIEWS, TODAY_MS, type FeedView } from "@/lib/feed-views";
 
 /**
  * The Reply tab's feed (docs/PLAN.md 4.4): views, filters in the URL, conditions and the loader.
@@ -7,8 +8,7 @@ import { z } from "zod";
  * decides what anyone can see; the product filter only narrows it.
  */
 
-export const FEED_VIEWS = ["today", "all", "saved", "replied"] as const;
-export type FeedView = (typeof FEED_VIEWS)[number];
+export { FEED_VIEWS, type FeedView } from "@/lib/feed-views";
 
 export const CATEGORIES = [
   "looking_for_tool",
@@ -123,21 +123,24 @@ export type Condition =
 /** `%`, `_` and `\` match themselves in a text search. */
 export const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
+/** The SQL side of a view; src/lib/feed-views.ts `inView` is the same rule for the counts. */
 export function viewConditions(view: FeedView, now: Date): Condition[] {
   switch (view) {
     case "today":
       return [
         { column: "state", op: "in", value: ["new", "saved"] },
-        { column: "created_at", op: "gte", value: new Date(now.getTime() - DAY_MS).toISOString() },
+        {
+          column: "created_at",
+          op: "gte",
+          value: new Date(now.getTime() - TODAY_MS).toISOString(),
+        },
       ];
     case "all":
       return [{ column: "state", op: "neq", value: "hidden" }];
     case "saved":
-      return [{ column: "state", op: "eq", value: "saved" }];
     case "replied":
-      return [{ column: "state", op: "eq", value: "replied" }];
+    case "hidden":
+      return [{ column: "state", op: "eq", value: view }];
   }
 }
 
@@ -183,7 +186,8 @@ export interface FeedItem {
 export interface FeedPage {
   items: FeedItem[];
   hasMore: boolean;
-  counts: Record<FeedView, number>;
+  /** Every post in the view with the filters applied, past this page too. */
+  total: number;
 }
 
 /** The part of a Supabase query builder the feed uses. */

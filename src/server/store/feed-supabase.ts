@@ -1,16 +1,16 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { FEED_VIEWS, type ViewCounts } from "@/lib/feed-views";
 import {
   applyConditions,
   FEED_COLUMNS,
-  FEED_VIEWS,
   feedConditions,
   PAGE_SIZE,
+  parseFeedParams,
   toFeedItem,
   type FeedFilter,
   type FeedPage,
-  type FeedView,
 } from "./feed";
 
 class FeedLoadError extends Error {
@@ -19,7 +19,8 @@ class FeedLoadError extends Error {
 
 /**
  * The Reply feed through the signed-in user's client (RLS applies). Sorted by match score, then
- * newest (4.4); "Load more" widens the page, so a bookmarked page shows the same cards.
+ * newest (4.4); "Load more" widens the page, so a bookmarked page shows the same cards. `total`
+ * counts the whole view with the filters applied.
  */
 export async function loadFeed(
   client: SupabaseClient<Database>,
@@ -29,30 +30,61 @@ export async function loadFeed(
   defaultMin: number,
 ): Promise<FeedPage> {
   const limit = filter.page * PAGE_SIZE;
-  const list = applyConditions(
-    client.from("feed_items").select(FEED_COLUMNS),
-    feedConditions(productId, filter, filter.view, now, defaultMin),
-  )
-    .order("relevance", { ascending: false })
-    .order("created_at", { ascending: false })
-    .order("id")
-    .range(0, limit);
-  const count = (view: FeedView) =>
+  const conditions = feedConditions(productId, filter, filter.view, now, defaultMin);
+  const [rows, total] = await Promise.all([
+    applyConditions(client.from("feed_items").select(FEED_COLUMNS), conditions)
+      .order("relevance", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(0, limit),
     applyConditions(
       client.from("feed_items").select("id", { count: "exact", head: true }),
-      feedConditions(productId, filter, view, now, defaultMin),
-    );
-  const [rows, ...counts] = await Promise.all([list, ...FEED_VIEWS.map(count)]);
+      conditions,
+    ),
+  ]);
   if (rows.error) throw new FeedLoadError(rows.error.code);
-  for (const c of counts) if (c.error) throw new FeedLoadError(c.error.code);
+  if (total.error) throw new FeedLoadError(total.error.code);
   const data = rows.data ?? [];
   return {
     items: data.slice(0, limit).map(toFeedItem),
     hasMore: data.length > limit,
-    counts: Object.fromEntries(FEED_VIEWS.map((v, i) => [v, counts[i]?.count ?? 0])) as Record<
-      FeedView,
-      number
-    >,
+    total: total.count ?? 0,
+  };
+}
+
+/**
+ * The side panel's counts (docs/PLAN.md 4.4): every view of the owner's product with no filters
+ * but the product's minimum match, so a count is what the view shows when opened. Null before
+ * there is a product. The browser keeps them right as cards change (src/lib/feed-views.ts).
+ */
+export async function loadNavCounts(
+  client: SupabaseClient<Database>,
+  ownerId: string,
+  now: Date,
+): Promise<{ counts: ViewCounts; threshold: number } | null> {
+  const product = await client
+    .from("products")
+    .select("id, relevance_threshold")
+    .eq("owner_id", ownerId)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+  if (product.error) throw new FeedLoadError(product.error.code);
+  if (!product.data) return null;
+  const { id, relevance_threshold: threshold } = product.data;
+  const filter = parseFeedParams({});
+  const results = await Promise.all(
+    FEED_VIEWS.map((view) =>
+      applyConditions(
+        client.from("feed_items").select("id", { count: "exact", head: true }),
+        feedConditions(id, filter, view, now, threshold),
+      ),
+    ),
+  );
+  for (const r of results) if (r.error) throw new FeedLoadError(r.error.code);
+  return {
+    counts: Object.fromEntries(FEED_VIEWS.map((v, i) => [v, results[i]?.count ?? 0])) as ViewCounts,
+    threshold,
   };
 }
 

@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { CheckIcon } from "@/components/ui/icons";
+import { useFeedCounts } from "./feed-counts";
 
 type State = "new" | "saved" | "replied" | "hidden";
 type Pressable = Exclude<State, "new">;
@@ -34,19 +35,23 @@ const TOGGLE =
 /**
  * Open post, then Save, Hide and I replied (docs/PLAN.md 4.4), with Undo for the last change.
  * The toggles never leave the card, so the focus stays where it was; the pressed one says so with
- * aria-pressed, a check and its border, never color alone. `open` is the Open post link.
+ * aria-pressed, a check and its border, never color alone. `open` is the Open post link. Each
+ * change the server accepts is passed to the side panel's counts, with what they are counted by.
  */
 export function PostActions({
   id,
   state: initial,
   setState,
   open,
+  counted,
 }: {
   id: string;
   state: State;
   setState: SetPostState;
   open?: ReactNode;
+  counted?: { createdAt: string; relevance: number };
 }) {
+  const { moved } = useFeedCounts();
   const [state, setLocal] = useState<State>(initial);
   const [previous, setPrevious] = useState<State | null>(null);
   const [failed, setFailed] = useState(false);
@@ -60,6 +65,7 @@ export function PostActions({
       if (!ok) return;
       setLocal(next);
       setPrevious(undo ? null : before);
+      if (counted) moved(counted, before, next);
     });
 
   return (

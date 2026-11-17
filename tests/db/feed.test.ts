@@ -1,5 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { FEED_VIEWS, inView } from "@/lib/feed-views";
 import {
   CATEGORIES,
   FEED_SOURCES,
@@ -67,10 +68,10 @@ function expected(filter: FeedFilter, view: FeedView = filter.view) {
     .filter((s) => {
       const today =
         ["new", "saved"].includes(s.state) && now.getTime() - s.createdAt.getTime() <= 24 * HOUR;
-      const inView =
+      const listed =
         view === "today" ? today : view === "all" ? s.state !== "hidden" : s.state === view;
       return (
-        inView &&
+        listed &&
         s.relevance >= min &&
         (!filter.category || s.category === filter.category) &&
         (!filter.source || s.source === filter.source) &&
@@ -164,6 +165,7 @@ describe("feed views and filters", () => {
     ["all", { view: "all" }],
     ["saved", { view: "saved" }],
     ["replied", { view: "replied" }],
+    ["hidden", { view: "hidden" }],
     ["a category", { view: "all", category: "wish" }],
     ["a source", { view: "all", source: "reddit" }],
     ["a rival", { view: "all", rival: "RIVAL" }],
@@ -184,8 +186,31 @@ describe("feed views and filters", () => {
 
   it("counts every view with the same filters", async () => {
     const filter = parseFeedParams({ source: "bluesky" });
-    for (const view of ["today", "all", "saved", "replied"] as const)
+    for (const view of FEED_VIEWS)
       expect((await read(alice, filter, view)).length).toBe(expected(filter, view).length);
+  });
+
+  it("puts a post in the same views as the side panel's count rules do (src/lib/feed-views.ts)", async () => {
+    const filter = parseFeedParams({});
+    for (const view of FEED_VIEWS) {
+      const fromDb = new Set(await read(alice, filter, view));
+      const fromRules = seeded
+        .filter((s) =>
+          inView(
+            view,
+            {
+              state: s.state as "new",
+              createdAt: s.createdAt.toISOString(),
+              relevance: s.relevance,
+            },
+            now,
+            60,
+          ),
+        )
+        .map((s) => s.id);
+      expect(fromDb.size, view).toBeGreaterThan(0);
+      expect(new Set(fromRules), view).toEqual(fromDb);
+    }
   });
 
   it("never returns another user's rows, even asked by product id", async () => {

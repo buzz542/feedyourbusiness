@@ -1,45 +1,39 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { SiteFooter } from "@/app/(marketing)/_components/site-footer";
-import { AccountMenu } from "@/components/app/account-menu";
-import { AppTabs } from "@/components/app/app-tabs";
+import { AppFrame } from "@/components/app/app-frame";
 import { loadAccount } from "@/server/auth/account";
 import { requireAppUser } from "@/server/auth/session";
+import { loadNavCounts } from "@/server/store/feed-supabase";
+import { createSupabaseServerClient } from "@/server/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The app frame (docs/PLAN.md 9.5): wordmark, product name, tabs, Settings and the account menu.
- * At narrow widths the tabs move to a bar at the bottom. Entitlement per page arrives in M8 (10.4).
+ * The app frame (docs/PLAN.md 9.5): a side panel on wide screens, a top bar and a tab bar on narrow
+ * ones (src/components/app/app-frame.tsx). The layout stays on screen as you move between views,
+ * so the side panel never blanks while a page loads. Entitlement is checked by each page (10.4).
  */
 export default async function TabsLayout({ children }: { children: ReactNode }) {
   const user = await requireAppUser("/app");
-  const account = await loadAccount(user.id);
+  const supabase = await createSupabaseServerClient();
+  const [account, nav] = await Promise.all([
+    loadAccount(user.id),
+    // The counts are a convenience: if they cannot load, the frame shows the views without them.
+    loadNavCounts(supabase, user.id, new Date()).catch((error: unknown) => {
+      console.error(
+        `[app] nav counts failed: ${error instanceof Error ? error.name : "UnknownError"}`,
+      );
+      return null;
+    }),
+  ]);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-5xl flex-col px-4 pb-16 sm:px-6 sm:pb-0">
-      <header className="flex items-center gap-4 border-b border-rule py-3">
-        <Link href="/app" className="font-serif text-xl tracking-tight">
-          AskedFor
-        </Link>
-        {account.productName ? (
-          <span className="hidden truncate text-sm text-muted md:inline">
-            {account.productName}
-          </span>
-        ) : null}
-        <AppTabs className="hidden sm:block" />
-        <div className="ml-auto flex items-center gap-2">
-          <Link href="/app/settings" className="px-2 py-1 text-sm text-muted hover:text-ink">
-            Settings
-          </Link>
-          <AccountMenu email={user.email} />
-        </div>
-      </header>
-      <main id="main" className="flex-1 py-8">
-        {children}
-      </main>
-      <SiteFooter />
-      <AppTabs className="fixed inset-x-0 bottom-0 border-t border-rule bg-paper px-2 pb-[env(safe-area-inset-bottom)] sm:hidden [&_ul]:justify-around" />
-    </div>
+    <AppFrame
+      productName={account.productName}
+      email={user.email}
+      counts={nav?.counts ?? null}
+      threshold={nav?.threshold ?? null}
+    >
+      {children}
+    </AppFrame>
   );
 }

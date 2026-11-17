@@ -117,6 +117,7 @@ export function PostCard({
           id={item.id}
           state={item.state}
           setState={setState}
+          counted={{ createdAt: item.createdAt, relevance: item.relevance }}
           open={
             <a
               href={item.url}
