@@ -47,7 +47,7 @@ function Count({ value, badge }: { value: number; badge?: boolean }) {
       )}
     >
       {value}
-      <span className="sr-only"> posts</span>
+      <span className="sr-only">{value === 1 ? " post" : " posts"}</span>
     </span>
   );
 }

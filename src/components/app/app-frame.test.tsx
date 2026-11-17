@@ -57,6 +57,13 @@ describe("ViewNavList", () => {
     expect(panel).toMatch(/aria-current="page"[^>]*>[\s\S]*?data-current-bar=""/);
   });
 
+  it("says post, not posts, for a count of one", () => {
+    const out = renderToStaticMarkup(
+      <ViewNavList variant="panel" current={null} counts={{ ...COUNTS, hidden: 1 }} />,
+    );
+    expect(links(out)).toContainEqual(["/app/reply?view=hidden", "Hidden 1 post"]);
+  });
+
   it("marks Settings on the settings page", () => {
     const out = renderToStaticMarkup(
       <ViewNavList variant="panel" current="settings" counts={COUNTS} />,
