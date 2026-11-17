@@ -34,6 +34,35 @@ describe("landing page", () => {
     expect(text).not.toMatch(/(^|\s)@\w|\bu\/\w/);
   });
 
+  it("shows the example from a source collected at launch, never from one behind its gate", () => {
+    const example = /aria-label="Example post card"[\s\S]*?<\/figure>/.exec(html)?.[0] ?? "";
+    expect(example).toContain("Hacker News");
+    expect(example).not.toMatch(/Reddit|r\/\w|\bX\b/);
+  });
+
+  it("puts every word of the example card in its claims row", () => {
+    const row = claims.split("\n").find((l) => l.startsWith("| landing-example "))!;
+    const example = /aria-label="Example post card"[\s\S]*?<\/figure>/.exec(html)![0];
+    const pieces = [...example.matchAll(/>([^<>]+)</g)]
+      // A highlight splits a sentence; the punctuation left at a piece's edge is not a word.
+      .map((m) =>
+        m[1]!
+          .replace(/&#x27;/g, "'")
+          .replace(/^[\s?.,·]+/, "")
+          .trim(),
+      )
+      .filter(Boolean);
+    expect(pieces.length).toBeGreaterThan(5);
+    for (const piece of pieces) expect(row, piece).toContain(piece);
+  });
+
+  it("ends with the price and a way to start, and folds the questions into a list you can open", () => {
+    const closing = html.slice(html.lastIndexOf('aria-labelledby="start"'));
+    expect(closing).toContain("£39 a month, tax included where it applies");
+    expect(closing).toMatch(/href="\/login\?next=%2Fapp"/);
+    expect(html.match(/<details/g)?.length).toBeGreaterThanOrEqual(6);
+  });
+
   it("says where posts come from, with the provider on the sources page, and shows the full price", () => {
     expect(text).toContain("Reddit through a web data company");
     expect(html).toContain('href="/sources"');

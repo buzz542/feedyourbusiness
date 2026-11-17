@@ -9,14 +9,17 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
         <Link href="/" className="font-serif text-xl tracking-tight">
           AskedFor
         </Link>
-        <nav aria-label="Site" className="ml-auto flex gap-4 text-sm text-muted">
+        <nav aria-label="Site" className="ml-auto flex items-center gap-4 text-sm text-muted">
           <Link href="/pricing" className="hover:text-ink">
             Pricing
           </Link>
           <Link href="/sources" className="hover:text-ink">
             Sources
           </Link>
-          <Link href="/login" className="hover:text-ink">
+          <Link
+            href="/login"
+            className="inline-flex min-h-9 items-center rounded-[2px] border border-control bg-surface px-3 text-ink hover:border-ink"
+          >
             Sign in
           </Link>
         </nav>
