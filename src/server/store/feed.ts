@@ -95,6 +95,18 @@ export function activeFilterKeys(filter: FeedFilter, defaultMin: number): Filter
 export const activeFilterCount = (filter: FeedFilter, defaultMin: number): number =>
   activeFilterKeys(filter, defaultMin).length;
 
+/**
+ * The filter without a source that is not switched on: a source behind its gate (Reddit until
+ * docs/PLAN.md 2.1.7 holds, X out of launch) is never offered, so an old address cannot bring it
+ * back. `enabled` is the collect sources switched on now.
+ */
+export function withEnabledSource(filter: FeedFilter, enabled: readonly FeedSource[]): FeedFilter {
+  if (!filter.source || enabled.includes(filter.source)) return filter;
+  const next = { ...filter };
+  delete next.source;
+  return next;
+}
+
 /** The same view with every filter cleared. */
 export const clearFiltersHref = (filter: FeedFilter): string =>
   feedHref(filter, {

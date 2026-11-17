@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { requireEntitledUser } from "@/server/auth/entitled";
 import { firstRunActive } from "@/server/pipeline/first-run";
 import { loadFirstRunProgress } from "@/server/pipeline/first-run-server";
-import { isFeedSource, parseFeedParams } from "@/server/store/feed";
+import { isFeedSource, parseFeedParams, withEnabledSource } from "@/server/store/feed";
 import { loadFeed, loadReplyProduct } from "@/server/store/feed-supabase";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { collectSources, linkSources } from "@/sources/registry";
@@ -56,7 +56,10 @@ export default async function ReplyPage({
       </EmptyState>
     );
 
-  const filter = parseFeedParams(search);
+  const sources = collectSources()
+    .map((s) => s.id)
+    .filter(isFeedSource);
+  const filter = withEnabledSource(parseFeedParams(search), sources);
   const progress = await loadFirstRunProgress(product.id);
   const now = new Date();
   const feed = await loadFeed(supabase, product.id, filter, now, product.threshold);
@@ -68,9 +71,7 @@ export default async function ReplyPage({
       feed={feed}
       now={now}
       rivals={product.competitors}
-      sources={collectSources()
-        .map((s) => s.id)
-        .filter(isFeedSource)}
+      sources={sources}
       terms={product.terms}
       subreddits={product.subreddits}
       links={linkSources()}

@@ -32,7 +32,8 @@ async function seed(): Promise<void> {
     const { data: postId } = await admin.rpc("ingest_post", {
       p_source: "hackernews",
       p_external_id: `e2e-reply-${i}`,
-      p_url: `https://news.ycombinator.com/item?id=${900000 + i}`,
+      // An id that cannot belong to a real post (docs/PLAN.md 2.3.13).
+      p_url: `https://news.ycombinator.com/item?id=e2e-invented-${i}`,
       p_excerpt: `Invented post ${i}: is there a tool that chases late invoices for freelancers?`,
       p_posted_at: now,
       p_author_hash: `e2e-hash-${i}`,

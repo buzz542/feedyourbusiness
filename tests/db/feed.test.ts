@@ -117,9 +117,10 @@ beforeAll(async () => {
         [
           source,
           `ext-${i}`,
+          // Ids that cannot belong to a real post (docs/PLAN.md 2.3.13).
           source === "reddit"
-            ? `https://www.reddit.com/r/SaaS/comments/x${i}/`
-            : `https://news.ycombinator.com/item?id=${i}`,
+            ? `https://www.reddit.com/r/SaaS/comments/invented${i}/`
+            : `https://news.ycombinator.com/item?id=invented-${i}`,
           excerpt,
           new Date(now.getTime() - 50 * HOUR).toISOString(),
           `hash-${i}`,

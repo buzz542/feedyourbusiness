@@ -12,8 +12,9 @@ import {
   SettingsIcon,
   TodayIcon,
 } from "@/components/ui/icons";
-import { FEED_VIEWS, VIEW_LABELS, type FeedView, type ViewCounts } from "@/lib/feed-views";
+import { FEED_VIEWS, type FeedView, type ViewCounts } from "@/lib/feed-views";
 import { useFeedCounts } from "./feed-counts";
+import { VIEW_LABELS } from "./view-labels";
 
 export type NavItem = FeedView | "settings";
 

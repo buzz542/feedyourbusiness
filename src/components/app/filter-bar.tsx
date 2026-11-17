@@ -11,6 +11,7 @@ import {
   type FeedFilter,
   type FeedSource,
   type FilterKey,
+  withEnabledSource,
 } from "@/server/store/feed";
 
 const FIELD =
@@ -31,10 +32,11 @@ function Field({ label, grow, children }: { label: string; grow?: boolean; child
  * link per filter that removes it. On a phone the form folds away under a summary with the count.
  *
  * `sources` are the collect sources switched on now: a source behind its gate (Reddit until 2.1.7
- * holds, X out of launch) is not offered, unless the address already asks for it.
+ * holds, X out of launch) is not offered. The page drops one the address asks for
+ * (withEnabledSource), so it is never shown as a filter either.
  */
 export function FilterBar({
-  filter,
+  filter: asked,
   defaultMin,
   rivals,
   sources,
@@ -44,10 +46,9 @@ export function FilterBar({
   rivals: readonly { id: string; name: string }[];
   sources: readonly FeedSource[];
 }) {
+  const filter = withEnabledSource(asked, sources);
   const active = activeFilterKeys(filter, defaultMin);
   const count = active.length;
-  const sourceOptions =
-    filter.source && !sources.includes(filter.source) ? [...sources, filter.source] : sources;
   const rivalName = rivals.find((r) => r.id === filter.rival)?.name ?? "not tracked";
   const labels: Record<FilterKey, string> = {
     category: `Category: ${filter.category ? CATEGORY_LABELS[filter.category] : ""}`,
@@ -88,11 +89,11 @@ export function FilterBar({
           ))}
         </select>
       </Field>
-      {sourceOptions.length >= 2 ? (
+      {sources.length >= 2 ? (
         <Field label="Source">
           <select name="source" defaultValue={filter.source ?? ""} className={FIELD}>
             <option value="">All sources</option>
-            {sourceOptions.map((s) => (
+            {sources.map((s) => (
               <option key={s} value={s}>
                 {SOURCE_LABELS[s]}
               </option>

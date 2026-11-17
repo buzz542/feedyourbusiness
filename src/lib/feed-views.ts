@@ -11,14 +11,6 @@ export type ViewCounts = Record<FeedView, number>;
 
 export type PostState = "new" | "saved" | "replied" | "hidden";
 
-export const VIEW_LABELS: Readonly<Record<FeedView, string>> = {
-  today: "Today",
-  all: "All",
-  saved: "Saved",
-  replied: "Replied",
-  hidden: "Hidden",
-};
-
 /** "Today" is the posts collected in the last 24 hours. */
 export const TODAY_MS = 24 * 60 * 60 * 1000;
 

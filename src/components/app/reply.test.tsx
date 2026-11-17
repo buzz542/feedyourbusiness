@@ -7,6 +7,7 @@ import {
   activeFilterCount,
   clearFiltersHref,
   parseFeedParams,
+  withEnabledSource,
   type FeedItem,
   type FeedSource,
 } from "@/server/store/feed";
@@ -36,7 +37,7 @@ const item: FeedItem = {
   toolMentioned: null,
   switching: false,
   source: "reddit",
-  url: "https://www.reddit.com/r/SaaS/comments/abc123/",
+  url: "https://www.reddit.com/r/SaaS/comments/invented1/",
   excerpt: "🙏 Is there a tool that chases late invoices?",
   postedAt: "2026-11-02T09:00:00Z",
   community: "r/SaaS",
@@ -116,18 +117,24 @@ describe("PostCard", () => {
 
   it("opens the post in a new tab without an opener", () => {
     expect(html).toMatch(
-      /<a[^>]*href="https:\/\/www\.reddit\.com\/r\/SaaS\/comments\/abc123\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*data-action="open"/,
+      /<a[^>]*href="https:\/\/www\.reddit\.com\/r\/SaaS\/comments\/invented1\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*data-action="open"/,
     );
   });
 
-  it("keeps the reply tip and the disclosure next to Open post", () => {
+  it("puts the disclosure first in the row right above Open post, with the reply tip beside it", () => {
     expect(html).toContain(REPLY_TIPS.looking_for_tool);
-    const tip = html.indexOf(REPLY_TIPS.looking_for_tool);
-    const disclosure = html.indexOf("Say you built it.");
-    const open = html.indexOf('data-action="open"');
-    expect(tip).toBeGreaterThan(html.indexOf("data-card-why"));
-    expect(disclosure).toBeGreaterThan(0);
-    expect(Math.max(tip, disclosure)).toBeLessThan(open);
+    // The last block before the actions: the disclosure, then the tip toggle, then the tip itself.
+    const lastBlock = /<details[^>]*>([\s\S]*?)<\/details><footer[^>]*data-card-actions=""/.exec(
+      html,
+    );
+    expect(lastBlock).not.toBeNull();
+    const summary = /<summary[^>]*>([\s\S]*?)<\/summary>/.exec(lastBlock![1]!)![1]!;
+    expect(visible(summary)).toBe("Say you built it. Reply tip");
+    expect(visible(lastBlock![1]!)).toContain(REPLY_TIPS.looking_for_tool);
+    // Open post is the first control after it.
+    const footer = part(html, "data-card-actions");
+    expect(footer.indexOf('data-action="open"')).toBeLessThan(footer.indexOf('data-action="save"'));
+    expect(html.match(/Say you built it\./g)).toHaveLength(1);
   });
 
   it("formats sources, ages and ranges", () => {
@@ -345,9 +352,18 @@ describe("FilterBar", () => {
     expect(html).not.toMatch(/<option value="(reddit|x)"/);
   });
 
-  it("keeps a source the address asks for, so the filter that is on is never hidden", () => {
+  it("never lists a source behind its gate, even when the address asks for it", () => {
     const out = render({ source: "reddit" });
-    expect(out).toMatch(/<option value="reddit" selected="">Reddit<\/option>/);
+    expect(options(out, "source")).toEqual(["", "hackernews", "bluesky"]);
+    expect(out).not.toMatch(/Reddit/);
+  });
+
+  it("drops a source that is switched off from the filter before the feed is read", () => {
+    const on: FeedSource[] = ["hackernews", "bluesky"];
+    expect(withEnabledSource(parseFeedParams({ source: "reddit", category: "wish" }), on)).toEqual(
+      parseFeedParams({ category: "wish" }),
+    );
+    expect(withEnabledSource(parseFeedParams({ source: "bluesky" }), on).source).toBe("bluesky");
   });
 
   it("leaves the source filter out when fewer than two sources are on", () => {
@@ -479,6 +495,10 @@ describe("ReplyView", () => {
   it("heads the column with the view and what it holds, then how many posts it has", () => {
     const out = visible(view({ view: "saved" }, { items: items.slice(0, 3), total: 3 }));
     expect(out).toContain("Saved Posts you saved to come back to.");
+    // Today is what we found in the last day, which can be an older post.
+    expect(visible(view({}, { items: [], total: 0 }))).toContain(
+      "Today Posts we found in the last 24 hours",
+    );
     expect(out).toContain("3 posts, best match first.");
     expect(visible(view({ category: "wish" }, { items: items.slice(0, 1), total: 1 }))).toContain(
       "1 post match these filters, best match first.",

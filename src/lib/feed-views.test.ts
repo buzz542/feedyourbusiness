@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countsAfterMove, FEED_VIEWS, inView, VIEW_LABELS, type ViewCounts } from "./feed-views";
+import { countsAfterMove, FEED_VIEWS, inView, type ViewCounts } from "./feed-views";
 
 /**
  * The Reply views (docs/PLAN.md 4.4, plus Hidden) as the side panel counts them. The database
@@ -13,14 +13,8 @@ const old = { createdAt: "2026-11-15T09:00:00Z", relevance: 80 };
 const COUNTS: ViewCounts = { today: 4, all: 10, saved: 2, replied: 3, hidden: 1 };
 
 describe("views", () => {
-  it("lists Today, All, Saved, Replied and Hidden, in that order", () => {
-    expect(FEED_VIEWS.map((v) => VIEW_LABELS[v])).toEqual([
-      "Today",
-      "All",
-      "Saved",
-      "Replied",
-      "Hidden",
-    ]);
+  it("has five views, Today first", () => {
+    expect(FEED_VIEWS).toEqual(["today", "all", "saved", "replied", "hidden"]);
   });
 
   it("puts a post in a view by its state, its age and the minimum match", () => {

@@ -181,4 +181,46 @@ describe("where the tokens are used", () => {
     const planted = classStrings('<a className="bg-accent text-accent-ink">Go</a>', /accent-ink/);
     expect(planted.filter((s) => !/\bbg-accent-fill\b/.test(s))).toHaveLength(1);
   });
+
+  const TEXT_TOKEN: Readonly<Record<string, string>> = {
+    "text-ink": "ink",
+    "text-muted": "ink-muted",
+    "text-accent": "accent",
+    "text-accent-ink": "accent-ink",
+    "text-positive": "positive",
+    "text-negative": "negative",
+  };
+  const BG_TOKEN: Readonly<Record<string, string>> = {
+    "bg-paper": "paper",
+    "bg-panel": "panel",
+    "bg-surface": "surface",
+    "bg-selected": "selected",
+    "bg-accent-fill": "accent-fill",
+    "bg-highlight": "highlight",
+  };
+  /** [text, background] for every text color and background set in one class string. */
+  const pairsIn = (classString: string): Array<[string, string]> => {
+    const utilities = classString.split(/\s+/).map((c) => c.split(":").pop()!.split("/")[0]!);
+    const texts = utilities.flatMap((u) => (TEXT_TOKEN[u] ? [TEXT_TOKEN[u]] : []));
+    const backgrounds = utilities.flatMap((u) => (BG_TOKEN[u] ? [BG_TOKEN[u]] : []));
+    return backgrounds.flatMap((bg) => texts.map((text): [string, string] => [text, bg]));
+  };
+  const tested = new Set(TEXT_PAIRS.map(([fg, bg]) => `${fg} on ${bg}`));
+
+  it("measures every text color the UI sets together with a background", () => {
+    const untested = ui.flatMap(({ file, source }) =>
+      classStrings(source, /\bbg-/).flatMap((s) =>
+        pairsIn(s)
+          .filter(([fg, bg]) => !tested.has(`${fg} on ${bg}`))
+          .map(([fg, bg]) => `${file}: ${fg} on ${bg} in "${s}"`),
+      ),
+    );
+    expect(untested).toEqual([]);
+  });
+
+  it("catches a planted pair the contrast test does not measure", () => {
+    const planted = pairsIn("rounded-sm bg-highlight hover:text-muted");
+    expect(planted).toEqual([["ink-muted", "highlight"]]);
+    expect(tested.has("ink-muted on highlight")).toBe(false);
+  });
 });

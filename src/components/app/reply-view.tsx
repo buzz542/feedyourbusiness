@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { VIEW_LABELS, type FeedView } from "@/lib/feed-views";
+import type { FeedView } from "@/lib/feed-views";
 import type { SourceProgress } from "@/server/pipeline/first-run";
 import {
   activeFilterCount,
@@ -18,10 +18,11 @@ import { FirstRunProgress } from "./first-run-progress";
 import { PostCard } from "./post-card";
 import type { SetPostState } from "./post-actions";
 import { SearchLinksPanel } from "./search-links-panel";
+import { VIEW_LABELS } from "./view-labels";
 
 /** What each view holds, under its heading. */
 const VIEW_INTROS: Record<FeedView, string> = {
-  today: "Posts from the last 24 hours that you have not replied to or hidden.",
+  today: "Posts we found in the last 24 hours that you have not replied to or hidden.",
   all: "Every post we still hold for you, except the ones you hid.",
   saved: "Posts you saved to come back to.",
   replied: "Posts you marked as replied.",
@@ -48,7 +49,7 @@ const EMPTY: Record<FeedView, { title: string; body: string }> = {
   },
   hidden: {
     title: "Nothing hidden",
-    body: "Posts you hide wait here, in case you want one back.",
+    body: "Posts you hide wait here until they are deleted, in case you want one back.",
   },
 };
 

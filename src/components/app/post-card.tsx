@@ -45,8 +45,8 @@ const Dot = () => (
 /**
  * One Reply card (docs/PLAN.md 4.4). Top to bottom: source, community and posted time on one line
  * with the match score; the excerpt as stored (280 characters at most) with the highlighter; one
- * line on why it matched, with the category and any rival; the reply tip and "Say you built it.";
- * then one row of actions: Open post, Save, Hide, I replied.
+ * line on why it matched, with the category and any rival; "Say you built it." with the reply tip
+ * beside it, right above Open post; then one row of actions: Open post, Save, Hide, I replied.
  *
  * It renders the fields named here and nothing else. No author is ever shown (D5): no name,
  * handle, hash or avatar, and the post's address is only ever the link, never words on the card.
@@ -101,17 +101,17 @@ export function PostCard({
           <span className="font-medium text-ink">Why it matched:</span> {item.reason}
         </span>
       </p>
-      <div className="flex items-start gap-4 border-t border-rule pt-3 text-sm">
-        <details className="group min-w-0 flex-1">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+      <details className="group border-t border-rule pt-3 text-sm">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 [&::-webkit-details-marker]:hidden">
+          <span className="font-medium text-ink">{DISCLOSURE}</span>
+          <span className="inline-flex items-center gap-1.5 text-muted group-hover:text-ink">
             <ChevronIcon size={14} className="transition-transform group-open:rotate-90" />
             <TipIcon size={14} />
             Reply tip
-          </summary>
-          <p className="mt-2 max-w-prose text-ink">{REPLY_TIPS[item.category]}</p>
-        </details>
-        <p className="shrink-0 font-medium text-ink">{DISCLOSURE}</p>
-      </div>
+          </span>
+        </summary>
+        <p className="mt-2 max-w-prose text-ink">{REPLY_TIPS[item.category]}</p>
+      </details>
       <footer data-card-actions="">
         <PostActions
           id={item.id}
