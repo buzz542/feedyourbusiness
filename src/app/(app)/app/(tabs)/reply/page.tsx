@@ -10,10 +10,16 @@ import { Tabs } from "@/components/ui/tabs";
 import { requireEntitledUser } from "@/server/auth/entitled";
 import { firstRunActive } from "@/server/pipeline/first-run";
 import { loadFirstRunProgress } from "@/server/pipeline/first-run-server";
-import { FEED_VIEWS, feedHref, parseFeedParams, type FeedView } from "@/server/store/feed";
+import {
+  FEED_VIEWS,
+  feedHref,
+  isFeedSource,
+  parseFeedParams,
+  type FeedView,
+} from "@/server/store/feed";
 import { loadFeed, loadReplyProduct } from "@/server/store/feed-supabase";
 import { createSupabaseServerClient } from "@/server/supabase/server";
-import { linkSources } from "@/sources/registry";
+import { collectSources, linkSources } from "@/sources/registry";
 import { setPostState } from "./actions";
 
 export const metadata: Metadata = { title: "Reply" };
@@ -86,7 +92,14 @@ export default async function ReplyPage({
           label: `${VIEW_LABELS[view]} ${feed.counts[view]}`,
         }))}
       />
-      <FilterBar filter={filter} defaultMin={product.threshold} rivals={product.competitors} />
+      <FilterBar
+        filter={filter}
+        defaultMin={product.threshold}
+        rivals={product.competitors}
+        sources={collectSources()
+          .map((s) => s.id)
+          .filter(isFeedSource)}
+      />
       {feed.items.length === 0 ? (
         <EmptyState title="Nothing here yet">
           Try another view, lower the minimum match, add search terms in Settings, or open the

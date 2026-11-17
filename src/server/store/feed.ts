@@ -22,6 +22,9 @@ export type FeedCategory = (typeof CATEGORIES)[number];
 export const FEED_SOURCES = ["reddit", "hackernews", "bluesky", "x"] as const;
 export type FeedSource = (typeof FEED_SOURCES)[number];
 
+export const isFeedSource = (id: string): id is FeedSource =>
+  (FEED_SOURCES as readonly string[]).includes(id);
+
 export const PAGE_SIZE = 50;
 const MAX_PAGES = 20;
 
@@ -74,6 +77,33 @@ export function feedHref(filter: FeedFilter, change: Partial<FeedFilter> = {}): 
   const query = params.toString();
   return query ? `/app/reply?${query}` : "/app/reply";
 }
+
+/** The filters a user sets, in the order the filter bar lists them. View and page are not filters. */
+export const FILTER_KEYS = ["category", "source", "rival", "min", "q"] as const;
+export type FilterKey = (typeof FILTER_KEYS)[number];
+
+/**
+ * The filters that change what the feed shows. A minimum match equal to the product's default
+ * changes nothing, so it is not counted.
+ */
+export function activeFilterKeys(filter: FeedFilter, defaultMin: number): FilterKey[] {
+  return FILTER_KEYS.filter((key) =>
+    key === "min" ? filter.min !== undefined && filter.min !== defaultMin : Boolean(filter[key]),
+  );
+}
+
+export const activeFilterCount = (filter: FeedFilter, defaultMin: number): number =>
+  activeFilterKeys(filter, defaultMin).length;
+
+/** The same view with every filter cleared. */
+export const clearFiltersHref = (filter: FeedFilter): string =>
+  feedHref(filter, {
+    category: undefined,
+    source: undefined,
+    rival: undefined,
+    min: undefined,
+    q: undefined,
+  });
 
 export type FeedColumn =
   | "product_id"

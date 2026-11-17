@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CATEGORY_LABELS, REPLY_TIPS } from "@/server/reply/tips";
-import { parseFeedParams, type FeedItem } from "@/server/store/feed";
+import {
+  activeFilterCount,
+  clearFiltersHref,
+  parseFeedParams,
+  type FeedItem,
+  type FeedSource,
+} from "@/server/store/feed";
 import { linkSources, sources } from "@/sources/registry";
 import { subredditSearchLinks } from "@/sources/subreddit-links";
 import { FeedError } from "./feed-error";
@@ -245,26 +251,116 @@ describe("PostActions", () => {
   });
 });
 
+describe("active filters", () => {
+  const count = (raw: Record<string, string>) => activeFilterCount(parseFeedParams(raw), 60);
+
+  it("counts category, source, rival, search and a minimum match other than the default", () => {
+    expect(count({})).toBe(0);
+    expect(count({ category: "wish" })).toBe(1);
+    expect(count({ category: "wish", source: "bluesky", q: "invoice" })).toBe(3);
+    expect(count({ rival: "00000000-0000-4000-8000-0000000000c1", min: "70" })).toBe(2);
+  });
+
+  it("does not count the view, the page, the default minimum or a value it could not read", () => {
+    expect(count({ view: "saved", page: "2" })).toBe(0);
+    expect(count({ min: "60" })).toBe(0);
+    expect(count({ source: "linkedin", min: "5", q: "   " })).toBe(0);
+  });
+
+  it("clears every filter but keeps the view", () => {
+    const filter = parseFeedParams({ view: "saved", category: "wish", q: "invoice", page: "3" });
+    expect(clearFiltersHref(filter)).toBe("/app/reply?view=saved");
+    expect(clearFiltersHref(parseFeedParams({ source: "bluesky" }))).toBe("/app/reply");
+  });
+});
+
 describe("FilterBar", () => {
-  it("shows every filter with the current values, and keeps the view", () => {
-    const html = renderToStaticMarkup(
-      <FilterBar
-        filter={parseFeedParams({
-          view: "saved",
-          category: "wish",
-          source: "bluesky",
-          q: "invoice",
-        })}
-        defaultMin={60}
-        rivals={[{ id: "00000000-0000-4000-8000-0000000000c1", name: "Acme Invoices" }]}
-      />,
+  const rivals = [{ id: "00000000-0000-4000-8000-0000000000c1", name: "Acme Invoices" }];
+  const render = (
+    raw: Record<string, string>,
+    sources: readonly FeedSource[] = ["hackernews", "bluesky"],
+  ) =>
+    renderToStaticMarkup(
+      <FilterBar filter={parseFeedParams(raw)} defaultMin={60} rivals={rivals} sources={sources} />,
     );
+  const html = render({ view: "saved", category: "wish", source: "bluesky", q: "invoice" });
+  const options = (markup: string, name: string) =>
+    [
+      ...(new RegExp(`name="${name}"[^>]*>([\\s\\S]*?)</select>`).exec(markup)?.[1] ?? "").matchAll(
+        /<option value="([^"]*)"/g,
+      ),
+    ].map((m) => m[1]);
+
+  it("shows every filter with the current values, and keeps the view", () => {
     expect(html).toContain('name="view" value="saved"');
     expect(html).toMatch(/<option value="wish" selected="">Wish<\/option>/);
     expect(html).toMatch(/<option value="bluesky" selected="">Bluesky<\/option>/);
     expect(html).toContain("Acme Invoices");
     expect(html).toContain('value="60"');
     expect(html).toContain('value="invoice"');
+  });
+
+  it("shows how many filters are on", () => {
+    const counts = [...html.matchAll(/<span[^>]*data-filter-count=""[^>]*>(\d+)</g)].map(
+      (m) => m[1],
+    );
+    expect(counts.length).toBeGreaterThan(0);
+    expect(new Set(counts)).toEqual(new Set(["3"]));
+    expect(visible(html)).toContain("3 filters on");
+    expect(visible(render({ category: "wish" }))).toContain("1 filter on");
+  });
+
+  it("lists each filter that is on, with a link that removes only that one", () => {
+    const chips = [...html.matchAll(/<a[^>]*data-remove-filter[^>]*>/g)].map((m) => [
+      /data-remove-filter="(\w+)"/.exec(m[0])![1],
+      /href="([^"]+)"/.exec(m[0])![1]!.replaceAll("&amp;", "&"),
+    ]);
+    expect(chips).toEqual([
+      ["category", "/app/reply?view=saved&source=bluesky&q=invoice"],
+      ["source", "/app/reply?view=saved&category=wish&q=invoice"],
+      ["q", "/app/reply?view=saved&category=wish&source=bluesky"],
+    ]);
+    expect(visible(html)).toContain("Category: Wish");
+    expect(visible(html)).toContain("Source: Bluesky");
+    expect(visible(html)).toContain("Search: invoice");
+    expect(html).toMatch(/<a[^>]*href="\/app\/reply\?view=saved"[^>]*>Clear all<\/a>/);
+  });
+
+  it("names the rival and a minimum match other than the default", () => {
+    const out = visible(render({ rival: rivals[0]!.id, min: "75" }));
+    expect(out).toContain("Rival: Acme Invoices");
+    expect(out).toContain("Minimum match: 75%");
+  });
+
+  it("shows no count, list or Clear all when no filter is on", () => {
+    const none = render({ view: "all" });
+    expect(none).not.toContain("data-remove-filter");
+    expect(none).not.toContain("Clear all");
+    expect(visible(none)).not.toMatch(/filters? on/);
+  });
+
+  it("offers only the sources that are switched on, so a source behind its gate is not shown", () => {
+    expect(options(html, "source")).toEqual(["", "hackernews", "bluesky"]);
+    expect(html).not.toMatch(/<option value="(reddit|x)"/);
+  });
+
+  it("keeps a source the address asks for, so the filter that is on is never hidden", () => {
+    const out = render({ source: "reddit" });
+    expect(out).toMatch(/<option value="reddit" selected="">Reddit<\/option>/);
+  });
+
+  it("leaves the source filter out when fewer than two sources are on", () => {
+    expect(render({}, ["hackernews"])).not.toContain('name="source"');
+  });
+
+  it("works without JavaScript: a GET form to the Reply tab with a submit button", () => {
+    const forms = [...html.matchAll(/<form[^>]*>/g)].map((m) => m[0]);
+    expect(forms.length).toBeGreaterThan(0);
+    for (const form of forms) {
+      expect(form).toContain('method="get"');
+      expect(form).toContain('action="/app/reply"');
+    }
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>Apply<\/button>/);
   });
 });
 
