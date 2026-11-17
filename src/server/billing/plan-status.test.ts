@@ -21,7 +21,7 @@ describe("describePlan", () => {
       TEST_PRICE,
     );
     expect(summaryText(view)).toBe(
-      "Trial ends October 21, 2026 at 9:00 AM UTC. Then $29.00 a month.",
+      "Trial ends October 21, 2026 at 9:00 AM UTC. Then £39.00 a month.",
     );
     expect(view).toMatchObject({
       canCancel: true,
@@ -51,7 +51,7 @@ describe("describePlan", () => {
       TEST_PRICE,
     );
     expect(summaryText(view)).toBe(
-      "Renews on December 21, 2026 at 9:00 AM UTC, for $29.00 a month.",
+      "Renews on December 21, 2026 at 9:00 AM UTC, for £39.00 a month.",
     );
     expect(view.canCancel).toBe(true);
   });
@@ -107,7 +107,7 @@ describe("describePlan", () => {
       TEST_PRICE,
     );
     expect(summaryText(view, "America/New_York")).toBe(
-      "Trial ends November 9, 2026 at 9:00 PM EST. Then $29.00 a month.",
+      "Trial ends November 9, 2026 at 9:00 PM EST. Then £39.00 a month.",
     );
     expect(view.summary).toContainEqual({ at: "2026-11-10T02:00:00.000Z" });
   });

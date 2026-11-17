@@ -5,6 +5,7 @@ const base = {
   STRIPE_SECRET_KEY: "sk_test_abc123",
   STRIPE_WEBHOOK_SECRET: "whsec_abc123",
   STRIPE_PRICE_ID: "price_abc123",
+  STRIPE_TRIAL_PRICE_ID: "price_trial123",
   NEXT_PUBLIC_SITE_URL: "https://app.example.test/",
 };
 
@@ -23,6 +24,8 @@ describe("loadBillingConfig", () => {
     ["publishable key instead of secret", { STRIPE_SECRET_KEY: "pk_test_abc123" }],
     ["bad webhook secret", { STRIPE_WEBHOOK_SECRET: "nope" }],
     ["bad price id", { STRIPE_PRICE_ID: "prod_abc" }],
+    ["missing trial price id", { STRIPE_TRIAL_PRICE_ID: undefined }],
+    ["bad trial price id", { STRIPE_TRIAL_PRICE_ID: "prod_abc" }],
     ["bad site url", { NEXT_PUBLIC_SITE_URL: "not a url" }],
   ])("rejects %s, naming the field and never the value", (_label, patch) => {
     const run = () => loadBillingConfig({ ...base, ...patch });

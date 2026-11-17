@@ -95,7 +95,9 @@ test.describe("billing in Stripe test mode", () => {
     expect(session.success_url).toContain("/app/reply?welcome=1&session_id=");
     expect(session.cancel_url).toContain("/app/billing?checkout=canceled");
     const items = await stripe().checkout.sessions.listLineItems(sessionId!);
-    expect(items.data[0]?.price?.id).toBe(process.env.STRIPE_PRICE_ID);
+    const priceIds = items.data.map((item) => item.price?.id);
+    expect(priceIds).toContain(process.env.STRIPE_PRICE_ID);
+    expect(priceIds).toContain(process.env.STRIPE_TRIAL_PRICE_ID);
 
     // An unfinished Checkout Session never entitles anyone through the welcome step.
     await page.goto(`/app/reply?welcome=1&session_id=${sessionId}`);

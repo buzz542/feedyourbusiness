@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { describe, expect, it, vi } from "vitest";
 import { HANDLED_EVENT_TYPES } from "@/server/billing/events";
-import { TEST_PRICE } from "@/server/billing/fakes";
+import { TEST_PRICE, TEST_TRIAL_PRICE } from "@/server/billing/fakes";
 import type { PriceInfo, WebhookEndpointInfo } from "@/server/billing/ports";
 import { createHealthHandler, runHealthChecks, type HealthDeps } from "./checks";
 
@@ -20,6 +20,7 @@ const GOOD_ENV = {
   NEXT_PUBLIC_SUPABASE_URL: "https://hoqbflkszzoojdswbrgy.supabase.co",
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_abc",
   STRIPE_PRICE_ID: "price_abc123",
+  STRIPE_TRIAL_PRICE_ID: "price_trial123",
   EMAIL_FROM: "AskedFor <hello@askedfor.app>",
   VERCEL_ENV: "production",
   VERCEL_PROJECT_PRODUCTION_URL: "askedfor.app",
@@ -35,6 +36,7 @@ function deps(
   overrides: {
     env?: Record<string, string | undefined>;
     price?: PriceInfo | Error;
+    trialPrice?: PriceInfo;
     endpoints?: WebhookEndpointInfo[] | Error;
     undelivered?: number | Error;
     ping?: Error;
@@ -48,7 +50,8 @@ function deps(
       if (overrides.ping) throw overrides.ping;
     }),
     stripe: () => ({
-      async getPrice() {
+      async getPrice(priceId: string) {
+        if (priceId === "price_trial123") return overrides.trialPrice ?? TEST_TRIAL_PRICE;
         if (overrides.price instanceof Error) throw overrides.price;
         return overrides.price ?? TEST_PRICE;
       },
@@ -235,9 +238,9 @@ describe("runHealthChecks", () => {
         // Checkout refuses a price that is not the full price (10.1), so health says so too.
         { ...TEST_PRICE, taxBehavior: "exclusive" as const },
         { ...TEST_PRICE, taxBehavior: "unspecified" as const },
-        // The pricing page states $29 a month: any other amount, currency or interval is wrong.
+        // The pricing page states £39 a month: any other amount, currency or interval is wrong.
         { ...TEST_PRICE, unitAmount: 2500 },
-        { ...TEST_PRICE, currency: "gbp" },
+        { ...TEST_PRICE, currency: "usd" },
         { ...TEST_PRICE, interval: "year" as const },
         { ...TEST_PRICE, intervalCount: 2 },
       ]) {
@@ -246,9 +249,23 @@ describe("runHealthChecks", () => {
       }
     });
 
+    it("flags a trial fee that is not the advertised one-time, tax-inclusive fee", async () => {
+      for (const trialPrice of [
+        { ...TEST_TRIAL_PRICE, active: false },
+        { ...TEST_TRIAL_PRICE, interval: "month" as const, intervalCount: 1 },
+        { ...TEST_TRIAL_PRICE, taxBehavior: "exclusive" as const },
+        { ...TEST_TRIAL_PRICE, unitAmount: 500 },
+        { ...TEST_TRIAL_PRICE, currency: "usd" },
+      ]) {
+        const report = await runHealthChecks(deps({ trialPrice }));
+        expect(report.checks.stripe_price?.status).toBe("invalid");
+        expect(report.checks.stripe_price?.detail).toContain("STRIPE_TRIAL_PRICE_ID");
+      }
+    });
+
     it("describes a good price without exposing ids", async () => {
       const report = await runHealthChecks(deps());
-      expect(report.checks.stripe_price?.detail).toBe("2900 usd every 1 month");
+      expect(report.checks.stripe_price?.detail).toBe("3900 gbp every 1 month");
     });
 
     it("reports a real Stripe SDK error by class and code, never its message", async () => {

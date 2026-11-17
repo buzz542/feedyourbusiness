@@ -1,4 +1,4 @@
-import { TRIAL_DAYS } from "./constants";
+import { TRIAL_DAYS, TRIAL_FEE } from "./constants";
 
 export interface PriceTerms {
   /** Smallest currency unit, as Stripe stores it. */
@@ -24,13 +24,19 @@ export function formatInterval(interval: PriceTerms["interval"], count = 1): str
 
 /**
  * The renewal terms shown before payment (DMCC: clear price, renewal and cancellation terms up
- * front). The same wording is used on the Stripe Checkout page and in the reminder email.
+ * front). The same wording is used on the Stripe Checkout page and in the reminder email. The trial
+ * is paid (D7): the fee is stated first, in the same sentence as the trial it buys.
  */
-export function renewalTerms(price: PriceTerms, trialDays: number = TRIAL_DAYS): string {
+export function renewalTerms(
+  price: PriceTerms,
+  trialFee: { unitAmount: number; currency: string } = TRIAL_FEE,
+  trialDays: number = TRIAL_DAYS,
+): string {
   const amount = formatMoney(price.unitAmount, price.currency);
+  const fee = formatMoney(trialFee.unitAmount, trialFee.currency);
   const every = formatInterval(price.interval, price.intervalCount);
   return (
-    `Your ${trialDays}-day trial is free. When it ends, your card is charged ${amount}, ` +
+    `Your ${trialDays}-day trial costs ${fee}, charged today. When it ends, your card is charged ${amount}, ` +
     `then every ${every} until you cancel. You can cancel online from Settings in two clicks.`
   );
 }

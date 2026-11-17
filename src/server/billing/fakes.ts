@@ -130,23 +130,34 @@ export class FakeProfileStore implements ProfileStore {
 
 export const TEST_PRICE: PriceInfo = {
   active: true,
-  unitAmount: 2900,
-  currency: "usd",
+  unitAmount: 3900,
+  currency: "gbp",
   interval: "month",
   intervalCount: 1,
   taxBehavior: "inclusive",
 };
 
+/** The one-off trial fee: a one-time, tax-inclusive price. */
+export const TEST_TRIAL_PRICE: PriceInfo = {
+  active: true,
+  unitAmount: 100,
+  currency: "gbp",
+  interval: null,
+  intervalCount: null,
+  taxBehavior: "inclusive",
+};
+
 export class FakeStripe implements BillingStripe {
   price: PriceInfo = { ...TEST_PRICE };
+  trialPrice: PriceInfo = { ...TEST_TRIAL_PRICE };
   checkoutCalls: Stripe.Checkout.SessionCreateParams[] = [];
   portalCalls: Array<{ customerId: string; returnUrl: string }> = [];
   cancelCalls: Array<{ subscriptionId: string; cancel: boolean }> = [];
   checkoutUrl: string | null = "https://checkout.stripe.test/session_1";
   webhookSecret = "valid-signature";
 
-  async getPrice(): Promise<PriceInfo> {
-    return this.price;
+  async getPrice(priceId?: string): Promise<PriceInfo> {
+    return priceId === TEST_CONFIG.trialPriceId ? this.trialPrice : this.price;
   }
 
   webhookEndpoints: WebhookEndpointInfo[] = [];
@@ -234,6 +245,7 @@ export const TEST_CONFIG: BillingConfig = {
   secretKey: "sk_test_abc123",
   webhookSecret: "whsec_abc123",
   priceId: "price_abc123",
+  trialPriceId: "price_trial123",
   siteUrl: "https://app.example.test",
   managedPayments: true,
   mode: "test",

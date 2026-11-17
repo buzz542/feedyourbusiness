@@ -36,13 +36,13 @@ export default function Page() {
       </Section>
       <Section id="price" title="Price, trial and renewal">
         <p>
-          One plan: $29 a month, tax included where it applies. Stripe sells the subscription to you
+          One plan: £39 a month, tax included where it applies. Stripe sells the subscription to you
           as merchant of record and handles tax.
         </p>
         <p>
-          You start with a 7-day free trial, and a card is required. We email you at least 48 hours
-          before the first charge. When the trial ends your card is charged $29, then $29 every
-          month until you cancel.
+          You start with a 3-day trial for £1, charged at the start, and a card is required. We
+          email you at least 48 hours before the first £39 charge. When the trial ends your card is
+          charged £39, then £39 every month until you cancel.
         </p>
       </Section>
       <Section id="cancel" title="Canceling">

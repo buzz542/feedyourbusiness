@@ -1,14 +1,20 @@
 /** Billing constants from docs/BRIEF.md, "Payments and consumer law". Changing one needs founder sign-off. */
 
-/** Default: 7-day trial, card required. */
-export const TRIAL_DAYS = 7;
+/** The trial: 3 days, card required, paid with a one-off fee (the founder, 17 Nov 2026, D7). */
+export const TRIAL_DAYS = 3;
 
 /**
- * The one plan as the public pages state it (D7; docs/claims.md "plan-price"): $29 a month, tax
+ * The one-off fee charged at checkout for the trial, tax included (D7). Checkout refuses a trial
+ * price that is not exactly this, so the pages can never state a fee Checkout does not charge.
+ */
+export const TRIAL_FEE = { unitAmount: 100, currency: "gbp" } as const;
+
+/**
+ * The one plan as the public pages state it (D7; docs/claims.md "plan-price"): £39 a month, tax
  * included. /api/health reports the Stripe price invalid unless it is exactly this, so the pricing
  * page can never show a number Checkout does not charge.
  */
-export const ADVERTISED_PRICE = { unitAmount: 2900, currency: "usd", interval: "month" } as const;
+export const ADVERTISED_PRICE = { unitAmount: 3900, currency: "gbp", interval: "month" } as const;
 
 /** Reminder email goes out at least this long before the first charge (DMCC subscription rules). */
 export const REMINDER_HOURS_BEFORE_CHARGE = 48;

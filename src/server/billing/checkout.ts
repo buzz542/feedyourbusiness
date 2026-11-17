@@ -1,13 +1,17 @@
 import type Stripe from "stripe";
 import type { BillingConfig } from "./config";
-import { ADVERTISED_PRICE, BILLING_PATHS, TRIAL_DAYS } from "./constants";
+import { ADVERTISED_PRICE, BILLING_PATHS, TRIAL_DAYS, TRIAL_FEE } from "./constants";
 import type { BillingStripe } from "./ports";
 import { renewalTerms } from "./terms";
 
 export class BillingError extends Error {
   constructor(
     readonly code:
-      "price_unavailable" | "price_not_tax_inclusive" | "price_not_advertised" | "no_checkout_url",
+      | "price_unavailable"
+      | "price_not_tax_inclusive"
+      | "price_not_advertised"
+      | "trial_price_invalid"
+      | "no_checkout_url",
     message: string,
   ) {
     super(message);
@@ -23,7 +27,7 @@ export interface CheckoutUser {
 /**
  * Build and create a Stripe Checkout Session for the one plan.
  *
- * Defaults from the brief: 7-day trial, card required, renewal terms shown before payment,
+ * Defaults (D7): 3-day trial for a one-off fee, card required, renewal terms shown before payment,
  * merchant of record on. If the trial ends without a payment method the subscription cancels
  * instead of charging or lingering.
  */
@@ -55,6 +59,22 @@ export async function createCheckoutSession(args: {
     throw new BillingError("price_not_advertised", "Configured price is not the advertised price");
   }
 
+  // The trial fee (D7): a one-time, tax-inclusive price of exactly TRIAL_FEE, so the page never
+  // states a fee Checkout does not charge.
+  const trialPrice = await stripe.getPrice(config.trialPriceId);
+  if (
+    !trialPrice.active ||
+    trialPrice.interval !== null ||
+    trialPrice.taxBehavior !== "inclusive" ||
+    trialPrice.unitAmount !== TRIAL_FEE.unitAmount ||
+    trialPrice.currency !== TRIAL_FEE.currency
+  ) {
+    throw new BillingError(
+      "trial_price_invalid",
+      "Configured trial price is not the advertised one-time, tax-inclusive fee",
+    );
+  }
+
   const terms = renewalTerms({
     unitAmount: price.unitAmount,
     currency: price.currency,
@@ -64,7 +84,11 @@ export async function createCheckoutSession(args: {
 
   const params: Stripe.Checkout.SessionCreateParams = {
     mode: "subscription",
-    line_items: [{ price: config.priceId, quantity: 1 }],
+    // The one-time trial fee is charged at checkout; the subscription itself starts its trial.
+    line_items: [
+      { price: config.priceId, quantity: 1 },
+      { price: config.trialPriceId, quantity: 1 },
+    ],
     payment_method_collection: "always",
     subscription_data: {
       trial_period_days: TRIAL_DAYS,

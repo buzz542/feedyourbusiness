@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "One plan, $29 a month, tax included where it applies, with a 7-day free trial.",
+  description: "One plan, £39 a month, tax included where it applies, with a 3-day trial for £1.",
 };
 
 /**
@@ -24,14 +24,16 @@ export default function PricingPage() {
           One plan
         </h2>
         <p>
-          <span className="text-3xl">$29 a month</span>
-          <span className="text-muted">, tax included where it applies. Prices in US dollars.</span>
+          <span className="text-3xl">£39 a month</span>
+          <span className="text-muted">
+            , tax included where it applies. Prices in pounds sterling.
+          </span>
         </p>
         <ul className="flex list-disc flex-col gap-2 pl-5">
-          <li>Start with a 7-day free trial. A card is required to start it.</li>
-          <li>We email you at least 48 hours before the first charge.</li>
+          <li>Start with a 3-day trial for £1, charged today. A card is required to start it.</li>
+          <li>We email you at least 48 hours before the first £39 charge.</li>
           <li>
-            When the trial ends, your card is charged $29, then $29 every month until you cancel.
+            When the trial ends, your card is charged £39, then £39 every month until you cancel.
           </li>
           <li>
             Cancel online in Settings in two clicks. You keep access until the end of your trial or
@@ -43,7 +45,7 @@ export default function PricingPage() {
           href="/login?next=%2Fapp"
           className="self-start rounded-[2px] bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
         >
-          Start your free trial
+          Start your 3-day trial
         </Link>
         <p className="text-sm text-muted">
           AskedFor is in private beta. Until launch, sign-in is by invitation.

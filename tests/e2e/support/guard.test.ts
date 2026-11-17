@@ -110,6 +110,7 @@ describe("billingE2eSkipReason", () => {
     STRIPE_SECRET_KEY: "sk_test_abc",
     STRIPE_WEBHOOK_SECRET: "whsec_abc",
     STRIPE_PRICE_ID: "price_abc",
+    STRIPE_TRIAL_PRICE_ID: "price_trial",
   };
 
   it("runs with the development project and Stripe test keys", () => {

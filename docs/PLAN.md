@@ -85,7 +85,7 @@ Changing section 1 or 2 needs the founder's approval; `tests/docs/prd.test.ts` p
 - **D4. Retention by source.** Reddit and X raw posts are deleted 7 days after collection; Hacker News and Bluesky after 30. The database enforces both. Weekly aggregates (themes, rival insights) are kept without names or quotes. _Supersedes: Brief: 30 days for all._
 - **D5. No author handles stored, for any source.** Only a keyed hash (HMAC) of the author id, for suppression and removal. Cards link to the original post instead of showing a username. _Supersedes: Brief: handle "where the Reply tab needs it"._
 - **D6. Vercel Pro before launch.** Vercel's Hobby plan is for non-commercial use only and refuses cron jobs that run more than once a day. Until the founder upgrades, every schedule in `vercel.json` stays daily so deploys never fail.
-- **D7. Pricing unchanged.** One plan, $29 a month, 7-day trial, card required, reminder 48 hours before the first charge, cancel in two clicks. No X add-on is sold in v1; X stays off unless the founder turns it on.
+- **D7. Pricing.** One plan, £39 a month, a 3-day trial for a one-off £1 charged at checkout, card required, reminder 48 hours before the first £39 charge, cancel in two clicks. _Amended 17 Nov 2026 by the founder: it was $29 a month with a 7-day free trial. The trial is paid, so no page calls it free._ No X add-on is sold in v1; X stays off unless the founder turns it on.
 - **D8. No model ever writes reply text.** Reply tips are fixed copy per category. _Supersedes: Brief: "reply tips" (now defined)._
 - **D9. One product per account in v1.** The schema allows more; the UI and a unique index enforce one.
 - **D10. Jobs run on Vercel Cron plus a jobs table.** No Inngest or Trigger.dev in v1.

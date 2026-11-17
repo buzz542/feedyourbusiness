@@ -24,14 +24,17 @@ describe("createCheckoutSession", () => {
     expect(await create()).toEqual({ url: "https://checkout.stripe.test/session_1" });
   });
 
-  it("builds a card-required subscription with a 7 day trial that cancels if no card is left", async () => {
+  it("builds a card-required subscription with a 3 day trial and a one-off fee that cancels if no card is left", async () => {
     await create();
     const params = stripe.checkoutCalls[0]!;
 
     expect(params.mode).toBe("subscription");
-    expect(params.line_items).toEqual([{ price: "price_abc123", quantity: 1 }]);
+    expect(params.line_items).toEqual([
+      { price: "price_abc123", quantity: 1 },
+      { price: "price_trial123", quantity: 1 },
+    ]);
     expect(params.payment_method_collection).toBe("always");
-    expect(params.subscription_data?.trial_period_days).toBe(7);
+    expect(params.subscription_data?.trial_period_days).toBe(3);
     expect(params.subscription_data?.trial_settings?.end_behavior?.missing_payment_method).toBe(
       "cancel",
     );
@@ -42,7 +45,8 @@ describe("createCheckoutSession", () => {
     const submit = stripe.checkoutCalls[0]!.custom_text?.submit;
     const message = submit && typeof submit === "object" ? (submit.message ?? "") : "";
 
-    expect(message).toContain("$29.00");
+    expect(message).toContain("£39.00");
+    expect(message).toContain("3-day trial costs £1.00, charged today");
     expect(message).toContain("every month until you cancel");
     expect(message).toContain("cancel online from Settings in two clicks");
   });

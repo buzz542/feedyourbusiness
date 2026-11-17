@@ -37,7 +37,7 @@ describe("landing page", () => {
   it("says where posts come from, with the provider on the sources page, and shows the full price", () => {
     expect(text).toContain("Reddit through a web data company");
     expect(html).toContain('href="/sources"');
-    expect(text).toContain("$29 a month, tax included where it applies");
+    expect(text).toContain("£39 a month, tax included where it applies");
   });
 
   it("says X is coming later, and no other sentence mentions X (out of launch, 8 Nov 2026)", () => {

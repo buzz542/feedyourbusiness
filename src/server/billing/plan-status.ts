@@ -36,7 +36,7 @@ export interface PlanView {
 export const summaryText = (view: PlanView, timeZone = "UTC"): string =>
   view.summary.map((s) => (typeof s === "string" ? s : formatChargeTime(s.at, timeZone))).join("");
 
-/** "$29 a month", or null when the price cannot be read or is not the full price. */
+/** "£39.00 a month", or null when the price cannot be read or is not the full price. */
 export function priceInWords(price: PriceInfo | null): string | null {
   if (!price || price.unitAmount === null || !price.interval) return null;
   if (price.taxBehavior !== "inclusive") return null;
@@ -77,9 +77,7 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
     const then = amount ? ` Then ${amount}.` : "";
     return {
       ...NONE,
-      summary: end
-        ? ["Trial ends ", { at: end }, `.${then}`]
-        : [`You are on the free trial.${then}`],
+      summary: end ? ["Trial ends ", { at: end }, `.${then}`] : [`You are on the trial.${then}`],
       accessUntil: end,
       canCancel: true,
       canUpdateCard: card,

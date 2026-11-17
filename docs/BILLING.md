@@ -6,7 +6,7 @@ Nothing here needs a live key, and Claude should never ask for one.
 ## How it works
 
 - **Checkout:** `POST /api/billing/checkout` (signed-in user, same-origin only) creates a Stripe Checkout
-  Session: subscription, 7-day trial, card required, the renewal terms shown on the payment page, Managed
+  Session: subscription, 3-day trial for a one-off £1 fee, card required, the renewal terms shown on the payment page, Managed
   Payments (merchant of record) on. It refuses if the user already has a live subscription, including `past_due`.
 - **Webhook:** `POST /api/billing/webhook` verifies the signature on the raw body, then applies the event. It
   re-fetches the subscription from Stripe instead of trusting the payload, ignores events older than the last
@@ -28,9 +28,11 @@ Access follows `profiles.plan`, which only the webhook can change. `trialing` an
 2. **Confirm Managed Payments.** In the Stripe Dashboard check that your account is eligible for Managed
    Payments (https://docs.stripe.com/payments/managed-payments). Note its fees, the countries it supports, how it
    shows tax, and whether it supports free trials. If it does not fit, the brief's fallback is Paddle.
-3. **Create the product** "AskedFor" with one recurring monthly price (the brief's default is $29), in test mode,
-   tax-inclusive if Managed Payments allows it, so the price shown is the price paid. Copy the price id
-   (`price_...`).
+3. **Create the prices** (test mode first, tax-inclusive, in GBP). The product "AskedFor" gets two:
+   one recurring monthly price of £39 (`STRIPE_PRICE_ID`), and one one-time price of £1 for the trial
+   (`STRIPE_TRIAL_PRICE_ID`). Checkout and `/api/health` refuse any other amount or currency. Then run a
+   test checkout and confirm the £1 is charged at checkout and the £39 after the 3-day trial. Confirm
+   Managed Payments supports GBP first; if it does not, tell the session before anything is built on it.
 4. **Customer portal:** enable it in test mode and allow payment method updates. Cancellation happens in our
    own Settings page, so the portal is only for cards.
 5. **Webhook endpoint:** add `https://<your-domain>/api/billing/webhook` for exactly these events:
@@ -45,7 +47,8 @@ Access follows `profiles.plan`, which only the webhook can change. `trialing` an
    | -------------------------------------- | -------------------------------------------------------- |
    | `STRIPE_SECRET_KEY`                    | `sk_test_...`                                            |
    | `STRIPE_WEBHOOK_SECRET`                | `whsec_...`                                              |
-   | `STRIPE_PRICE_ID`                      | `price_...`                                              |
+   | `STRIPE_PRICE_ID`                      | `price_...` (£39 a month)                                |
+   | `STRIPE_TRIAL_PRICE_ID`                | `price_...` (the one-time £1 trial fee)                  |
    | `STRIPE_MANAGED_PAYMENTS`              | `true` (the default)                                     |
    | `NEXT_PUBLIC_SITE_URL`                 | your deployed URL, or `http://localhost:3000`            |
    | `NEXT_PUBLIC_SUPABASE_URL`             | `https://hoqbflkszzoojdswbrgy.supabase.co`               |

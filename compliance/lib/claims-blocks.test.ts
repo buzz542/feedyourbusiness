@@ -6,7 +6,7 @@ import { unclaimedBlocks } from "./claims-blocks";
 describe("unclaimedBlocks", () => {
   it("finds a planted sentence with no row, even inside a paragraph whose other sentence has one", () => {
     const html =
-      "<p>Prices in US dollars. We are the best tool ever made.</p><li>An invented promise.</li>";
+      "<p>Prices in pounds sterling. We are the best tool ever made.</p><li>An invented promise.</li>";
     expect(unclaimedBlocks(html).missing).toEqual([
       "We are the best tool ever made.",
       "An invented promise.",
@@ -14,9 +14,10 @@ describe("unclaimedBlocks", () => {
   });
 
   it("reads only the tags it is asked to, and never a pre block as a paragraph", () => {
-    const html = "<pre>Not a claim.</pre><li>Not checked here.</li><p>Prices in US dollars.</p>";
+    const html =
+      "<pre>Not a claim.</pre><li>Not checked here.</li><p>Prices in pounds sterling.</p>";
     expect(unclaimedBlocks(html, ["p"])).toEqual({
-      blocks: ["Prices in US dollars."],
+      blocks: ["Prices in pounds sterling."],
       missing: [],
     });
   });

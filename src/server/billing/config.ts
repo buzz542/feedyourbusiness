@@ -12,6 +12,8 @@ export interface BillingConfig {
   secretKey: string;
   webhookSecret: string;
   priceId: string;
+  /** The one-off trial fee price (D7): a one-time, tax-inclusive price of exactly TRIAL_FEE. */
+  trialPriceId: string;
   siteUrl: string;
   /** Stripe Managed Payments (merchant of record). Defaults to on, as the brief requires. */
   managedPayments: boolean;
@@ -26,6 +28,7 @@ const schema = z.object({
     .regex(/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/, "must be a Stripe secret or restricted key"),
   STRIPE_WEBHOOK_SECRET: z.string().regex(/^whsec_[A-Za-z0-9]+$/, "must start with whsec_"),
   STRIPE_PRICE_ID: z.string().regex(/^price_[A-Za-z0-9]+$/, "must start with price_"),
+  STRIPE_TRIAL_PRICE_ID: z.string().regex(/^price_[A-Za-z0-9]+$/, "must start with price_"),
   NEXT_PUBLIC_SITE_URL: z.url(),
   STRIPE_MANAGED_PAYMENTS: z.enum(["true", "false"]).default("true"),
   BILLING_LIVE_ENABLED: bool,
@@ -72,6 +75,7 @@ export function loadBillingConfig(
     secretKey: e.STRIPE_SECRET_KEY,
     webhookSecret: e.STRIPE_WEBHOOK_SECRET,
     priceId: e.STRIPE_PRICE_ID,
+    trialPriceId: e.STRIPE_TRIAL_PRICE_ID,
     siteUrl: e.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, ""),
     managedPayments,
     mode,

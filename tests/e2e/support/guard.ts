@@ -69,5 +69,6 @@ export function billingE2eSkipReason(env: Env): string | null {
   if (!/^(sk|rk)_test_/.test(key)) return "STRIPE_SECRET_KEY (test mode) is not set (F11, F12)";
   if (!usable(env.STRIPE_WEBHOOK_SECRET)) return "STRIPE_WEBHOOK_SECRET is not set (F11, F12)";
   if (!usable(env.STRIPE_PRICE_ID)) return "STRIPE_PRICE_ID is not set (F11, F12)";
+  if (!usable(env.STRIPE_TRIAL_PRICE_ID)) return "STRIPE_TRIAL_PRICE_ID is not set (F11, F12)";
   return null;
 }

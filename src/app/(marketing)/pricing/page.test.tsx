@@ -24,9 +24,9 @@ const claims = readFileSync(
 
 describe("pricing page", () => {
   it("shows the full price with tax, the trial, the card, the reminder and two-click cancel", () => {
-    expect(html).toContain("$29 a month, tax included where it applies.");
-    expect(html).toContain("7-day free trial. A card is required");
-    expect(html).toContain("at least 48 hours before the first charge");
+    expect(html).toContain("£39 a month, tax included where it applies.");
+    expect(html).toContain("3-day trial for £1, charged today. A card is required");
+    expect(html).toContain("at least 48 hours before the first £39 charge");
     expect(html).toContain("Cancel online in Settings in two clicks.");
   });
 
@@ -35,9 +35,9 @@ describe("pricing page", () => {
       /\.00$/,
       "",
     );
-    expect(whole).toBe("$29");
+    expect(whole).toBe("£39");
     expect(html).toContain(`${whole} a ${ADVERTISED_PRICE.interval}`);
-    expect(html).toContain(`${TRIAL_DAYS}-day free trial`);
+    expect(html).toContain(`${TRIAL_DAYS}-day trial for £1`);
     expect(html).toContain(`${REMINDER_HOURS_BEFORE_CHARGE} hours`);
   });
 

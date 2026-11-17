@@ -1,6 +1,6 @@
 import { BillingConfigError, loadBillingConfig, type BillingConfig } from "@/server/billing/config";
 import { checkSources } from "./sources";
-import { ADVERTISED_PRICE } from "@/server/billing/constants";
+import { ADVERTISED_PRICE, TRIAL_FEE } from "@/server/billing/constants";
 import { HANDLED_EVENT_TYPES } from "@/server/billing/events";
 import type { BillingStripe, WebhookEndpointInfo } from "@/server/billing/ports";
 import { isCronAuthorized } from "@/server/http/cron";
@@ -149,7 +149,12 @@ async function checkSupabase(deps: HealthDeps, timeoutMs: number): Promise<Check
 }
 
 function checkStripeConfig(env: Env): { result: CheckResult; config?: BillingConfig } {
-  const names = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_ID"];
+  const names = [
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PRICE_ID",
+    "STRIPE_TRIAL_PRICE_ID",
+  ];
   const missing = absent(env, names);
   if (missing.length > 0) return { result: { status: "missing", detail: missing.join(", ") } };
   const unchanged = placeholders(env, names);
@@ -187,6 +192,20 @@ async function checkStripePrice(
     ) {
       // The pricing page states ADVERTISED_PRICE; Checkout must charge exactly that.
       return { status: "invalid", detail: "STRIPE_PRICE_ID does not match the advertised price" };
+    }
+    const trial = await stripe.getPrice(config.trialPriceId);
+    if (
+      !trial.active ||
+      trial.interval !== null ||
+      trial.taxBehavior !== "inclusive" ||
+      trial.unitAmount !== TRIAL_FEE.unitAmount ||
+      trial.currency !== TRIAL_FEE.currency
+    ) {
+      return {
+        status: "invalid",
+        detail:
+          "STRIPE_TRIAL_PRICE_ID must be an active one-time, tax-inclusive price of the trial fee",
+      };
     }
     const every = `${price.intervalCount ?? 1} ${price.interval}`;
     return { status: "ok", detail: `${price.unitAmount} ${price.currency} every ${every}` };

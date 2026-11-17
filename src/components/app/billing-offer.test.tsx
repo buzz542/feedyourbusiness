@@ -15,10 +15,10 @@ describe("BillingOffer", () => {
     const html = renderToStaticMarkup(
       <BillingOffer price={TEST_PRICE} now={NOW} startCheckout={start} />,
     );
-    expect(html).toContain("$29.00 a month<span");
+    expect(html).toContain("£39.00 a month<span");
     expect(html).toContain(", tax included where it applies");
-    expect(html).toContain("November 9, 2026 at 12:00 PM UTC");
-    expect(html).toContain("at least 48 hours before the first charge");
+    expect(html).toContain("November 5, 2026 at 12:00 PM UTC");
+    expect(html).toContain("at least 48 hours before the first £39 charge");
     expect(html).toContain("Cancel any time in Settings, in two clicks.");
     expect(html).toContain('type="checkbox"');
     expect(html).toContain(CONSENT_WORDING);
@@ -31,9 +31,9 @@ describe("BillingOffer", () => {
     const html = renderToStaticMarkup(
       <BillingOffer price={TEST_PRICE} now={evening} startCheckout={start} />,
     );
-    expect(html).toContain("November 10, 2026 at 2:00 AM UTC");
-    expect(formatChargeTime("2026-11-10T02:00:00.000Z", "America/New_York")).toBe(
-      "November 9, 2026 at 9:00 PM EST",
+    expect(html).toContain("November 6, 2026 at 2:00 AM UTC");
+    expect(formatChargeTime("2026-11-06T02:00:00.000Z", "America/New_York")).toBe(
+      "November 5, 2026 at 9:00 PM EST",
     );
   });
 

@@ -55,7 +55,7 @@ export function BillingOffer({
           Your card is charged on <ChargeDate iso={firstCharge.toISOString()} /> unless you cancel
           before then.
         </li>
-        <li>We email you at least 48 hours before the first charge.</li>
+        <li>We email you at least 48 hours before the first £39 charge.</li>
         <li>Cancel any time in Settings, in two clicks.</li>
       </ul>
       <CheckoutForm consentWording={CONSENT_WORDING} startCheckout={startCheckout} />

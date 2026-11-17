@@ -17,6 +17,7 @@ const deps = (): BillingDeps => ({
   config: {
     siteUrl: "https://app.example.test",
     priceId: "price_1",
+    trialPriceId: "price_trial123",
     managedPayments: true,
   } as BillingDeps["config"],
   stripe,
@@ -73,7 +74,7 @@ describe("consent before checkout", () => {
 
   it.each([
     ["another amount", { unitAmount: 2500 }],
-    ["another currency", { currency: "gbp" }],
+    ["another currency", { currency: "usd" }],
     ["another interval", { interval: "year" as const }],
   ])("refuses a price that is not the advertised one (%s)", async (_, change) => {
     stripe.price = { ...stripe.price, ...change };

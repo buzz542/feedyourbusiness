@@ -60,7 +60,7 @@ export default function Home() {
             href="/login?next=%2Fapp"
             className="rounded-[2px] bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
           >
-            Start your free trial
+            Start your 3-day trial
           </Link>
           <Link
             href="/pricing"
@@ -70,7 +70,7 @@ export default function Home() {
           </Link>
         </div>
         <p className="text-sm text-muted">
-          $29 a month, tax included where it applies, after a 7-day free trial. Cancel in Settings
+          £39 a month, tax included where it applies, after a 3-day trial for £1. Cancel in Settings
           in two clicks.
         </p>
         <p className="text-sm text-muted">

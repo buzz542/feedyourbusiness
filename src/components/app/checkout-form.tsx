@@ -52,7 +52,7 @@ export function CheckoutForm({
         <span>{consentWording}</span>
       </label>
       <Button disabled={!consent || busy} onClick={start} className="self-start">
-        Start your free trial
+        Start your 3-day trial
       </Button>
       <p role="status" aria-live="polite" className="text-sm text-muted">
         {error}

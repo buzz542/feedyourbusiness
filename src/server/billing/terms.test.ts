@@ -17,11 +17,11 @@ describe("formatInterval", () => {
 });
 
 describe("renewalTerms", () => {
-  const terms = renewalTerms({ unitAmount: 2900, currency: "usd", interval: "month" });
+  const terms = renewalTerms({ unitAmount: 3900, currency: "gbp", interval: "month" });
 
   it("states the trial, the exact charge, the renewal period and how to cancel", () => {
-    expect(terms).toContain("7-day trial is free");
-    expect(terms).toContain("$29.00");
+    expect(terms).toContain("3-day trial costs £1.00, charged today");
+    expect(terms).toContain("£39.00");
     expect(terms).toContain("every month until you cancel");
     expect(terms).toContain("cancel online from Settings in two clicks");
   });

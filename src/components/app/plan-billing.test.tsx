@@ -30,7 +30,7 @@ describe("PlanBilling", () => {
     expect(html).toContain(
       '<time dateTime="2026-10-21T09:00:00.000Z">October 21, 2026 at 9:00 AM UTC</time>',
     );
-    expect(html).toContain(". Then $29.00 a month.");
+    expect(html).toContain(". Then £39.00 a month.");
     expect(html).toContain("Cancel subscription");
     expect(html).toContain("Update card");
     expect(html).not.toContain("Yes, cancel");
