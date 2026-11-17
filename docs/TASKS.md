@@ -254,6 +254,8 @@ its milestone's `(you)` box below.
 
 ## M6 Rivals tab
 
+After launch (founder, 17 Nov 2026). Not in Launch 1; its boxes stay open until then.
+
 ```
 /goal Milestone M6 in docs/TASKS.md is complete: every M6 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M6's scope changed. Or stop after 40 turns and list what is left.
 ```
@@ -266,6 +268,8 @@ its milestone's `(you)` box below.
 - [ ] Markdown export of the week's rival report. Test: contains no handles and no excerpt quotes.
 
 ## M7 Build tab
+
+After launch (founder, 17 Nov 2026). Not in Launch 1; its boxes stay open until then.
 
 ```
 /goal Milestone M7 in docs/TASKS.md is complete: every M7 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M7's scope changed. Or stop after 40 turns and list what is left.

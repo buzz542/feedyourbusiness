@@ -39,8 +39,8 @@ const FAQ: Array<[string, string]> = [
 ];
 
 /**
- * The landing page (docs/PLAN.md 9.6) for Launch 1: the Reply tab is live; Rivals and Build are
- * described as coming next, never shown with example data as if they were live. Every sentence is
+ * The landing page (docs/PLAN.md 9.6) for Launch 1: the Reply tab is the whole product at launch.
+ * Rivals and Build come after launch (founder, 17 Nov 2026), so the page does not mention them. Every sentence is
  * a row in docs/claims.md (the test checks); the example card is labeled, invented, and shows no
  * handle. No testimonials, counts, badges or competitor names.
  */
@@ -137,17 +137,6 @@ export default function Home() {
           <Link href="/sources" className="underline">
             Every source, and how we use it
           </Link>
-        </p>
-      </section>
-
-      <section aria-labelledby="next" className="mt-14 space-y-3">
-        <h2 id="next" className="font-serif text-2xl tracking-tight">
-          Coming next
-        </h2>
-        <p>
-          Rivals: what your competitors get wrong, and who wants to switch. Build: the patterns in
-          what people ask for, and what to build next. Both are on the way and come with the same
-          plan.
         </p>
       </section>
 

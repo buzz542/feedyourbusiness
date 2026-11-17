@@ -14,7 +14,7 @@ user's own site, drafts everything, and asks for one click. Sections 3.2, 4.2, 4
 Sections 1 and 2 are unchanged: nothing searches the web, and `fetchOwnSite()` still reaches only the
 user's own site, now refusing store, review and profile sites too.
 
-Changed on 8 Nov 2026, by the founder: Launch 1 collects from Hacker News, Bluesky and Reddit (Reddit
+Changed on 17 Nov 2026, by the founder: Launch 1 ships Reply only; Rivals and Build come after launch (D2). Changed on 8 Nov 2026, by the founder: Launch 1 collects from Hacker News, Bluesky and Reddit (Reddit
 once 2.1.7 holds) and ships Reply, Rivals and Build. X is out of launch: its code stays, switched off,
 and `LAUNCH_COLLECT_SOURCES` in `src/sources/registry.ts` holds every other collect source off on
 deployments. The public pages say "X is coming later." instead of the X wording in 9.6 item 4, and
@@ -80,7 +80,7 @@ Approved once the founder hands this plan to a build session (see the status lin
 Changing section 1 or 2 needs the founder's approval; `tests/docs/prd.test.ts` pins both.
 
 - **D1. Route C for data.** Reddit is collected through a contracted data vendor's REST API (default Bright Data, Web Scraper API, Reddit posts dataset). X is collected only through the official X API v2, off by default. Hacker News and Bluesky through their official APIs. LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube and Discord stay search-links only. Product Hunt is not accessed. _Supersedes: Brief: "no scraping services", "Reddit is never collected", "X phase 2"._
-- **D2. Three tabs: Reply, Rivals, Build.** Reply matches the lead-feed products on function. Rivals is new: what tracked competitors and other tools in the space get wrong, and who wants to switch. Build keeps the weekly themes and "what to build next". _Supersedes: Brief: two tabs._
+- **D2. Three tabs: Reply, Rivals, Build.** _Amended 17 Nov 2026 by the founder: at launch the product is the Reply tab only. Rivals and Build come after launch, not with X._ Reply matches the lead-feed products on function. Rivals is new: what tracked competitors and other tools in the space get wrong, and who wants to switch. Build keeps the weekly themes and "what to build next". _Supersedes: Brief: two tabs._
 - **D3. Parity on function, never on look or words.** Match what lead feeds do (URL to keywords, daily multi-platform feed, relevance scoring, categories, daily email). Never copy any competitor's layout, wording, colors, mascot or illustrations, and never name one on the site. Keep AskedFor's own format and visual direction (section 9).
 - **D4. Retention by source.** Reddit and X raw posts are deleted 7 days after collection; Hacker News and Bluesky after 30. The database enforces both. Weekly aggregates (themes, rival insights) are kept without names or quotes. _Supersedes: Brief: 30 days for all._
 - **D5. No author handles stored, for any source.** Only a keyed hash (HMAC) of the author id, for suppression and removal. Cards link to the original post instead of showing a username. _Supersedes: Brief: handle "where the Reply tab needs it"._
