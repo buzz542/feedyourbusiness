@@ -31,6 +31,10 @@ milestones below, not their scope or acceptance tests.
 4. Build order: M9's open boxes (the instant preview and its `launch` migration last), then M6
    Rivals and M7 Build, then M3's open boxes not waiting on the founder, then M5 and M8.
 5. The launch switch waits for the founder to say "launch".
+6. Changed 17 Nov 2026 by the founder: Launch 1 ships the Reply tab only, from Hacker News and Bluesky.
+   Reddit (the Bright Data paperwork, the capture run, the sensitive-community review and switching
+   it on), Rivals and Build come after launch. The Reddit code stays built and off. The public pages
+   still describe Reddit until their copy is changed; do that before the launch switch.
 
 ## Founder list (8 Nov 2026)
 

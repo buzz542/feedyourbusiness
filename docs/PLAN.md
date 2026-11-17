@@ -14,7 +14,7 @@ user's own site, drafts everything, and asks for one click. Sections 3.2, 4.2, 4
 Sections 1 and 2 are unchanged: nothing searches the web, and `fetchOwnSite()` still reaches only the
 user's own site, now refusing store, review and profile sites too.
 
-Changed on 17 Nov 2026, by the founder: Launch 1 ships Reply only; Rivals and Build come after launch (D2). Changed on 8 Nov 2026, by the founder: Launch 1 collects from Hacker News, Bluesky and Reddit (Reddit
+Changed on 17 Nov 2026, by the founder: Launch 1 ships Reply only, collecting from Hacker News and Bluesky; Rivals, Build and Reddit come after launch (D2). Reddit stays built and off (2.1.7 still governs turning it on). Changed on 8 Nov 2026, by the founder: Launch 1 collects from Hacker News, Bluesky and Reddit (Reddit
 once 2.1.7 holds) and ships Reply, Rivals and Build. X is out of launch: its code stays, switched off,
 and `LAUNCH_COLLECT_SOURCES` in `src/sources/registry.ts` holds every other collect source off on
 deployments. The public pages say "X is coming later." instead of the X wording in 9.6 item 4, and
