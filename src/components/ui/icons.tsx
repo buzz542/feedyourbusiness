@@ -100,6 +100,13 @@ export const SettingsIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="7" cy="7" r="4.25" />
+    <path d="M10.25 10.25L13.5 13.5" />
+  </Icon>
+);
+
 export const FilterIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2.5 4h11M4.5 8h7M6.5 12h3" />

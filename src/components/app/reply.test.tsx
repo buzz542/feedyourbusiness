@@ -17,6 +17,7 @@ import { FirstRunProgress } from "./first-run-progress";
 import { FilterBar } from "./filter-bar";
 import { age, PostCard, sourceLine, unitRange } from "./post-card";
 import { nextState, PostActions } from "./post-actions";
+import { ReplyView } from "./reply-view";
 import { SearchLinksPanel } from "./search-links-panel";
 
 /** Reply tab render tests (docs/PLAN.md 4.4, 4.9). Every post and name is invented. */
@@ -446,5 +447,70 @@ describe("first run progress", () => {
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain("Hacker News: Done");
     expect(html).toContain("Reddit: Collecting");
+  });
+});
+
+describe("ReplyView", () => {
+  const items = Array.from({ length: 200 }, (_, i) => ({
+    ...item,
+    id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    excerpt: `Invented post ${i}: is there a tool that chases late invoices for freelancers?`,
+  }));
+  const view = (
+    raw: Record<string, string>,
+    feed: { items: FeedItem[]; total: number; hasMore?: boolean },
+  ) =>
+    renderToStaticMarkup(
+      <ReplyView
+        filter={parseFeedParams(raw)}
+        defaultMin={60}
+        feed={{ hasMore: false, ...feed }}
+        now={NOW}
+        rivals={[]}
+        sources={["hackernews", "bluesky"]}
+        terms={["late invoices"]}
+        subreddits={[]}
+        links={[]}
+        firstRun={null}
+        setState={setState}
+      />,
+    );
+
+  it("heads the column with the view and what it holds, then how many posts it has", () => {
+    const out = visible(view({ view: "saved" }, { items: items.slice(0, 3), total: 3 }));
+    expect(out).toContain("Saved Posts you saved to come back to.");
+    expect(out).toContain("3 posts, best match first.");
+    expect(visible(view({ category: "wish" }, { items: items.slice(0, 1), total: 1 }))).toContain(
+      "1 post match these filters, best match first.",
+    );
+  });
+
+  it("renders 200 cards, each a keyboard target, in one pass", () => {
+    const started = performance.now();
+    const out = view({ view: "all", page: "4" }, { items, total: 260, hasMore: true });
+    // A generous bound for a server render; the browser target is in tests/e2e/reply.spec.ts.
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect(out.match(/data-feed-card="true"/g)).toHaveLength(200);
+    expect(out.match(/tabindex="-1"/g)).toHaveLength(200);
+    expect(visible(out)).toContain("Showing 200 of 260");
+    expect(out).toMatch(/<a[^>]*href="\/app\/reply\?view=all&amp;page=5"[^>]*>Load more<\/a>/);
+  });
+
+  it.each([
+    ["today", "Nothing new today"],
+    ["all", "No posts yet"],
+    ["saved", "Nothing saved"],
+    ["replied", "No replies marked yet"],
+    ["hidden", "Nothing hidden"],
+  ])("says what to do next when %s is empty", (v, title) => {
+    const out = view({ view: v }, { items: [], total: 0 });
+    expect(visible(out)).toContain(title);
+    expect(out).not.toContain("data-feed-card");
+  });
+
+  it("offers to clear the filters when they match nothing, keeping the view", () => {
+    const out = view({ view: "saved", source: "bluesky" }, { items: [], total: 0 });
+    expect(visible(out)).toContain("No posts match these filters");
+    expect(out).toMatch(/<a[^>]*href="\/app\/reply\?view=saved"[^>]*>Clear all filters<\/a>/);
   });
 });

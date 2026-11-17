@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { buttonClass } from "@/components/ui/button";
-import { ChevronIcon, CloseIcon, FilterIcon } from "@/components/ui/icons";
+import { ChevronIcon, CloseIcon, FilterIcon, SearchIcon } from "@/components/ui/icons";
 import { CATEGORY_LABELS, SOURCE_LABELS } from "@/server/reply/tips";
 import {
   activeFilterKeys,
@@ -18,7 +18,7 @@ const FIELD =
 
 function Field({ label, grow, children }: { label: string; grow?: boolean; children: ReactNode }) {
   return (
-    <label className={`flex min-w-0 flex-col gap-1 ${grow ? "col-span-2 sm:flex-1" : ""}`}>
+    <label className={`flex min-w-0 flex-col gap-1 ${grow ? "col-span-2" : ""}`}>
       <span className="text-xs font-medium text-muted">{label}</span>
       {children}
     </label>
@@ -57,9 +57,27 @@ export function FilterBar({
     q: `Search: ${filter.q ?? ""}`,
   };
 
-  const fields = (
+  const view =
+    filter.view !== "today" ? <input type="hidden" name="view" value={filter.view} /> : null;
+  const search = (
+    <Field label="Search" grow>
+      <span className="relative flex">
+        <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted">
+          <SearchIcon />
+        </span>
+        <input
+          type="search"
+          name="q"
+          maxLength={100}
+          defaultValue={filter.q ?? ""}
+          placeholder="Words in the post"
+          className={`${FIELD} w-full pl-8 placeholder:text-muted`}
+        />
+      </span>
+    </Field>
+  );
+  const choices = (
     <>
-      {filter.view !== "today" ? <input type="hidden" name="view" value={filter.view} /> : null}
       <Field label="Category">
         <select name="category" defaultValue={filter.category ?? ""} className={FIELD}>
           <option value="">All categories</option>
@@ -106,20 +124,12 @@ export function FilterBar({
           className={`${FIELD} sm:w-24`}
         />
       </Field>
-      <Field label="Search" grow>
-        <input
-          type="search"
-          name="q"
-          maxLength={100}
-          defaultValue={filter.q ?? ""}
-          placeholder="Words in the post"
-          className={`${FIELD} w-full placeholder:text-muted`}
-        />
-      </Field>
-      <button type="submit" className={buttonClass("secondary", "col-span-2 self-end sm:w-auto")}>
-        Apply
-      </button>
     </>
+  );
+  const apply = (
+    <button type="submit" className={buttonClass("secondary", "col-span-2 self-end")}>
+      Apply
+    </button>
   );
 
   return (
@@ -132,9 +142,14 @@ export function FilterBar({
         action="/app/reply"
         role="search"
         aria-label="Filter posts"
-        className="hidden flex-wrap items-end gap-3 sm:flex"
+        className="hidden flex-col gap-3 sm:flex"
       >
-        {fields}
+        {view}
+        {search}
+        <div className="flex flex-wrap items-end gap-3">
+          {choices}
+          {apply}
+        </div>
       </form>
       <details className="group rounded-[2px] border border-rule bg-surface sm:hidden">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
@@ -160,7 +175,10 @@ export function FilterBar({
           aria-label="Filter posts"
           className="grid grid-cols-2 gap-3 border-t border-rule p-3"
         >
-          {fields}
+          {view}
+          {choices}
+          {search}
+          {apply}
         </form>
       </details>
       {count > 0 ? (

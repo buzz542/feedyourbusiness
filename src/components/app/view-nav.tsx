@@ -42,7 +42,7 @@ function Count({ value, badge }: { value: number; badge?: boolean }) {
       className={cx(
         "tabular-nums",
         badge
-          ? "absolute -top-1.5 left-[calc(50%+6px)] min-w-5 rounded-full bg-selected px-1 text-center text-[10px] leading-4 text-ink"
+          ? "absolute -top-1.5 left-3.5 min-w-5 rounded-full border border-rule bg-surface px-1 text-center text-[10px] leading-4 text-ink"
           : "text-xs text-muted",
       )}
     >
@@ -125,9 +125,11 @@ export function ViewNavList({
                   </>
                 ) : (
                   <>
-                    <Icon size={20} />
+                    <span className="relative">
+                      <Icon size={20} />
+                      {item.count !== undefined ? <Count value={item.count} badge /> : null}
+                    </span>
                     <span>{item.label}</span>
-                    {item.count !== undefined ? <Count value={item.count} badge /> : null}
                   </>
                 )}
               </Link>
