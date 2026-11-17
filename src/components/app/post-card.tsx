@@ -1,6 +1,7 @@
-import { Card } from "@/components/ui/card";
+import { buttonClass } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Highlight } from "@/components/ui/highlight";
+import { ChevronIcon, ExternalIcon, TipIcon } from "@/components/ui/icons";
 import { CATEGORY_LABELS, DISCLOSURE, REPLY_TIPS, SOURCE_LABELS } from "@/server/reply/tips";
 import type { FeedItem } from "@/server/store/feed";
 import { PostActions, type SetPostState } from "./post-actions";
@@ -35,10 +36,20 @@ export function unitRange(
   return { start: from, end: from + points.slice(start, end).join("").length };
 }
 
+const Dot = () => (
+  <span aria-hidden="true" className="px-1.5">
+    ·
+  </span>
+);
+
 /**
- * One Reply card (docs/PLAN.md 4.4): source and community, age, category, match, the excerpt with
- * the highlighter, why it matched, the rival chip, Open post, the reply tip and the disclosure
- * line, then the actions. No author is ever shown (D5): the card links to the post instead.
+ * One Reply card (docs/PLAN.md 4.4). Top to bottom: source, community and posted time on one line
+ * with the match score; the excerpt as stored (280 characters at most) with the highlighter; one
+ * line on why it matched, with the category and any rival; the reply tip and "Say you built it.";
+ * then one row of actions: Open post, Save, Hide, I replied.
+ *
+ * It renders the fields named here and nothing else. No author is ever shown (D5): no name,
+ * handle, hash or avatar, and the post's address is only ever the link, never words on the card.
  */
 export function PostCard({
   item,
@@ -53,41 +64,74 @@ export function PostCard({
 }) {
   const range = unitRange(item.excerpt, item.highlightStart, item.highlightEnd);
   const rival = rivalName ?? item.toolMentioned;
+  const source = SOURCE_LABELS[item.source] ?? item.source;
+  const community = item.community && item.community !== source ? item.community : null;
   return (
-    <Card as="article" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-        <span>{sourceLine(item.source, item.community)}</span>
-        <span aria-label="Posted">{age(item.postedAt, now)}</span>
-        <Chip>{CATEGORY_LABELS[item.category]}</Chip>
-        {rival ? <Chip tone="accent">{rival}</Chip> : null}
-        <span className="ml-auto tabular-nums" aria-label="Match">
-          {item.relevance}% match
-        </span>
-      </div>
-      <p className="leading-relaxed">
+    <article className="flex flex-col gap-3 rounded-[2px] border border-rule bg-surface p-4 has-[[data-state=hidden]]:border-dashed has-[[data-state=hidden]]:border-control sm:p-5">
+      <header data-card-meta="" className="flex items-baseline gap-3 text-sm text-muted">
+        <p className="min-w-0 truncate">
+          <span className="font-medium text-ink">{source}</span>
+          {community ? (
+            <>
+              <Dot />
+              {community}
+            </>
+          ) : null}
+          <Dot />
+          <span className="sr-only">Posted </span>
+          <time dateTime={item.postedAt}>{age(item.postedAt, now)} ago</time>
+        </p>
+        <p className="ml-auto shrink-0 tabular-nums">{item.relevance}% match</p>
+      </header>
+      <p
+        data-card-excerpt=""
+        className="text-[15px] leading-relaxed text-ink [overflow-wrap:anywhere]"
+      >
         <Highlight text={item.excerpt} start={range?.start} end={range?.end} />
       </p>
-      <p className="text-sm text-muted">
-        <span className="font-medium text-ink">Why it matched: </span>
-        {item.reason}
+      <p data-card-why="" className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        <Chip>{CATEGORY_LABELS[item.category]}</Chip>
+        {rival ? (
+          <Chip tone="accent">
+            <span className="sr-only">Mentions </span>
+            {rival}
+          </Chip>
+        ) : null}
+        <span className="text-muted">
+          <span className="font-medium text-ink">Why it matched:</span> {item.reason}
+        </span>
       </p>
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-action="open"
-          className="font-medium text-accent underline underline-offset-2"
-        >
-          Open post
-        </a>
-        <span>{DISCLOSURE}</span>
+      <div className="flex items-start gap-4 border-t border-rule pt-3 text-sm">
+        <details className="group min-w-0 flex-1">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+            <ChevronIcon size={14} className="transition-transform group-open:rotate-90" />
+            <TipIcon size={14} />
+            Reply tip
+          </summary>
+          <p className="mt-2 max-w-prose text-ink">{REPLY_TIPS[item.category]}</p>
+        </details>
+        <p className="shrink-0 font-medium text-ink">{DISCLOSURE}</p>
       </div>
-      <details className="text-sm">
-        <summary className="cursor-pointer text-muted">Reply tip</summary>
-        <p className="mt-1">{REPLY_TIPS[item.category]}</p>
-      </details>
-      <PostActions id={item.id} state={item.state} setState={setState} />
-    </Card>
+      <footer data-card-actions="">
+        <PostActions
+          id={item.id}
+          state={item.state}
+          setState={setState}
+          open={
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-action="open"
+              className={buttonClass("primary", "px-2.5 sm:px-3")}
+            >
+              Open post
+              <ExternalIcon size={14} />
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          }
+        />
+      </footer>
+    </article>
   );
 }

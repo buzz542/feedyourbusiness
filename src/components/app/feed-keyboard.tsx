@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { FEED_KEYS, feedKeyAction, moveIndex } from "./feed-keys";
 
 const ACTION_SELECTOR = {
@@ -13,6 +14,7 @@ const ACTION_SELECTOR = {
 /**
  * The Reply tab's keys (docs/PLAN.md 4.4). Cards are the elements marked data-feed-card; each
  * key presses the matching control in the current card, so keys and clicks share one code path.
+ * Escape closes the list of keys.
  */
 export function FeedKeyboard() {
   const [help, setHelp] = useState(false);
@@ -20,6 +22,10 @@ export function FeedKeyboard() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setHelp(false);
+        return;
+      }
       const action = feedKeyAction({
         key: event.key,
         altKey: event.altKey,
@@ -59,22 +65,24 @@ export function FeedKeyboard() {
     <div
       role="dialog"
       aria-label="Keyboard shortcuts"
-      className="fixed bottom-20 right-4 z-20 rounded-[2px] border border-rule bg-paper p-4 text-sm sm:bottom-4"
+      className="fixed right-4 bottom-24 z-30 w-72 rounded-[2px] border border-control bg-surface p-4 text-sm lg:bottom-6"
     >
-      <h2 className="mb-2 font-medium">Keyboard shortcuts</h2>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+      <h2 className="mb-3 font-serif text-lg tracking-tight">Keyboard shortcuts</h2>
+      <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2">
         {FEED_KEYS.map(([key, , label]) => (
           <div key={key} className="contents">
             <dt>
-              <kbd className="rounded-[2px] border border-rule px-1.5 font-mono">{key}</kbd>
+              <kbd className="inline-block min-w-6 rounded-[2px] border border-control bg-paper px-1.5 text-center font-mono text-xs leading-5">
+                {key}
+              </kbd>
             </dt>
             <dd>{label}</dd>
           </div>
         ))}
       </dl>
-      <button type="button" className="mt-3 underline" onClick={() => setHelp(false)}>
+      <Button variant="secondary" className="mt-4" onClick={() => setHelp(false)}>
         Close
-      </button>
+      </Button>
     </div>
   );
 }

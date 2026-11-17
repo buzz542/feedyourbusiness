@@ -1,6 +1,7 @@
 /**
  * Reply tab keyboard shortcuts (docs/PLAN.md 4.4): j and k move between cards, o opens the post,
- * s saves, r marks replied, h hides, ? shows the keys. Pure, so the mapping is unit tested.
+ * s saves, r marks replied, h hides, ? shows the keys. s, r and h press the card's toggles, so a
+ * second press moves the post back. Pure, so the mapping is unit tested.
  */
 
 export type FeedKeyAction = "next" | "previous" | "open" | "save" | "replied" | "hide" | "help";
@@ -9,9 +10,9 @@ export const FEED_KEYS: ReadonlyArray<[string, FeedKeyAction, string]> = [
   ["j", "next", "Next post"],
   ["k", "previous", "Previous post"],
   ["o", "open", "Open the post in a new tab"],
-  ["s", "save", "Save"],
-  ["r", "replied", "Mark replied"],
-  ["h", "hide", "Hide"],
+  ["s", "save", "Save, or unsave"],
+  ["r", "replied", "Mark as replied, or unmark"],
+  ["h", "hide", "Hide, or unhide"],
   ["?", "help", "Show or hide these keys"],
 ];
 

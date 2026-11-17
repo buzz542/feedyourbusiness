@@ -5,6 +5,7 @@ import { Card } from "./card";
 import { Chip } from "./chip";
 import { EmptyState } from "./empty-state";
 import { Highlight } from "./highlight";
+import * as Icons from "./icons";
 import { Sparkline } from "./sparkline";
 import { Tabs } from "./tabs";
 
@@ -165,6 +166,17 @@ describe("EmptyState", () => {
     expect(out).toContain("Try adding search terms");
     expect(out).toContain('<a href="/app/settings">Add terms</a>');
   });
+});
+
+describe("icons", () => {
+  it.each(Object.entries(Icons))(
+    "%s is decorative: hidden from assistive tech and never focusable",
+    (_name, Icon) => {
+      const out = html(<Icon />);
+      expect(out).toMatch(/^<svg[^>]*aria-hidden="true"[^>]*focusable="false"/);
+      expect(out).not.toMatch(/<title|<text/);
+    },
+  );
 });
 
 describe("Sparkline", () => {
