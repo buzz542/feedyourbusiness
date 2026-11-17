@@ -43,7 +43,7 @@ export default function PricingPage() {
         </ul>
         <Link
           href="/login?next=%2Fapp"
-          className="self-start rounded-[2px] bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
+          className="self-start rounded-[2px] bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
         >
           Start your 3-day trial
         </Link>

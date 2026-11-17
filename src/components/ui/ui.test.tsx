@@ -76,8 +76,10 @@ describe("Button", () => {
   it("has three visibly different weights", () => {
     const classes = (["primary", "secondary", "quiet"] as const).map((v) => buttonClass(v));
     expect(new Set(classes).size).toBe(3);
-    expect(buttonClass("primary")).toContain("bg-accent");
-    expect(buttonClass("secondary")).toContain("border-rule");
+    expect(buttonClass("primary")).toMatch(/\bbg-accent-fill\b/);
+    expect(buttonClass("primary")).toMatch(/\btext-accent-ink\b/);
+    // A rule border in the --control color, which reaches 3:1 so the edge can be found.
+    expect(buttonClass("secondary")).toMatch(/\bborder-control\b/);
   });
 
   it("passes disabled and other attributes through", () => {

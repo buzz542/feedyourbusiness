@@ -2,42 +2,70 @@
 
 /*
   Tokens (docs/PLAN.md 9.1 to 9.3): warm paper, near-black ink, one deep ink-blue accent, a real
-  dark mode. --highlight is the highlighter mark, always with ink text. --positive and --negative
-  are for trends and are always paired with an arrow and words, never color alone.
-  src/components/ui/contrast.test.ts checks every text pair at 4.5:1 or more in both themes.
+  dark mode. src/components/ui/contrast.test.ts checks every text pair at 4.5:1 and every control
+  edge at 3:1 in both themes.
+
+  Surfaces: --paper is the page, --panel the app's side panel and bars (below the page), --surface
+  cards, fields and menus (above it), --selected the current item in a navigation. --rule is a
+  thin decorative line; --control is the edge of a field or button, strong enough to find.
+  --accent is for links, focus and the current-item bar; --accent-fill is the primary button,
+  always with --accent-ink text. --highlight is the highlighter mark, always with ink text.
+  --positive and --negative are for trends, always paired with an arrow and words.
 */
 :root {
+  color-scheme: light;
   --paper: #fbf8f1;
+  --panel: #f3eee2;
+  --surface: #fffdf9;
+  --selected: #e4e7f0;
   --ink: #17150f;
   --ink-muted: #565143;
   --rule: #d9d2c0;
+  --control: #8c8473;
   --accent: #1b2a5c;
+  --accent-fill: #1b2a5c;
   --accent-ink: #fbf8f1;
   --highlight: #f3dd6d;
   --positive: #1e6b3c;
   --negative: #a3301f;
 }
 
+/*
+  Dark mode is its own palette, not the light one turned over: a warm charcoal page, a recessed
+  panel, cards raised above the page by being lighter, warm off-white text, a soft ink-blue for
+  links and a mid ink-blue button that keeps light text, as in the light theme.
+*/
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #12110e;
-    --ink: #ede8db;
-    --ink-muted: #aaa392;
-    --rule: #34302a;
-    --accent: #9db4ff;
-    --accent-ink: #12110e;
+    color-scheme: dark;
+    --paper: #191714;
+    --panel: #13120f;
+    --surface: #211f1b;
+    --selected: #272c3d;
+    --ink: #ebe5d8;
+    --ink-muted: #b2aa99;
+    --rule: #38342d;
+    --control: #7d7568;
+    --accent: #a9b8ee;
+    --accent-fill: #4e66c0;
+    --accent-ink: #f7f4ec;
     --highlight: #6b5a12;
-    --positive: #7cc99a;
-    --negative: #f29a8a;
+    --positive: #86cfa3;
+    --negative: #f2a193;
   }
 }
 
 @theme inline {
   --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-selected: var(--selected);
   --color-ink: var(--ink);
   --color-muted: var(--ink-muted);
   --color-rule: var(--rule);
+  --color-control: var(--control);
   --color-accent: var(--accent);
+  --color-accent-fill: var(--accent-fill);
   --color-accent-ink: var(--accent-ink);
   --color-highlight: var(--highlight);
   --color-positive: var(--positive);

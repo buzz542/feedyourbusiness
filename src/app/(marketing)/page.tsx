@@ -58,7 +58,7 @@ export default function Home() {
         <div className="flex flex-wrap gap-3">
           <Link
             href="/login?next=%2Fapp"
-            className="rounded-[2px] bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
+            className="rounded-[2px] bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
           >
             Start your 3-day trial
           </Link>

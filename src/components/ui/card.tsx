@@ -12,6 +12,8 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <Tag className={cx("rounded-[2px] border border-rule bg-paper p-4", className)}>{children}</Tag>
+    <Tag className={cx("rounded-[2px] border border-rule bg-surface p-4", className)}>
+      {children}
+    </Tag>
   );
 }

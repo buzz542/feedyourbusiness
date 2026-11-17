@@ -98,7 +98,7 @@ export function RemovalForm({
       <button
         type="submit"
         disabled={busy}
-        className="self-start rounded-[2px] bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50"
+        className="self-start rounded-[2px] bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50"
       >
         Send request
       </button>
