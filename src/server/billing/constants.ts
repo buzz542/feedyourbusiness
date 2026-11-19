@@ -25,7 +25,7 @@ export const REMINDER_HOURS_BEFORE_CHARGE = 48;
  * confirms Vercel Pro (hourly). The reminder window widens with the period so the email still
  * lands at least 48 hours before the charge.
  */
-export const REMINDER_CRON_PERIOD_HOURS = 24;
+export const REMINDER_CRON_PERIOD_HOURS = 1;
 
 /** Allowance for scheduler jitter: Vercel Hobby fires a daily cron anywhere within its hour. */
 export const REMINDER_SCHEDULER_SLACK_HOURS = 1;

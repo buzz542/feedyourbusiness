@@ -110,21 +110,25 @@ describe("vercel.json", () => {
     expect(config.regions).toEqual(["lhr1"]);
   });
 
-  it("only declares cron schedules the Hobby plan accepts", () => {
+  it("only declares cron schedules the plan accepts: daily everywhere, hourly for the reminder on Pro", () => {
     const crons = config.crons ?? [];
     expect(crons.length).toBeGreaterThan(0);
-    for (const cron of crons) expect(runsAtMostDaily(cron.schedule), cron.schedule).toBe(true);
+    for (const cron of crons) {
+      const hourlyOnPro =
+        cron.path === "/api/cron/trial-reminders" && REMINDER_CRON_PERIOD_HOURS === 1;
+      expect(runsAtMostDaily(cron.schedule) || hourlyOnPro, cron.schedule).toBe(true);
+    }
   });
 
   it("runs the trial reminder at the period the reminder window is built for", () => {
     const reminder = (config.crons ?? []).find((c) => c.path === "/api/cron/trial-reminders");
     expect(reminder).toBeDefined();
     // Every day, not weekdays or weekly: a gap longer than the period would cut the notice.
-    if (REMINDER_CRON_PERIOD_HOURS === 24)
-      expect(reminder!.schedule).toMatch(/^\d{1,2} \d{1,2} \* \* \*$/);
-    else if (REMINDER_CRON_PERIOD_HOURS === 1)
-      expect(reminder!.schedule).toMatch(/^\d{1,2} \* \* \* \*$/);
-    else throw new Error(`unsupported REMINDER_CRON_PERIOD_HOURS ${REMINDER_CRON_PERIOD_HOURS}`);
+    // Hourly on Pro (live billing requires it): the period in the code and the schedule must agree.
+    const period = REMINDER_CRON_PERIOD_HOURS as number;
+    if (period === 24) expect(reminder!.schedule).toMatch(/^\d{1,2} \d{1,2} \* \* \*$/);
+    else if (period === 1) expect(reminder!.schedule).toMatch(/^\d{1,2} \* \* \* \*$/);
+    else throw new Error(`unsupported REMINDER_CRON_PERIOD_HOURS ${period}`);
   });
 
   it("points every cron at a GET route that checks CRON_SECRET", () => {
@@ -139,7 +143,7 @@ describe("vercel.json", () => {
 });
 
 describe("Node version", () => {
-  it("schedules the job routes daily on Hobby and keeps the tick route unscheduled until Pro (D6)", () => {
+  it("schedules the job routes daily and keeps the tick route unscheduled (D6)", () => {
     const paths = (config.crons ?? []).map((c) => c.path);
     expect(paths).toContain("/api/cron/daily");
     expect(paths).toContain("/api/cron/weekly");
