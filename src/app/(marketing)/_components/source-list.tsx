@@ -40,17 +40,7 @@ const retention = (days: number) =>
       ? "Deleted from AskedFor 30 days after we collect it."
       : null;
 
-/**
- * A vendor source held back on deployments because its DPA date is not set (2.1.7). Once the date
- * is set the paperwork sentence would be false; a hold for the snapshot retention is explained by
- * DataProviderNotice instead.
- */
-const awaitsPaperwork = (source: CollectSource) => vendorClearance(source) === "dpa_missing";
-
-const isOn = (source: CollectSource) =>
-  isEnabled(source) &&
-  vendorClearance(source) !== "dpa_missing" &&
-  vendorClearance(source) !== "notice_missing";
+const isOn = (source: CollectSource) => isEnabled(source) && vendorClearance(source) === "cleared";
 
 export function SourceList({ sources }: { sources: readonly Source[] }) {
   const collect = sources.filter(
@@ -76,12 +66,6 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
               <p className="mt-1 text-sm text-muted">
                 {isOn(source) ? "Switched on." : "Not switched on yet."}
               </p>
-              {source.vendor && awaitsPaperwork(source) ? (
-                <p className="mt-1 text-sm text-muted">
-                  It stays off until our data processing agreement with {source.vendor.name} and our
-                  privacy impact assessment are signed.
-                </p>
-              ) : null}
             </li>
           ))}
         </ul>

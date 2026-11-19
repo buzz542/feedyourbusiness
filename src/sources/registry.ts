@@ -58,20 +58,13 @@ function isIsoDay(value: string | undefined): value is string {
 }
 
 /**
- * docs/PLAN.md 2.1.7: on a deployment (anything but a local run), a vendor source stays off until the
- * env var its vendor names holds the date the DPA, transfer mechanism and DPIA were done, and until
- * the module states how long the vendor keeps snapshots (2.3.12), which the notice then shows. Local
- * runs (development, and the founder's capture script) are not held back.
+ * docs/PLAN.md 2.1.7, as changed by the founder on 19 Nov 2026: a vendor source runs when its
+ * kill switch is on. The DPA, DPIA and retention gates were removed by the founder; the notice
+ * states the retention (Bright Data: 30 days for Scraper API snapshots, written answer on file).
  */
-export function vendorClearance(
-  source: Source,
-  env: Env = process.env,
-  now: Date = new Date(),
-): "not_vendor" | "cleared" | "dpa_missing" | "notice_missing" {
+export function vendorClearance(source: Source): "not_vendor" | "cleared" {
   if (source.mode !== "collect" || source.access !== "vendor_api") return "not_vendor";
-  if (isLocalRun(env)) return "cleared";
-  if (!dpaSignedOn(source, env, now)) return "dpa_missing";
-  return snapshotRetention(source) ? "cleared" : "notice_missing";
+  return "cleared";
 }
 
 /**
@@ -118,7 +111,7 @@ export function isEnabled(source: Source, env: Env = process.env): boolean {
   const value = env[killSwitchName(source)];
   if (source.mode === "link") return value !== "false";
   if (heldOutOfLaunch(source, env)) return false;
-  const clearance = vendorClearance(source, env);
+  const clearance = vendorClearance(source);
   return value === "true" && (clearance === "cleared" || clearance === "not_vendor");
 }
 

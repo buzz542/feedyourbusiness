@@ -293,7 +293,7 @@ describe("launch sources on deployments", () => {
     expect(isEnabled(fake, { ...production, VERCEL_ENV: undefined, NODE_ENV: "production" })).toBe(
       false,
     );
-    const health = checkSources(production, new Date("2026-11-08T12:00:00Z"));
+    const health = checkSources(production);
     expect(health.status).toBe("invalid");
     expect(health.detail).toMatch(/x held: not in launch/);
   });

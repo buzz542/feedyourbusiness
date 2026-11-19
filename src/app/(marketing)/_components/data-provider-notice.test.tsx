@@ -26,9 +26,10 @@ describe.each([
     expect(html).toContain("This is not a data license from Reddit.");
   });
 
-  it("says the snapshot retention is stated before Reddit is switched on, and it stays off", () => {
-    expect(html).toContain("before Reddit collection is switched on for AskedFor");
-    expect(html).toContain("Until then, it stays off.");
+  it("states Bright Data's snapshot retention", () => {
+    expect(html).toContain(
+      "keeps the snapshots it delivers to us for 30 days after the job completes.",
+    );
   });
 
   it("says Reddit posts are deleted from AskedFor after 7 days", () => {
@@ -50,8 +51,10 @@ describe("once the retention is stated (F8)", () => {
   } satisfies CollectSource;
   const text = textOf(renderToStaticMarkup(<DataProviderNotice source={stated} />));
 
-  it("states it, and drops the 'until then' sentence", () => {
-    expect(text).toContain("Bright Data keeps the snapshots it delivers to us for 45 days.");
+  it("states the retention the module gives", () => {
+    expect(text).toContain(
+      "Bright Data keeps the snapshots it delivers to us for 45 days after the job completes.",
+    );
     expect(text).not.toContain("Until then");
   });
 

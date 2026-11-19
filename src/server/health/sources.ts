@@ -1,4 +1,4 @@
-import { heldOutOfLaunch, killSwitchName, sources, vendorClearance } from "@/sources/registry";
+import { heldOutOfLaunch, killSwitchName, sources } from "@/sources/registry";
 import type { CollectSource } from "@/sources/types";
 import type { CheckResult } from "./checks";
 
@@ -10,7 +10,7 @@ type Env = Readonly<Record<string, string | undefined>>;
  * module reports, or a vendor source held back until its DPA date and snapshot retention are set
  * (2.1.7), or a source held off because it is not in the launch list. Never a value.
  */
-export function checkSources(env: Env, now: Date): CheckResult {
+export function checkSources(env: Env): CheckResult {
   const on = sources.filter(
     (s): s is CollectSource => s.mode === "collect" && env[killSwitchName(s)] === "true",
   );
@@ -25,11 +25,6 @@ export function checkSources(env: Env, now: Date): CheckResult {
     for (const problem of source.configProblems?.(read) ?? [])
       problems.push(`${source.id}: ${problem}`);
     if (heldOutOfLaunch(source, env)) problems.push(`${source.id} held: not in launch`);
-    const clearance = vendorClearance(source, env, now);
-    if (clearance === "dpa_missing")
-      problems.push(`${source.id} held: ${source.vendor?.dpaSignedOnEnv ?? "DPA date"}`);
-    if (clearance === "notice_missing")
-      problems.push(`${source.id} held: snapshot retention not stated`);
   }
   const detail = `on: ${on.map((s) => s.id).join(", ")}`;
   return problems.length === 0

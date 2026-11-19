@@ -354,7 +354,7 @@ export async function runHealthChecks(deps: HealthDeps): Promise<HealthReport> {
     stripe_webhook: stripeWebhook,
     email: checkEmail(env),
     cron_secret: checkCronSecret(env),
-    sources: checkSources(env, now),
+    sources: checkSources(env),
   };
   return {
     ok: Object.values(checks).every((c) => c.status === "ok"),

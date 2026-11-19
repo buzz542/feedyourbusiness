@@ -125,6 +125,9 @@ These override everything else in this plan. If a feature cannot be built within
 7. Every vendor is a processor. Before its kill switch is turned on in production: a signed DPA, a recorded
    transfer mechanism, a DPIA covering the vendor collection signed off by the founder, and the vendor named
    in the privacy notice and on the sources page (M3 ships a minimal version of both).
+   _Amended 19 Nov 2026 by the founder: the DPA date, the DPIA and the snapshot-retention gate are removed
+   from the code and the plan. The vendor is still named in the privacy notice and on the sources page, and
+   the notice states the retention Bright Data gave (30 days after the job completes)._
 8. Every collect source has a kill switch (`SOURCE_<ID>_ENABLED`, default off), a per-product daily budget
    recorded in `usage_ledger` before every paid call, and paid sources also have a global monthly cap.
 9. A vendor is used only for the platform it is contracted for. Each source's `ctx.fetch` is bound to that
@@ -173,7 +176,7 @@ These override everything else in this plan. If a feature cannot be built within
    author hash can reveal such a trait, posts from Reddit communities about health, sexuality, religion,
    politics, ethnicity or similar special-category topics are dropped before classification and storage
    (`src/sources/sensitive-communities.ts`: a list plus name patterns, reviewed by the founder before Reddit
-   is switched on and in launch week), and the onboarding draft never suggests such subreddits. Reddit posts made on a user's profile (community `u_<name>`, or a URL
+   is switched on and in launch week; _amended 19 Nov 2026: the founder no longer requires the review before Reddit is switched on_), and the onboarding draft never suggests such subreddits. Reddit posts made on a user's profile (community `u_<name>`, or a URL
    under `/user/` or `/u/`) are dropped too, because they carry the username.
 8. Row-level security on every table, explicit grants, `anon` gets nothing, secrets server-side only,
    append-only audit log for admin actions.

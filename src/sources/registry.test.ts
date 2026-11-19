@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   allowedHosts,
   declaredHosts,
-  dpaSignedOn,
   enabledSources,
   isEnabled,
   killSwitchName,
@@ -124,95 +123,41 @@ describe("kill switches", () => {
   });
 });
 
-describe("vendor clearance (docs/PLAN.md 2.1.7)", () => {
+describe("vendor clearance (docs/PLAN.md 2.1.7, changed by the founder 19 Nov 2026)", () => {
   const reddit = sources.find((s) => s.id === "reddit")! as CollectSource;
   const ON = { SOURCE_REDDIT_ENABLED: "true" };
-  /** Reddit as it will be once the notice states Bright Data's snapshot retention (F8). */
-  const stated: CollectSource = {
-    ...reddit,
-    vendor: { ...reddit.vendor!, snapshotRetention: "30 days" },
-  };
 
-  it("names the env var that holds the vendor's DPA date", () => {
+  it("names the env var the DPA date would use, and states the retention", () => {
     expect(reddit).toMatchObject({ vendor: { dpaSignedOnEnv: "BRIGHTDATA_DPA_SIGNED_ON" } });
+    expect(snapshotRetention(reddit)).toBe("30 days");
   });
 
-  it("keeps a vendor source off on any deployment until its DPA date is set", () => {
+  it("runs on a deployment when its kill switch is on, with no DPA date or DPIA check", () => {
     for (const VERCEL_ENV of ["production", "preview"]) {
-      expect(isEnabled(reddit, { ...ON, VERCEL_ENV })).toBe(false);
-      expect(vendorClearance(reddit, { ...ON, VERCEL_ENV })).toBe("dpa_missing");
-      expect(allowedHosts({ ...ON, VERCEL_ENV })).toEqual([]);
-      for (const bad of [
-        "",
-        "soon",
-        "2026-13-01",
-        "2026-02-30",
-        "02/11/2026",
-        "2026-10-02T00:00:00Z",
-      ])
-        expect(
-          isEnabled(reddit, { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: bad }),
-          `${VERCEL_ENV} ${bad}`,
-        ).toBe(false);
-      const signed = { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" };
-      expect(isEnabled(stated, signed)).toBe(true);
-      expect(vendorClearance(stated, signed)).toBe("cleared");
+      expect(vendorClearance(reddit)).toBe("cleared");
+      expect(isEnabled(reddit, { ...ON, VERCEL_ENV })).toBe(true);
+      expect(allowedHosts({ ...ON, VERCEL_ENV })).toEqual([BRIGHTDATA_API_HOST]);
     }
   });
 
-  it("keeps it off, DPA or not, until the notice states how long the vendor keeps snapshots", () => {
-    expect(reddit).toMatchObject({ vendor: { snapshotRetention: null } });
-    for (const VERCEL_ENV of ["production", "preview"]) {
-      const signed = { ...ON, VERCEL_ENV, BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" };
-      expect(vendorClearance(reddit, signed)).toBe("notice_missing");
-      expect(isEnabled(reddit, signed)).toBe(false);
-      expect(allowedHosts(signed)).toEqual([]);
+  it("stays off when its kill switch is off", () => {
+    expect(isEnabled(reddit, { VERCEL_ENV: "production" })).toBe(false);
+    expect(allowedHosts({ VERCEL_ENV: "production" })).toEqual([]);
+  });
+
+  it("ignores the DPA date variable, so a missing or bad one changes nothing", () => {
+    for (const BRIGHTDATA_DPA_SIGNED_ON of [undefined, "", "soon", "2099-01-01"]) {
+      expect(isEnabled(reddit, { ...ON, VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON })).toBe(
+        true,
+      );
     }
   });
 
   it("reads the snapshot retention from the module only, never from the env", () => {
-    const signed = { ...ON, VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" };
-    const planted = { ...signed, BRIGHTDATA_SNAPSHOT_RETENTION: "30 days" };
-    expect(snapshotRetention(reddit)).toBeNull();
-    expect(vendorClearance(reddit, planted)).toBe("notice_missing");
-    expect(snapshotRetention(stated)).toBe("30 days");
-  });
-
-  it("fails closed when it cannot tell it is a local run", () => {
-    const signed = { BRIGHTDATA_DPA_SIGNED_ON: "2026-10-01" };
-    expect(vendorClearance(reddit, { NODE_ENV: "production" })).toBe("dpa_missing");
-    expect(vendorClearance(stated, { NODE_ENV: "production", ...signed })).toBe("cleared");
-    expect(vendorClearance(reddit, { VERCEL_ENV: "staging" })).toBe("dpa_missing");
-    expect(vendorClearance(reddit, { VERCEL_ENV: "development" })).toBe("cleared");
-    expect(vendorClearance(reddit, { NODE_ENV: "test" })).toBe("cleared");
-  });
-
-  it("refuses a DPA date in the future, so a date set ahead of signing clears nothing", () => {
-    const now = new Date("2026-10-18T12:00:00Z");
-    const on = (day: string) =>
-      vendorClearance(stated, { VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: day }, now);
-    expect(on("2026-10-19")).toBe("dpa_missing");
-    expect(on("2027-10-18")).toBe("dpa_missing");
-    expect(on("2026-10-18")).toBe("cleared");
-    expect(on(" 2026-10-01")).toBe("dpa_missing");
-    expect(dpaSignedOn(reddit, { BRIGHTDATA_DPA_SIGNED_ON: "2026-10-19" }, now)).toBeNull();
-    expect(dpaSignedOn(reddit, { BRIGHTDATA_DPA_SIGNED_ON: "2026-10-01" }, now)).toBe("2026-10-01");
-  });
-
-  it("does not hold back local runs or official API sources", () => {
-    expect(isEnabled(reddit, ON)).toBe(true);
-    expect(isEnabled(reddit, { ...ON, VERCEL_ENV: "development" })).toBe(true);
-    const hn = sources.find((s) => s.id === "hackernews")!;
-    expect(vendorClearance(hn, { VERCEL_ENV: "production" })).toBe("not_vendor");
-    expect(isEnabled(hn, { VERCEL_ENV: "production", SOURCE_HACKERNEWS_ENABLED: "true" })).toBe(
-      true,
-    );
-  });
-
-  it("never turns on a vendor source whose kill switch is off, DPA or not", () => {
-    expect(
-      isEnabled(reddit, { VERCEL_ENV: "production", BRIGHTDATA_DPA_SIGNED_ON: "2026-10-02" }),
-    ).toBe(false);
+    const planted = { ...ON, VERCEL_ENV: "production", BRIGHTDATA_SNAPSHOT_RETENTION: "1 day" };
+    expect(planted.BRIGHTDATA_SNAPSHOT_RETENTION).toBe("1 day");
+    expect(snapshotRetention(reddit)).toBe("30 days");
+    expect(vendorClearance(reddit)).toBe("cleared");
   });
 });
 

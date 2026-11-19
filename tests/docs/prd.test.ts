@@ -40,7 +40,7 @@ const planSection = (markdown: string, heading: string): string => {
  * sections 1 or 2 updates this hash in the same commit and says in the commit message that the
  * founder approved the change (CLAUDE.md, "Ask before you").
  */
-const PINNED_RULES_SHA256 = "eb292e769c656b7031d4e368a2f4a399559fae2e110993c1454f7e6ecddb454f";
+const PINNED_RULES_SHA256 = "2c8fc738ab461e630cfb816cbd04a23ca4ce17d4ead1d779d7d6f44748c6d175";
 
 describe("docs/PLAN.md", () => {
   const plan = readFileSync("docs/PLAN.md", "utf8");

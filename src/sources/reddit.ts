@@ -205,9 +205,9 @@ export const reddit: CollectSource = {
     name: "Bright Data",
     dpaUrl: "https://brightdata.com/legal",
     dpaSignedOnEnv: "BRIGHTDATA_DPA_SIGNED_ON",
-    // F8: set from Bright Data's written answer (here or in the env var), then the notice states it
-    // and Reddit may run.
-    snapshotRetention: null,
+    // Bright Data's answer, 19 Nov 2026: Scraper API snapshots are kept 30 days after the job
+    // completes. They do not document an API delete after download, so the notice says only this.
+    snapshotRetention: "30 days",
   },
   termsUrl: "https://brightdata.com/legal",
   allowedHosts: [BRIGHTDATA_API_HOST],

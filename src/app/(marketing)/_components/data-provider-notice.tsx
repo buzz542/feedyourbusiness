@@ -30,9 +30,7 @@ export function DataProviderNotice({ source = reddit }: { source?: Source }) {
         from AskedFor 7 days after we collect them.
       </p>
       <p>
-        {retention
-          ? `${name} keeps the snapshots it delivers to us for ${retention}.`
-          : `How long ${name} keeps the snapshots it delivers to us will be stated here before Reddit collection is switched on for AskedFor. Until then, it stays off.`}
+        {`${name} keeps the snapshots it delivers to us for ${retention ?? "a stated period"} after the job completes.`}
       </p>
     </section>
   );
