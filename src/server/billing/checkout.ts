@@ -82,17 +82,24 @@ export async function createCheckoutSession(args: {
     intervalCount: price.intervalCount ?? 1,
   });
 
+  // One trial per customer (the founder, 19 Nov 2026): a returning customer, who already has a Stripe
+  // customer, pays the monthly price from the start, with no trial and no fee.
+  const trialing = customerId === null;
   const params: Stripe.Checkout.SessionCreateParams = {
     mode: "subscription",
     // The one-time trial fee is charged at checkout; the subscription itself starts its trial.
     line_items: [
       { price: config.priceId, quantity: 1 },
-      { price: config.trialPriceId, quantity: 1 },
+      ...(trialing ? [{ price: config.trialPriceId, quantity: 1 }] : []),
     ],
     payment_method_collection: "always",
     subscription_data: {
-      trial_period_days: TRIAL_DAYS,
-      trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+      ...(trialing
+        ? {
+            trial_period_days: TRIAL_DAYS,
+            trial_settings: { end_behavior: { missing_payment_method: "cancel" as const } },
+          }
+        : {}),
       metadata: { user_id: user.id, service_consent_at: args.consentAt.toISOString() },
     },
     client_reference_id: user.id,

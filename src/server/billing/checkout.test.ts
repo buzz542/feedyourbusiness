@@ -78,6 +78,15 @@ describe("createCheckoutSession", () => {
     expect(params).not.toHaveProperty("customer_email");
   });
 
+  it("gives a returning customer no trial and no fee: the monthly price from the start", async () => {
+    await create({ customerId: "cus_existing" });
+    const params = stripe.checkoutCalls[0]!;
+
+    expect(params.line_items).toEqual([{ price: "price_abc123", quantity: 1 }]);
+    expect(params.subscription_data?.trial_period_days).toBeUndefined();
+    expect(params.subscription_data?.trial_settings).toBeUndefined();
+  });
+
   it("prefills the email for a new customer", async () => {
     await create();
     expect(stripe.checkoutCalls[0]!.customer_email).toBe("maker@example.test");
