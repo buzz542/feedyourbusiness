@@ -2,13 +2,14 @@ import "@fontsource-variable/fraunces";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { robotsMeta } from "@/lib/launch";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "AskedFor", template: "%s | AskedFor" },
   description: "Who to reply to today. What to build next.",
-  // Pre-launch: keep the site out of search results. Remove with src/app/robots.ts at launch.
-  robots: { index: false, follow: false },
+  // Noindex until LAUNCH_OPEN=true, with src/app/robots.ts (src/lib/launch.ts).
+  robots: robotsMeta(),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

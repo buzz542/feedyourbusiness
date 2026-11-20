@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isLaunchOpen } from "@/lib/launch";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -47,9 +48,11 @@ export default function PricingPage() {
         >
           Start your 3-day trial
         </Link>
-        <p className="text-sm text-muted">
-          AskedFor is in private beta. Until launch, sign-in is by invitation.
-        </p>
+        {isLaunchOpen() ? null : (
+          <p className="text-sm text-muted">
+            AskedFor is in private beta. Until launch, sign-in is by invitation.
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="included-heading" className="mt-10 flex flex-col gap-3">

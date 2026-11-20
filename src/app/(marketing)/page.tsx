@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isLaunchOpen } from "@/lib/launch";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -108,9 +109,11 @@ export default function Home() {
         <Ctas />
         <div className="flex flex-col gap-1">
           <PriceLine />
-          <p className="text-sm text-muted">
-            AskedFor is in private beta. Until launch, sign-in is by invitation.
-          </p>
+          {isLaunchOpen() ? null : (
+            <p className="text-sm text-muted">
+              AskedFor is in private beta. Until launch, sign-in is by invitation.
+            </p>
+          )}
         </div>
       </section>
 

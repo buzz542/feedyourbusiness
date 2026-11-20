@@ -1,8 +1,10 @@
 /**
  * Pre-launch access (docs/PLAN.md 12.10). Until the founder says launch, only the emails in
- * SIGNUP_ALLOWLIST (comma-separated) may sign in. An empty or unset list lets nobody in. The
- * launch switch (M9) removes the check.
+ * SIGNUP_ALLOWLIST (comma-separated) may sign in. An empty or unset list lets nobody in. Once
+ * LAUNCH_OPEN=true (src/lib/launch.ts, the launch switch) any email may sign in.
  */
+
+import { isLaunchOpen } from "@/lib/launch";
 
 export type EmailAllowed = (email: string | null | undefined) => boolean;
 
@@ -18,4 +20,7 @@ export function parseAllowlist(raw: string | undefined): EmailAllowed {
 
 export const loadAllowlist = (
   env: Readonly<Record<string, string | undefined>> = process.env,
-): EmailAllowed => parseAllowlist(env.SIGNUP_ALLOWLIST);
+): EmailAllowed => {
+  if (isLaunchOpen(env)) return (email) => typeof email === "string" && email.trim().length > 0;
+  return parseAllowlist(env.SIGNUP_ALLOWLIST);
+};
