@@ -1,7 +1,13 @@
 import Stripe from "stripe";
 import { expect, test } from "./support/test";
 import { E2E_BILLING_EMAIL } from "../../playwright.config";
-import { adminClient, createConfirmedUser, deleteUserByEmail, magicLinkPath } from "./support/auth";
+import {
+  adminClient,
+  choosePassword,
+  createConfirmedUser,
+  deleteUserByEmail,
+  magicLinkPath,
+} from "./support/auth";
 import { billingE2eSkipReason } from "./support/guard";
 
 /**
@@ -58,6 +64,7 @@ test.describe("billing in Stripe test mode", () => {
     await page.getByLabel("I am 18 or older").check();
     await page.getByLabel(/I agree to the/).check();
     await page.getByRole("button", { name: "Continue" }).click();
+    await choosePassword(page);
     // A confirmed product, as onboarding leaves it (the database stamps confirmed_at).
     const { error } = await adminClient()
       .from("products")

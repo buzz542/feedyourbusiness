@@ -25,8 +25,9 @@ export default async function LoginPage({
     <>
       <h1 className="font-serif text-3xl tracking-tight">Sign in</h1>
       <p className="mt-4 max-w-prose text-muted">
-        Get a sign-in link by email, or use your Google account. The first time you sign in, we ask
-        you to confirm your age and accept the{" "}
+        Sign in with your email and password, or use your Google account. New here? Enter your email
+        and ask for a sign-in link. That confirms your email, and then we ask you to confirm your
+        age, accept the{" "}
         <Link href="/terms" className="underline underline-offset-4">
           Terms
         </Link>{" "}
@@ -34,7 +35,7 @@ export default async function LoginPage({
         <Link href="/acceptable-use" className="underline underline-offset-4">
           Acceptable use policy
         </Link>
-        .
+        , and choose a password.
       </p>
       {error ? (
         <p role="alert" className="mt-6 max-w-prose border-l-2 border-accent pl-3">

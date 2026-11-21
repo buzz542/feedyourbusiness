@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/server/supabase/server";
+import { canSignInAgain } from "./credentials";
 import type { AccountState } from "./next-step";
 
 class AccountLoadError extends Error {
@@ -16,7 +17,7 @@ export interface Account extends AccountState {
 /** The signed-in user's own profile and product, through RLS (the user-scoped client). */
 export async function loadAccount(userId: string): Promise<Account> {
   const supabase = await createSupabaseServerClient();
-  const [profile, product] = await Promise.all([
+  const [profile, product, authUser] = await Promise.all([
     supabase
       .from("profiles")
       .select("terms_accepted_at, subscription_status")
@@ -29,11 +30,14 @@ export async function loadAccount(userId: string): Promise<Account> {
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
+    supabase.auth.getUser(),
   ]);
   if (profile.error) throw new AccountLoadError(profile.error.code);
   if (product.error) throw new AccountLoadError(product.error.code);
   return {
     termsAccepted: profile.data?.terms_accepted_at != null,
+    // Unknown when the session cannot be read: never trap someone on the password step.
+    canSignInAgain: authUser.data.user ? canSignInAgain(authUser.data.user) : true,
     subscriptionStatus: profile.data?.subscription_status ?? null,
     product: product.data ? { status: product.data.status } : null,
     productName: product.data?.name ?? null,

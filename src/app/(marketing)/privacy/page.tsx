@@ -75,6 +75,10 @@ export default function Page() {
           its sign-in records. AskedFor never reads them.
         </p>
         <p>
+          If you set a password, Supabase stores it as a salted hash, never as the password itself.
+          We cannot read it.
+        </p>
+        <p>
           When you paste your website, our site reader reads that page and up to 5 more on the same
           site, honoring its robots.txt for every page but the one you pasted, and sends the text to
           Anthropic to draft your product profile. We keep the profile, never the pages. If you

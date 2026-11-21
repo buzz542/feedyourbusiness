@@ -2,6 +2,7 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
+import { PASSWORD_SET_KEY, canSignInAgain } from "./credentials";
 import type { AccountAdmin, AuthGateway, AuthUser, TermsStore } from "./ports";
 
 /** Thin adapters over Supabase Auth. Logic lives in sign-in.ts and is tested with fakes. */
@@ -18,6 +19,7 @@ const toAuthUser = (user: User): AuthUser => ({
   id: user.id,
   email: user.email ?? null,
   createdAt: new Date(user.created_at),
+  canSignInAgain: canSignInAgain(user),
 });
 
 export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
@@ -29,6 +31,27 @@ export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
         email,
         options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
       });
+      if (error) throw new SupabaseAuthError(error.code);
+    },
+    async signInWithPassword(email, password) {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        // A wrong password, an unknown email and an unconfirmed one all read as "not you".
+        if (error.code === "invalid_credentials" || error.code === "email_not_confirmed")
+          return null;
+        throw new SupabaseAuthError(error.code);
+      }
+      return data.user ? toAuthUser(data.user) : null;
+    },
+    async setPassword(password) {
+      const { error } = await supabase.auth.updateUser({
+        password,
+        data: { [PASSWORD_SET_KEY]: true },
+      });
+      if (error) throw new SupabaseAuthError(error.code);
+    },
+    async sendPasswordReset(email, redirectTo) {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw new SupabaseAuthError(error.code);
     },
     async googleSignInUrl(redirectTo) {

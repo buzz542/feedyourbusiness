@@ -5,7 +5,11 @@ import {
   acceptTerms,
   callbackUrl,
   completeSignIn,
+  MIN_PASSWORD_LENGTH,
   requestMagicLink,
+  requestPasswordReset,
+  setNewPassword,
+  signInWithPassword,
   startGoogleSignIn,
 } from "./sign-in";
 import { parseAllowlist } from "./allowlist";
@@ -268,5 +272,219 @@ describe("acceptTerms", () => {
     });
     expect(terms.acceptedAt.get("user-1")).toBeInstanceOf(Date);
     expect(terms.writes).toBe(1);
+  });
+});
+
+describe("setNewPassword", () => {
+  const GOOD = "correct horse battery";
+  const signedIn = async (email = "founder@example.test") => {
+    auth.signedIn = { id: "user-1", email, createdAt: NOW };
+    return { email };
+  };
+
+  it("sets the password for the signed-in user, and marks the account as able to sign in again", async () => {
+    const user = await signedIn();
+    expect(await setNewPassword(auth, user, { password: GOOD, confirm: GOOD })).toEqual({
+      kind: "set",
+    });
+    expect(auth.passwords.get("founder@example.test")).toBe(GOOD);
+    expect((await auth.currentUser())?.canSignInAgain).toBe(true);
+  });
+
+  it(`refuses fewer than ${MIN_PASSWORD_LENGTH} characters`, async () => {
+    const user = await signedIn();
+    const short = "x".repeat(MIN_PASSWORD_LENGTH - 1);
+    expect(await setNewPassword(auth, user, { password: short, confirm: short })).toEqual({
+      kind: "too_short",
+    });
+    expect(auth.passwords.size).toBe(0);
+  });
+
+  it("refuses more than 72 bytes, where bcrypt would silently cut it off", async () => {
+    const user = await signedIn();
+    const long = "é".repeat(37);
+    expect(await setNewPassword(auth, user, { password: long, confirm: long })).toEqual({
+      kind: "too_long",
+    });
+    const edge = "a".repeat(72);
+    expect(await setNewPassword(auth, user, { password: edge, confirm: edge })).toEqual({
+      kind: "set",
+    });
+  });
+
+  it("refuses two different entries", async () => {
+    const user = await signedIn();
+    expect(await setNewPassword(auth, user, { password: GOOD, confirm: GOOD + "!" })).toEqual({
+      kind: "mismatch",
+    });
+    expect(auth.passwords.size).toBe(0);
+  });
+
+  it("refuses the email address as the password, in any case", async () => {
+    const user = await signedIn();
+    for (const password of ["founder@example.test", "Founder@Example.test"])
+      expect(await setNewPassword(auth, user, { password, confirm: password })).toEqual({
+        kind: "same_as_email",
+      });
+  });
+
+  it("refuses anything that is not text", async () => {
+    const user = await signedIn();
+    for (const password of [undefined, null, 12345678901, ["a"]])
+      expect(
+        await setNewPassword(auth, user, {
+          password: password as never,
+          confirm: password as never,
+        }),
+      ).toEqual({ kind: "too_short" });
+  });
+
+  it("reports a failure to save without echoing the password", async () => {
+    const user = await signedIn();
+    auth.signedIn = null;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await setNewPassword(auth, user, { password: GOOD, confirm: GOOD })).toEqual({
+      kind: "error",
+    });
+    expect(JSON.stringify(spy.mock.calls)).not.toContain(GOOD);
+  });
+});
+
+describe("signInWithPassword", () => {
+  const PASSWORD = "correct horse battery";
+  beforeEach(() => {
+    auth.existingEmails.add("founder@example.test");
+    auth.passwords.set("founder@example.test", PASSWORD);
+  });
+
+  it("signs in a right email and password, and goes to the safe next path", async () => {
+    expect(
+      await signInWithPassword(deps, {
+        email: " Founder@Example.test ",
+        password: PASSWORD,
+        next: "/app/reply",
+      }),
+    ).toEqual({ kind: "ok", path: "/app/reply" });
+    expect((await auth.currentUser())?.email).toBe("founder@example.test");
+  });
+
+  it("sends an unsafe next path to the default one", async () => {
+    expect(
+      await signInWithPassword(deps, {
+        email: "founder@example.test",
+        password: PASSWORD,
+        next: "https://evil.example",
+      }),
+    ).toEqual({ kind: "ok", path: "/app" });
+  });
+
+  it("answers the same for a wrong password and for an email with no account, once the site is open", async () => {
+    deps.isAllowed = () => true;
+    const wrong = await signInWithPassword(deps, {
+      email: "founder@example.test",
+      password: "not the password",
+      next: null,
+    });
+    const none = await signInWithPassword(deps, {
+      email: "nobody@example.test",
+      password: PASSWORD,
+      next: null,
+    });
+    expect(wrong).toEqual({ kind: "wrong" });
+    expect(none).toEqual(wrong);
+    expect(await auth.currentUser()).toBeNull();
+  });
+
+  it("refuses an email that is not allowed yet, before it tries the password", async () => {
+    auth.passwords.set("stranger@example.test", PASSWORD);
+    expect(
+      await signInWithPassword(deps, {
+        email: "stranger@example.test",
+        password: PASSWORD,
+        next: null,
+      }),
+    ).toEqual({ kind: "private_beta" });
+    expect(await auth.currentUser()).toBeNull();
+  });
+
+  it("lets any email try once the site is open", async () => {
+    deps.isAllowed = () => true;
+    auth.passwords.set("stranger@example.test", PASSWORD);
+    expect(
+      await signInWithPassword(deps, {
+        email: "stranger@example.test",
+        password: PASSWORD,
+        next: null,
+      }),
+    ).toEqual({ kind: "ok", path: "/app" });
+  });
+
+  it("refuses a bad email and a missing or non-text password", async () => {
+    expect(
+      await signInWithPassword(deps, { email: "nope", password: PASSWORD, next: null }),
+    ).toEqual({
+      kind: "invalid",
+    });
+    for (const password of [undefined, "", 123, null])
+      expect(
+        await signInWithPassword(deps, {
+          email: "founder@example.test",
+          password: password as never,
+          next: null,
+        }),
+      ).toEqual({ kind: "wrong" });
+  });
+
+  it("reports an outage as an error, and logs the class only", async () => {
+    auth.failNextSignIn = true;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(
+      await signInWithPassword(deps, {
+        email: "founder@example.test",
+        password: PASSWORD,
+        next: null,
+      }),
+    ).toEqual({ kind: "error" });
+    const logged = JSON.stringify(spy.mock.calls);
+    expect(logged).not.toContain("founder@example.test");
+    expect(logged).not.toContain(PASSWORD);
+  });
+});
+
+describe("requestPasswordReset", () => {
+  it("sends a reset link that lands on the set-password page, for an allowed email", async () => {
+    auth.existingEmails.add("founder@example.test");
+    expect(await requestPasswordReset(deps, { email: " Founder@Example.test " })).toEqual({
+      kind: "sent",
+    });
+    expect(auth.resets).toEqual([
+      {
+        email: "founder@example.test",
+        redirectTo: `${SITE}/auth/callback?next=${encodeURIComponent("/app/password")}`,
+      },
+    ]);
+  });
+
+  it("says sent for an email with no account too, and never creates one", async () => {
+    expect(await requestPasswordReset(deps, { email: "founder@example.test" })).toEqual({
+      kind: "sent",
+    });
+    expect(admin.ensured).toEqual([]);
+  });
+
+  it("refuses a bad email, and an email that is not allowed yet", async () => {
+    expect(await requestPasswordReset(deps, { email: "nope" })).toEqual({ kind: "invalid" });
+    expect(await requestPasswordReset(deps, { email: "stranger@example.test" })).toEqual({
+      kind: "private_beta",
+    });
+    expect(auth.resets).toEqual([]);
+  });
+
+  it("reports a send failure as an error", async () => {
+    auth.failNextSend = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await requestPasswordReset(deps, { email: "founder@example.test" })).toEqual({
+      kind: "error",
+    });
   });
 });

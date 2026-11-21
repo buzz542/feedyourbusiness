@@ -1,3 +1,4 @@
+import { expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { assertDevSupabase } from "./guard";
 
@@ -56,4 +57,15 @@ export async function magicLinkPath(email: string, next?: string): Promise<strin
   });
   if (next) params.set("next", next);
   return `/auth/callback?${params}`;
+}
+
+/** A throwaway password for the test account only. */
+export const E2E_PASSWORD = "e2e correct horse battery";
+
+/** The set-password step that follows the terms: type the password twice and save it. */
+export async function choosePassword(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/app\/password$/);
+  await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD);
+  await page.getByLabel("Type it again").fill(E2E_PASSWORD);
+  await page.getByRole("button", { name: "Save password" }).click();
 }

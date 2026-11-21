@@ -1,7 +1,8 @@
 import { hasLiveSubscription, isEntitled } from "@/server/billing/subscription";
 
 /**
- * Where /app sends a signed-in user (docs/PLAN.md 4.2, 4.3): the confirmations, then onboarding
+ * Where /app sends a signed-in user (docs/PLAN.md 4.2, 4.3): the confirmations, a password so they
+ * can sign in again, then onboarding
  * until the product is confirmed, then billing, then Reply. A subscription that still exists but
  * is not entitled (past_due, unpaid, paused) goes to settings to fix the card, because a second
  * checkout would be refused and could double-bill.
@@ -9,12 +10,22 @@ import { hasLiveSubscription, isEntitled } from "@/server/billing/subscription";
 
 export interface AccountState {
   termsAccepted: boolean;
+  /**
+   * The account has a password or signs in with Google, so it can come back without an email
+   * link. Absent means not known, which counts as true.
+   */
+  canSignInAgain?: boolean;
   product: { status: string } | null;
   subscriptionStatus: string | null;
 }
 
 export type NextStep =
-  "/app/terms" | "/app/onboarding" | "/app/billing" | "/app/settings" | "/app/reply";
+  | "/app/terms"
+  | "/app/password"
+  | "/app/onboarding"
+  | "/app/billing"
+  | "/app/settings"
+  | "/app/reply";
 
 const CONFIRMED_STATUSES: readonly string[] = ["active", "paused"];
 
@@ -28,6 +39,7 @@ export function isConfirmedProduct(product: AccountState["product"]): boolean {
 
 export function nextStepFor(state: AccountState): NextStep {
   if (!state.termsAccepted) return "/app/terms";
+  if (state.canSignInAgain === false) return "/app/password";
   if (!isConfirmedProduct(state.product)) return "/app/onboarding";
   if (isEntitled(state.subscriptionStatus)) return "/app/reply";
   if (hasLiveSubscription(state.subscriptionStatus)) return "/app/settings";

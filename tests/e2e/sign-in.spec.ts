@@ -1,6 +1,12 @@
 import { expect, test } from "./support/test";
 import { E2E_EMAIL } from "../../playwright.config";
-import { createConfirmedUser, deleteUserByEmail, magicLinkPath } from "./support/auth";
+import {
+  E2E_PASSWORD,
+  choosePassword,
+  createConfirmedUser,
+  deleteUserByEmail,
+  magicLinkPath,
+} from "./support/auth";
 import { e2eSkipReason } from "./support/guard";
 
 test.describe("without an account", () => {
@@ -38,7 +44,38 @@ test.describe("sign-in with the development project", () => {
     await page.getByLabel(/I agree to the/).check();
     await page.getByRole("button", { name: "Continue" }).click();
 
+    // Then a password, so the next sign-in needs no email link.
+    await choosePassword(page);
+
     // No product yet, so /app sends them to onboarding.
     await expect(page).toHaveURL(/\/app\/onboarding$/);
+  });
+
+  test("after choosing a password, the person signs in again with it and no email link", async ({
+    page,
+  }) => {
+    await createConfirmedUser(E2E_EMAIL);
+    await page.goto(await magicLinkPath(E2E_EMAIL));
+    await page.getByLabel("I am 18 or older").check();
+    await page.getByLabel(/I agree to the/).check();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await choosePassword(page);
+    await expect(page).toHaveURL(/\/app\/onboarding$/);
+
+    // A new visit with no cookies: only the password can get them back in.
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(E2E_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/onboarding$/);
+
+    // A wrong password is refused, with the same words whoever the email belongs to.
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(E2E_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill("not the password at all");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByText("That email and password do not match.")).toBeVisible();
   });
 });

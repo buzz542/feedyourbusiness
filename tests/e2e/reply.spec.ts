@@ -1,6 +1,12 @@
 import { expect, test } from "./support/test";
 import { E2E_REPLY_EMAIL } from "../../playwright.config";
-import { adminClient, createConfirmedUser, deleteUserByEmail, magicLinkPath } from "./support/auth";
+import {
+  adminClient,
+  choosePassword,
+  createConfirmedUser,
+  deleteUserByEmail,
+  magicLinkPath,
+} from "./support/auth";
 import { e2eSkipReason } from "./support/guard";
 
 /**
@@ -70,6 +76,7 @@ test.describe("Reply tab with the development project", () => {
       await page.getByLabel("I am 18 or older").check();
       await page.getByLabel(/I agree to the/).check();
       await page.getByRole("button", { name: "Continue" }).click();
+      await choosePassword(page);
     }
   });
 

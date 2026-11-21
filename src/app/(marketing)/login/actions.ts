@@ -2,9 +2,25 @@
 
 import { redirect } from "next/navigation";
 import { getSignInDeps } from "@/server/auth/deps";
-import { type MagicLinkResult, requestMagicLink, startGoogleSignIn } from "@/server/auth/sign-in";
+import {
+  type MagicLinkResult,
+  requestMagicLink,
+  requestPasswordReset,
+  signInWithPassword,
+  startGoogleSignIn,
+} from "@/server/auth/sign-in";
 
 export type LinkState = { kind: "idle" } | MagicLinkResult;
+
+/** What the one login form can answer: a sent link, a sent reset, or a refusal. */
+export type LoginState =
+  | { kind: "idle" }
+  | { kind: "sent" }
+  | { kind: "reset_sent" }
+  | { kind: "wrong" }
+  | { kind: "private_beta" }
+  | { kind: "invalid" }
+  | { kind: "error" };
 
 const text = (value: FormDataEntryValue | null): string | null =>
   typeof value === "string" ? value : null;
@@ -34,4 +50,39 @@ export async function googleAction(form: FormData): Promise<void> {
   }
   // redirect() throws, so it stays outside the try.
   redirect(url ?? "/login?error=google");
+}
+
+/**
+ * The login form's three buttons share one action, told apart by the submit button's `intent`:
+ * "password" (the default, so Enter in a field signs in), "link" and "reset". A password sign-in
+ * that works redirects, so it never returns.
+ */
+export async function loginAction(_prev: LoginState, form: FormData): Promise<LoginState> {
+  const intent = text(form.get("intent")) ?? "password";
+  const email = form.get("email");
+  const next = text(form.get("next"));
+  let destination: string | null = null;
+  try {
+    const deps = await getSignInDeps();
+    if (intent === "link") {
+      const result = await requestMagicLink(deps, { email, next });
+      return result;
+    }
+    if (intent === "reset") {
+      const result = await requestPasswordReset(deps, { email });
+      return result.kind === "sent" ? { kind: "reset_sent" } : result;
+    }
+    const result = await signInWithPassword(deps, {
+      email,
+      password: form.get("password"),
+      next,
+    });
+    if (result.kind !== "ok") return result;
+    destination = result.path;
+  } catch (error) {
+    logFailure("login action", error);
+    return { kind: "error" };
+  }
+  // redirect() throws, so it stays outside the try.
+  redirect(destination);
 }

@@ -12,6 +12,10 @@ export class FakeAuthGateway implements AuthGateway {
   signedIn: AuthUser | null = null;
   lastExchangedId: string | null = null;
   failNextSend = false;
+  failNextSignIn = false;
+  /** Passwords by email, as Supabase would hold them (hashed there). */
+  passwords = new Map<string, string>();
+  resets: Array<{ email: string; redirectTo: string }> = [];
   /** Emails with an account. Links are sent with shouldCreateUser false, so others fail. */
   existingEmails = new Set<string>();
   private seq = 0;
@@ -23,6 +27,39 @@ export class FakeAuthGateway implements AuthGateway {
     }
     if (!this.existingEmails.has(email)) throw new Error("signups not allowed for otp");
     this.magicLinks.push({ email, redirectTo });
+  }
+
+  async signInWithPassword(email: string, password: string): Promise<AuthUser | null> {
+    if (this.failNextSignIn) {
+      this.failNextSignIn = false;
+      throw new Error(`sign in failed for ${email} with ${password}`);
+    }
+    if (this.passwords.get(email) !== password) return null;
+    const known = [...this.accounts.values()].find((a) => a.email === email);
+    const user: AuthUser = known ?? {
+      id: `user-${++this.seq}`,
+      email,
+      createdAt: new Date("2026-10-01T00:00:00Z"),
+      canSignInAgain: true,
+    };
+    this.accounts.set(user.id, user);
+    this.signedIn = user;
+    return user;
+  }
+
+  async setPassword(password: string): Promise<void> {
+    if (!this.signedIn?.email) throw new Error("not signed in");
+    this.passwords.set(this.signedIn.email, password);
+    this.signedIn = { ...this.signedIn, canSignInAgain: true };
+    this.accounts.set(this.signedIn.id, this.signedIn);
+  }
+
+  async sendPasswordReset(email: string, redirectTo: string): Promise<void> {
+    if (this.failNextSend) {
+      this.failNextSend = false;
+      throw new Error(`send failed for ${email}`);
+    }
+    this.resets.push({ email, redirectTo });
   }
 
   async googleSignInUrl(redirectTo: string): Promise<string> {

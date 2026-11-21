@@ -71,6 +71,89 @@ export async function requestMagicLink(
   }
 }
 
+export type PasswordSignInResult =
+  | { kind: "ok"; path: string }
+  | { kind: "wrong" }
+  | { kind: "private_beta" }
+  | { kind: "invalid" }
+  | { kind: "error" };
+
+/**
+ * Email and password. A wrong password and an email with no account answer the same, so the form
+ * never says which emails have accounts. Supabase's own rate limits apply.
+ */
+export async function signInWithPassword(
+  deps: SignInDeps,
+  input: { email: unknown; password: unknown; next: string | null | undefined },
+): Promise<PasswordSignInResult> {
+  const parsed = Email.safeParse(input.email);
+  if (!parsed.success) return { kind: "invalid" };
+  if (!deps.isAllowed(parsed.data)) return { kind: "private_beta" };
+  if (typeof input.password !== "string" || input.password.length === 0) return { kind: "wrong" };
+  try {
+    const user = await deps.auth.signInWithPassword(parsed.data, input.password);
+    if (!user) return { kind: "wrong" };
+    return { kind: "ok", path: safeNextPath(input.next) };
+  } catch (error) {
+    logFailure("password sign in", error);
+    return { kind: "error" };
+  }
+}
+
+export type PasswordResetResult =
+  { kind: "sent" } | { kind: "private_beta" } | { kind: "invalid" } | { kind: "error" };
+
+/** The reset link signs the person in and lands on the set-password page. It never creates an account. */
+export async function requestPasswordReset(
+  deps: SignInDeps,
+  input: { email: unknown },
+): Promise<PasswordResetResult> {
+  const parsed = Email.safeParse(input.email);
+  if (!parsed.success) return { kind: "invalid" };
+  if (!deps.isAllowed(parsed.data)) return { kind: "private_beta" };
+  try {
+    await deps.auth.sendPasswordReset(parsed.data, callbackUrl(deps.siteUrl, SET_PASSWORD_PATH));
+    return { kind: "sent" };
+  } catch (error) {
+    logFailure("password reset", error);
+    return { kind: "error" };
+  }
+}
+
+export const SET_PASSWORD_PATH = "/app/password";
+export const MIN_PASSWORD_LENGTH = 10;
+/** bcrypt, which Supabase uses, ignores everything after 72 bytes. */
+export const MAX_PASSWORD_BYTES = 72;
+
+export type SetPasswordResult =
+  | { kind: "set" }
+  | { kind: "too_short" }
+  | { kind: "too_long" }
+  | { kind: "mismatch" }
+  | { kind: "same_as_email" }
+  | { kind: "error" };
+
+export async function setNewPassword(
+  auth: Pick<AuthGateway, "setPassword">,
+  user: { email: string | null },
+  form: { password: unknown; confirm: unknown },
+): Promise<SetPasswordResult> {
+  const { password, confirm } = form;
+  if (typeof password !== "string" || [...password].length < MIN_PASSWORD_LENGTH)
+    return { kind: "too_short" };
+  if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) return { kind: "too_long" };
+  if (password !== confirm) return { kind: "mismatch" };
+  if (user.email && password.trim().toLowerCase() === user.email.toLowerCase())
+    return { kind: "same_as_email" };
+  try {
+    await auth.setPassword(password);
+    return { kind: "set" };
+  } catch (error) {
+    logFailure("set password", error);
+    return { kind: "error" };
+  }
+}
+
 export async function startGoogleSignIn(
   deps: SignInDeps,
   input: { next: string | null | undefined },

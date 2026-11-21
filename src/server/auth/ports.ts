@@ -7,6 +7,11 @@ export interface AuthUser {
   id: string;
   email: string | null;
   createdAt: Date;
+  /**
+   * True when the account can come back without an email link: it has a password, or signs in
+   * with Google. Absent means not known, which is treated as true.
+   */
+  canSignInAgain?: boolean;
 }
 
 /** Sign-in token types an email link may carry. Signup, recovery and the rest are refused. */
@@ -15,6 +20,12 @@ export type EmailTokenType = "magiclink" | "email";
 /** Supabase Auth through the user's own (cookie) session. PKCE throughout. */
 export interface AuthGateway {
   sendMagicLink(email: string, redirectTo: string): Promise<void>;
+  /** Email and password. Null when they do not match an account. Throws on an outage. */
+  signInWithPassword(email: string, password: string): Promise<AuthUser | null>;
+  /** Set the signed-in user's password and mark the account as able to sign in again. */
+  setPassword(password: string): Promise<void>;
+  /** Email a reset link. Supabase sends nothing for an email with no account, and says so to no one. */
+  sendPasswordReset(email: string, redirectTo: string): Promise<void>;
   /** The provider's sign-in URL to send the browser to. */
   googleSignInUrl(redirectTo: string): Promise<string>;
   /** Exchange the code from the callback for a session. Null when the code is invalid or used. */

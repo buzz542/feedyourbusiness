@@ -156,6 +156,8 @@ its milestone's `(you)` box below.
 
 ## M1 App shell and auth
 
+_21 Nov 2026, by the founder: sign-in gains a password. A new account verifies its email with a link, accepts the terms, then sets a password (at least 10 characters, `/app/password`); after that the person signs in with email and password. The email link, Google sign-in and "Forgot your password?" stay. `src/server/auth/sign-in.ts`, `src/server/auth/credentials.ts`. Supabase's email provider must allow passwords (a dashboard setting)._
+
 ```
 /goal Milestone M1 in docs/TASKS.md is complete: every M1 box not marked (you) is ticked, `npm run check` exits 0, CI is green on the pushed branch, the compliance-reviewer and code-reviewer subagents report no blocking findings, and no file outside M1's scope changed. Or stop after 40 turns and list what is left.
 ```

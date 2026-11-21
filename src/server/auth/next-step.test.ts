@@ -17,6 +17,20 @@ describe("nextStepFor", () => {
     );
   });
 
+  it("asks for a password after the terms and before onboarding, for an account that has none", () => {
+    expect(nextStepFor({ ...ready, canSignInAgain: false })).toBe("/app/password");
+    expect(nextStepFor({ ...ready, product: null, canSignInAgain: false })).toBe("/app/password");
+    // The terms still come first.
+    expect(nextStepFor({ ...ready, termsAccepted: false, canSignInAgain: false })).toBe(
+      "/app/terms",
+    );
+  });
+
+  it("does not ask again once there is a password or a Google sign-in, or when it is not known", () => {
+    expect(nextStepFor({ ...ready, canSignInAgain: true })).toBe("/app/reply");
+    expect(nextStepFor(ready)).toBe("/app/reply");
+  });
+
   it("sends someone with no product to onboarding", () => {
     expect(nextStepFor({ ...ready, product: null })).toBe("/app/onboarding");
   });
