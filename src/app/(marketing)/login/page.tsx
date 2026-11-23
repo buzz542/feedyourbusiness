@@ -7,8 +7,6 @@ export const metadata: Metadata = { title: "Sign in" };
 const ERRORS: Record<string, string> = {
   link: "That sign-in link did not work. It may have expired or been used already, or been opened in a different browser from the one where you asked for it. Ask for a new one below.",
   private_beta: "AskedFor is in private beta. Sign-in is open to invited people only for now.",
-  google: "Google sign-in did not start. Try again, or use an email link.",
-  first_time: "The first time you sign in, use an email link. Google sign-in works after that.",
 };
 
 export default async function LoginPage({
@@ -25,9 +23,8 @@ export default async function LoginPage({
     <>
       <h1 className="font-serif text-3xl tracking-tight">Sign in</h1>
       <p className="mt-4 max-w-prose text-muted">
-        Sign in with your email and password, or use your Google account. New here? Enter your email
-        and ask for a sign-in link. That confirms your email, and then we ask you to confirm your
-        age, accept the{" "}
+        Sign in with your email and password. New here? Enter your email and ask for a sign-in link.
+        That confirms your email, and then we ask you to confirm your age, accept the{" "}
         <Link href="/terms" className="underline underline-offset-4">
           Terms
         </Link>{" "}

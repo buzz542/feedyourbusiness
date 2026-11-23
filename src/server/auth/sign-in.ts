@@ -4,10 +4,10 @@ import { DEFAULT_NEXT_PATH, safeNextPath } from "./next-path";
 import type { AccountAdmin, AuthGateway, AuthUser, EmailTokenType, TermsStore } from "./ports";
 
 /**
- * Sign-in (docs/PLAN.md 4.3, 12.1, 12.10): magic link or Google, PKCE, and the pre-launch
+ * Sign-in (docs/PLAN.md 4.3, 12.1, 12.10): email link or password, PKCE, and the pre-launch
  * allowlist. Until launch, Supabase has new sign-ups turned off (F5), so Supabase itself refuses
  * an account for anyone we have not created. The server creates one only for an allowed email,
- * then sends the link. Google sign-in works once that account exists. As a second line of defense
+ * then sends the link. As a second line of defense
  * the callback signs out any account off the list, and deletes it only when it was created in the
  * last 10 minutes and never used, so a real tester dropped from the list by mistake keeps their data.
  */
@@ -30,7 +30,6 @@ export const LOGIN_PATH = "/login";
 export const CALLBACK_PATH = "/auth/callback";
 export const LINK_ERROR_PATH = `${LOGIN_PATH}?error=link`;
 export const PRIVATE_BETA_PATH = `${LOGIN_PATH}?error=private_beta`;
-export const FIRST_TIME_PATH = `${LOGIN_PATH}?error=first_time`;
 
 /** An unused account this new, off the allowlist, was made by the sign-in being refused. */
 const FRESH_ACCOUNT_MS = 10 * 60 * 1000;
@@ -154,21 +153,6 @@ export async function setNewPassword(
   }
 }
 
-export async function startGoogleSignIn(
-  deps: SignInDeps,
-  input: { next: string | null | undefined },
-): Promise<{ kind: "redirect"; url: string } | { kind: "error" }> {
-  try {
-    return {
-      kind: "redirect",
-      url: await deps.auth.googleSignInUrl(callbackUrl(deps.siteUrl, input.next)),
-    };
-  } catch (error) {
-    logFailure("google start", error);
-    return { kind: "error" };
-  }
-}
-
 /** Handle `/auth/callback`. Returns the path to redirect to. */
 export async function completeSignIn(
   deps: SignInDeps,
@@ -178,13 +162,8 @@ export async function completeSignIn(
     /** An email link's token hash and type (Supabase's email-link flow), instead of a code. */
     tokenHash?: string | null;
     type?: string | null;
-    /** Supabase's error_code on a failed redirect, if any. */
-    errorCode?: string | null;
   },
 ): Promise<string> {
-  // With sign-ups off, Google refuses an account we have not created: an email link comes first.
-  if (input.errorCode === "signup_disabled") return FIRST_TIME_PATH;
-
   let user: AuthUser | null;
   try {
     if (input.code) {

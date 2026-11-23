@@ -11,8 +11,8 @@ import { hasLiveSubscription, isEntitled } from "@/server/billing/subscription";
 export interface AccountState {
   termsAccepted: boolean;
   /**
-   * The account has a password or signs in with Google, so it can come back without an email
-   * link. Absent means not known, which counts as true.
+   * The account has set a password, so it can come back without an email link. Absent means
+   * not known, which counts as true.
    */
   canSignInAgain?: boolean;
   product: { status: string } | null;

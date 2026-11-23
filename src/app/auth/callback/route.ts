@@ -6,7 +6,7 @@ import { guard } from "@/server/http/respond";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** PKCE callback for magic links and Google (docs/PLAN.md 12.1). */
+/** PKCE callback for email links and password resets (docs/PLAN.md 12.1). */
 export async function GET(request: Request) {
   return guard(async () => {
     const deps = await getSignInDeps();
@@ -16,7 +16,6 @@ export async function GET(request: Request) {
       next: params.get("next"),
       tokenHash: params.get("token_hash"),
       type: params.get("type"),
-      errorCode: params.get("error_code"),
     });
     // `path` is always a relative path chosen by completeSignIn, never user input as-is.
     return NextResponse.redirect(new URL(path, deps.siteUrl), 303);

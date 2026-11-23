@@ -46,13 +46,12 @@ describe("privacy notice", () => {
     expect(privacy).toMatch(/keeps the snapshots it delivers to us (for|will be stated)/);
   });
 
-  it("says retention by source, the removal form, the ICO, and the Google sign-in records", () => {
+  it("says retention by source, the removal form, and the ICO", () => {
     expect(privacy).toContain(
       "Reddit posts are deleted from AskedFor 7 days after we collect them",
     );
     expect(privacy).toContain("remove my post form");
     expect(privacy).toContain("Information Commissioner");
-    expect(privacy).toContain("Google account name and picture address");
   });
 });
 

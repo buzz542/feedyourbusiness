@@ -7,7 +7,6 @@ import {
   requestMagicLink,
   requestPasswordReset,
   signInWithPassword,
-  startGoogleSignIn,
 } from "@/server/auth/sign-in";
 
 export type LinkState = { kind: "idle" } | MagicLinkResult;
@@ -38,18 +37,6 @@ export async function sendLinkAction(_prev: LinkState, form: FormData): Promise<
     logFailure("magic link action", error);
     return { kind: "error" };
   }
-}
-
-export async function googleAction(form: FormData): Promise<void> {
-  let url: string | null = null;
-  try {
-    const result = await startGoogleSignIn(await getSignInDeps(), { next: text(form.get("next")) });
-    if (result.kind === "redirect") url = result.url;
-  } catch (error) {
-    logFailure("google action", error);
-  }
-  // redirect() throws, so it stays outside the try.
-  redirect(url ?? "/login?error=google");
 }
 
 /**

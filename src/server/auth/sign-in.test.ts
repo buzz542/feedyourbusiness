@@ -10,7 +10,6 @@ import {
   requestPasswordReset,
   setNewPassword,
   signInWithPassword,
-  startGoogleSignIn,
 } from "./sign-in";
 import { parseAllowlist } from "./allowlist";
 
@@ -101,18 +100,6 @@ describe("requestMagicLink", () => {
   });
 });
 
-describe("startGoogleSignIn", () => {
-  it("returns the provider URL with the callback as the redirect", async () => {
-    const result = await startGoogleSignIn(deps, { next: "/app/build" });
-    expect(result).toEqual({
-      kind: "redirect",
-      url: `https://auth.example.test/google?redirect_to=${encodeURIComponent(
-        `${SITE}/auth/callback?next=${encodeURIComponent("/app/build")}`,
-      )}`,
-    });
-  });
-});
-
 describe("completeSignIn", () => {
   it("exchanges the code and goes to the safe next path", async () => {
     auth.pendingCodes.set("code-1", { email: "founder@example.test", createdAt: NOW });
@@ -178,13 +165,7 @@ describe("completeSignIn", () => {
     },
   );
 
-  it("explains a refused first Google sign-in while Supabase sign-ups are off", async () => {
-    expect(
-      await completeSignIn(deps, { code: null, next: null, errorCode: "signup_disabled" }),
-    ).toBe("/login?error=first_time");
-  });
-
-  it("an account Google just created for an email not on the allowlist is deleted at once", async () => {
+  it("an account a refused sign-in just created for an email not on the allowlist is deleted at once", async () => {
     auth.pendingCodes.set("code-2", {
       email: "stranger@example.test",
       createdAt: new Date(NOW.getTime() - 30_000),

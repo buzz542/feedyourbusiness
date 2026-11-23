@@ -226,6 +226,39 @@ describe("checkout", () => {
     expect(text).not.toContain("sk_test");
     expect(text).toContain("billing_unavailable");
   });
+
+  it("logs Stripe's error type, code and parameter, so a refusal can be diagnosed, and never its message", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    stripe.createCheckoutSession = async () => {
+      throw Object.assign(new Error("No such price: 'price_secret'; customer maker@example.test"), {
+        type: "StripeInvalidRequestError",
+        code: "parameter_invalid_empty",
+        param: "managed_payments",
+        statusCode: 400,
+      });
+    };
+    const response = await createCheckoutHandler(deps())(post("/x", { consent: true }));
+    expect(response.status).toBe(500);
+    const logged = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(logged).toContain("StripeInvalidRequestError");
+    expect(logged).toContain("parameter_invalid_empty");
+    expect(logged).toContain("managed_payments");
+    expect(logged).not.toContain("price_secret");
+    expect(logged).not.toContain("maker@example.test");
+    spy.mockRestore();
+  });
+
+  it("logs a plain error as its class only", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    stripe.createCheckoutSession = async () => {
+      throw new Error("secret detail");
+    };
+    await createCheckoutHandler(deps())(post("/x", { consent: true }));
+    const logged = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(logged).toContain("checkout failed: Error");
+    expect(logged).not.toContain("secret detail");
+    spy.mockRestore();
+  });
 });
 
 describe("portal", () => {

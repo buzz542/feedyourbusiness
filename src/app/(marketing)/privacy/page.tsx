@@ -71,10 +71,6 @@ export default function Page() {
           card; we never see it.
         </p>
         <p>
-          If you sign in with Google, Supabase keeps your Google account name and picture address in
-          its sign-in records. AskedFor never reads them.
-        </p>
-        <p>
           If you set a password, Supabase stores it as a salted hash, never as the password itself.
           We cannot read it.
         </p>

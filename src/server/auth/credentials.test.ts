@@ -8,16 +8,9 @@ describe("canSignInAgain", () => {
     expect(canSignInAgain({ user_metadata: { [PASSWORD_SET_KEY]: true } })).toBe(true);
   });
 
-  it("is true for an account that signs in with Google", () => {
-    expect(canSignInAgain({ app_metadata: { providers: ["email", "google"] } })).toBe(true);
-    expect(canSignInAgain({ app_metadata: { provider: "google" } })).toBe(true);
-  });
-
   it("is false for an email-link account that has not set a password", () => {
     expect(canSignInAgain({})).toBe(false);
-    expect(canSignInAgain({ app_metadata: { providers: ["email"] }, user_metadata: {} })).toBe(
-      false,
-    );
+    expect(canSignInAgain({ user_metadata: {} })).toBe(false);
   });
 
   it("needs the flag to be exactly true, not a truthy string", () => {

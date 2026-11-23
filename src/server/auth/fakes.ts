@@ -4,7 +4,7 @@ import type { AccountAdmin, AuthGateway, AuthUser, TermsStore } from "./ports";
 
 export class FakeAuthGateway implements AuthGateway {
   magicLinks: Array<{ email: string; redirectTo: string }> = [];
-  /** Codes the callback can exchange, as Supabase would issue after a link or Google sign-in. */
+  /** Codes the callback can exchange, as Supabase would issue after an email link. */
   pendingCodes = new Map<string, { email: string | null; createdAt: Date }>();
   /** Token hashes from email links, as Supabase's admin generateLink returns them. */
   pendingTokenHashes = new Map<string, { email: string | null; createdAt: Date }>();
@@ -60,10 +60,6 @@ export class FakeAuthGateway implements AuthGateway {
       throw new Error(`send failed for ${email}`);
     }
     this.resets.push({ email, redirectTo });
-  }
-
-  async googleSignInUrl(redirectTo: string): Promise<string> {
-    return `https://auth.example.test/google?redirect_to=${encodeURIComponent(redirectTo)}`;
   }
 
   async exchangeCode(code: string): Promise<AuthUser | null> {

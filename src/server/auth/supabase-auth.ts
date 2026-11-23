@@ -54,14 +54,6 @@ export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw new SupabaseAuthError(error.code);
     },
-    async googleSignInUrl(redirectTo) {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo, skipBrowserRedirect: true },
-      });
-      if (error || !data.url) throw new SupabaseAuthError(error?.code);
-      return data.url;
-    },
     async exchangeCode(code) {
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error || !data.user) return null;
@@ -90,7 +82,7 @@ const ALREADY_EXISTS = new Set(["email_exists", "user_already_exists"]);
 export function createSupabaseAccountAdmin(): AccountAdmin {
   return {
     async ensureUser(email) {
-      // Confirmed, so Google sign-in links to this account. Only allowlisted emails reach here.
+      // Confirmed, so the email link signs in. Only allowed emails reach here.
       const { error } = await createSupabaseAdminClient().auth.admin.createUser({
         email,
         email_confirm: true,

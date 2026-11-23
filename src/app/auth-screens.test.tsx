@@ -33,7 +33,7 @@ describe("the sign-in form", () => {
     expect(intents.slice(0, 3)).toEqual(["password", "link", "reset"]);
     for (const text of ["Sign in", "Email me a sign-in link", "Forgot your password?"])
       expect(html).toContain(text);
-    expect(html).toContain("Continue with Google");
+    expect(html).not.toContain("Google");
   });
 
   it("lets the link and reset buttons skip the browser checks, so an empty password does not block them", async () => {

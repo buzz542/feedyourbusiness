@@ -8,8 +8,8 @@ export interface AuthUser {
   email: string | null;
   createdAt: Date;
   /**
-   * True when the account can come back without an email link: it has a password, or signs in
-   * with Google. Absent means not known, which is treated as true.
+   * True when the account can come back without an email link: it has set a password. Absent
+   * means not known, which is treated as true.
    */
   canSignInAgain?: boolean;
 }
@@ -26,8 +26,6 @@ export interface AuthGateway {
   setPassword(password: string): Promise<void>;
   /** Email a reset link. Supabase sends nothing for an email with no account, and says so to no one. */
   sendPasswordReset(email: string, redirectTo: string): Promise<void>;
-  /** The provider's sign-in URL to send the browser to. */
-  googleSignInUrl(redirectTo: string): Promise<string>;
   /** Exchange the code from the callback for a session. Null when the code is invalid or used. */
   exchangeCode(code: string): Promise<AuthUser | null>;
   /** Verify a sign-in token hash from an email link. Null when it is invalid or used. */

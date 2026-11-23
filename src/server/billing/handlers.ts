@@ -27,10 +27,32 @@ export interface BillingDeps {
 
 type Handler = (request: Request) => Promise<Response>;
 
-/** Log the error class only. Never log request bodies, emails or Stripe payloads. */
+/** A short token: letters, digits, dots, underscores, brackets and dashes, so it can carry no free text. */
+const SAFE_TOKEN = /^[A-Za-z0-9_.[\]-]{1,80}$/;
+
+/**
+ * What Stripe's own errors say about a refusal, without the message (which can echo ids or an
+ * email): the error type, its code and the parameter it objects to, each kept only when it is a
+ * short token. Enough to tell "managed_payments is not enabled" from "no such price".
+ */
+function stripeDetail(error: unknown): string {
+  if (typeof error !== "object" || error === null) return "";
+  const read = (key: string): string | null => {
+    const value = (error as Record<string, unknown>)[key];
+    return typeof value === "string" && SAFE_TOKEN.test(value) ? value : null;
+  };
+  const parts = [
+    ["type", read("type")],
+    ["code", read("code")],
+    ["param", read("param")],
+  ].filter((part): part is [string, string] => part[1] !== null);
+  return parts.length ? ` (${parts.map(([k, v]) => `${k} ${v}`).join(", ")})` : "";
+}
+
+/** Log the error class, and Stripe's type, code and parameter. Never request bodies, emails or payloads. */
 function fail(route: string, error: unknown): Response {
   const name = error instanceof Error ? error.name : "UnknownError";
-  console.error(`[billing] ${route} failed: ${name}`);
+  console.error(`[billing] ${route} failed: ${name}${stripeDetail(error)}`);
   const status = error instanceof BillingError ? 502 : 500;
   return json(status, { error: "billing_unavailable" });
 }

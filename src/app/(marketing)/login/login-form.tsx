@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { googleAction, type LoginState, loginAction } from "./actions";
+import { type LoginState, loginAction } from "./actions";
 
 const MESSAGES: Record<Exclude<LoginState["kind"], "idle">, string> = {
   sent: "Check your email for a sign-in link. Open it in this browser.",
@@ -79,19 +79,6 @@ export function LoginForm({ next }: { next: string | null }) {
         <p role="status" aria-live="polite" className="min-h-6 text-sm">
           {state.kind === "idle" ? "" : MESSAGES[state.kind]}
         </p>
-      </form>
-
-      <div className="flex items-center gap-3 text-sm text-muted" aria-hidden="true">
-        <span className="h-px flex-1 bg-rule" />
-        or
-        <span className="h-px flex-1 bg-rule" />
-      </div>
-
-      <form action={googleAction}>
-        {next ? <input type="hidden" name="next" value={next} /> : null}
-        <Button type="submit" variant="secondary" className="w-full">
-          Continue with Google
-        </Button>
       </form>
     </div>
   );

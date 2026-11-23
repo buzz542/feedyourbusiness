@@ -26,7 +26,7 @@ describe("nextStepFor", () => {
     );
   });
 
-  it("does not ask again once there is a password or a Google sign-in, or when it is not known", () => {
+  it("does not ask again once there is a password, or when it is not known", () => {
     expect(nextStepFor({ ...ready, canSignInAgain: true })).toBe("/app/reply");
     expect(nextStepFor(ready)).toBe("/app/reply");
   });
