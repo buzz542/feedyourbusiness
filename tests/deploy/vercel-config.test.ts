@@ -114,9 +114,12 @@ describe("vercel.json", () => {
     const crons = config.crons ?? [];
     expect(crons.length).toBeGreaterThan(0);
     for (const cron of crons) {
-      const hourlyOnPro =
-        cron.path === "/api/cron/trial-reminders" && REMINDER_CRON_PERIOD_HOURS === 1;
-      expect(runsAtMostDaily(cron.schedule) || hourlyOnPro, cron.schedule).toBe(true);
+      // Only these two run more than daily, and only on Pro (live billing and collection need both).
+      const frequentOnPro =
+        (cron.path === "/api/cron/trial-reminders" &&
+          (REMINDER_CRON_PERIOD_HOURS as number) === 1) ||
+        cron.path === "/api/cron/tick";
+      expect(runsAtMostDaily(cron.schedule) || frequentOnPro, cron.schedule).toBe(true);
     }
   });
 
@@ -143,11 +146,13 @@ describe("vercel.json", () => {
 });
 
 describe("Node version", () => {
-  it("schedules the job routes daily and keeps the tick route unscheduled (D6)", () => {
-    const paths = (config.crons ?? []).map((c) => c.path);
+  it("schedules the daily and weekly jobs daily, and the tick every 10 minutes on Pro (D6)", () => {
+    const crons = config.crons ?? [];
+    const paths = crons.map((c) => c.path);
     expect(paths).toContain("/api/cron/daily");
     expect(paths).toContain("/api/cron/weekly");
-    expect(paths).not.toContain("/api/cron/tick");
+    // Without it a first run, or any follow-up run, waits for the next daily job.
+    expect(crons.find((c) => c.path === "/api/cron/tick")?.schedule).toBe("*/10 * * * *");
     for (const route of ["daily", "tick", "weekly"]) {
       const code = readFileSync(`src/app/api/cron/${route}/route.ts`, "utf8");
       expect(code, route).toContain("isCronAuthorized(request, process.env.CRON_SECRET)");

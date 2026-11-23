@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-/** Every 10 minutes once the founder confirms Vercel Pro (F2): advance due jobs, such as a pending vendor run. Not scheduled on Hobby. */
+/** Every 10 minutes on Vercel Pro: advance due jobs, such as a first run or a pending vendor run. */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request, process.env.CRON_SECRET))
     return json(401, { error: "unauthorized" });
