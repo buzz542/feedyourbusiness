@@ -40,8 +40,15 @@ describe("createCheckoutSession", () => {
     );
   });
 
-  it("shows the price, renewal and cancellation terms on the payment page", async () => {
+  it("never sends custom_text with Managed Payments, which Stripe refuses (the 23 Nov 2026 live failure)", async () => {
     await create();
+    const params = stripe.checkoutCalls[0]!;
+    expect(params.managed_payments).toEqual({ enabled: true });
+    expect(params).not.toHaveProperty("custom_text");
+  });
+
+  it("shows the price, renewal and cancellation terms on the payment page, where Stripe allows custom text", async () => {
+    await create({ config: { ...TEST_CONFIG, managedPayments: false } });
     const submit = stripe.checkoutCalls[0]!.custom_text?.submit;
     const message = submit && typeof submit === "object" ? (submit.message ?? "") : "";
 

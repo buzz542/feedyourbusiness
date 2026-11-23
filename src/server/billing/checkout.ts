@@ -104,7 +104,10 @@ export async function createCheckoutSession(args: {
     },
     client_reference_id: user.id,
     metadata: { user_id: user.id },
-    custom_text: { submit: { message: terms } },
+    // Stripe refuses custom_text with Managed Payments ("You cannot use custom_text with Managed
+    // Payments", live, 23 Nov 2026). The same terms are on /app/billing before the button, beside
+    // the consent box, and Stripe's own page states the amounts.
+    ...(config.managedPayments ? {} : { custom_text: { submit: { message: terms } } }),
     allow_promotion_codes: false,
     success_url: `${config.siteUrl}${BILLING_PATHS.checkoutSuccess}`,
     cancel_url: `${config.siteUrl}${BILLING_PATHS.checkoutCanceled}`,
