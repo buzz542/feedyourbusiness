@@ -821,6 +821,23 @@ describe("paid sources are never charged twice and never go unrecorded (review)"
     });
   });
 
+  it("charges nothing when the vendor refuses the request with a 4xx: nothing ran, so nothing was billed", async () => {
+    const src = paid({
+      start: vi.fn(async () => {
+        throw Object.assign(new Error("refused"), { name: "Http400" });
+      }),
+    });
+    const { store, budget, handlers } = setupPaid(src);
+    await enqueueX(store);
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(ledger(budget)).toBe(0);
+    expect(store.jobs[0]!.payload).toMatchObject({
+      result: "source_failed",
+      errorClass: "Http400",
+    });
+  });
+
   it("counts the whole reservation when a paid run crashed after it was reserved", async () => {
     const src = paid({
       start: vi.fn(async (): Promise<RunState> => {

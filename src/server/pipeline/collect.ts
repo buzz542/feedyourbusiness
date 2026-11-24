@@ -180,7 +180,10 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       // A paid source that throws may have read and billed already: count the whole reservation
       // and end, rather than retry into a second bill.
       if (!paid) throw error;
-      await deps.budget.settle(job.id, reservedUnits, reservedUnits * unitCost);
+      // A 4xx from the vendor (not 429) refused the request before any work: nothing was billed.
+      const refused = error instanceof Error && /^Http4(?!29)\d\d$/.test(error.name);
+      const billed = refused ? 0 : reservedUnits;
+      await deps.budget.settle(job.id, billed, billed * unitCost);
       return { status: "done", payload: { result: "source_failed", errorClass: errorName(error) } };
     }
 
