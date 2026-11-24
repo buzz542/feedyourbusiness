@@ -221,6 +221,17 @@ export function applyConditions<T extends FilterBuilder<T>>(query: T, conditions
   return q;
 }
 
+/**
+ * The Reply feed's order (the founder, 24 Nov 2026): newest post first, so each day's new posts
+ * come to the top. The match score is shown on each card, not used to sort. Ties: the time we
+ * found it, then id. The database test (tests/db/feed.test.ts) uses the same order.
+ */
+export const FEED_ORDER = [
+  { column: "posted_at", ascending: false },
+  { column: "created_at", ascending: false },
+  { column: "id", ascending: true },
+] as const;
+
 export const FEED_COLUMNS =
   "id, state, relevance, category, reason, created_at, highlight_start, highlight_end, competitor_id, tool_mentioned, switching, source, url, excerpt, posted_at, community";
 

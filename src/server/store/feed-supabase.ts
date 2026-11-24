@@ -5,6 +5,7 @@ import { FEED_VIEWS, type ViewCounts } from "@/lib/feed-views";
 import {
   applyConditions,
   FEED_COLUMNS,
+  FEED_ORDER,
   feedConditions,
   PAGE_SIZE,
   parseFeedParams,
@@ -19,7 +20,7 @@ class FeedLoadError extends Error {
 
 /**
  * The Reply feed through the signed-in user's client (RLS applies). Sorted by match score, then
- * newest (4.4); "Load more" widens the page, so a bookmarked page shows the same cards. `total`
+ * newest (FEED_ORDER); "Load more" widens the page, so a bookmarked page shows the same cards. `total`
  * counts the whole view with the filters applied.
  */
 export async function loadFeed(
@@ -33,9 +34,9 @@ export async function loadFeed(
   const conditions = feedConditions(productId, filter, filter.view, now, defaultMin);
   const [rows, total] = await Promise.all([
     applyConditions(client.from("feed_items").select(FEED_COLUMNS), conditions)
-      .order("relevance", { ascending: false })
-      .order("created_at", { ascending: false })
-      .order("id")
+      .order(FEED_ORDER[0].column, { ascending: FEED_ORDER[0].ascending })
+      .order(FEED_ORDER[1].column, { ascending: FEED_ORDER[1].ascending })
+      .order(FEED_ORDER[2].column, { ascending: FEED_ORDER[2].ascending })
       .range(0, limit),
     applyConditions(
       client.from("feed_items").select("id", { count: "exact", head: true }),

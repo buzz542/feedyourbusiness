@@ -354,7 +354,7 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
 - **Filters:** category (Looking for a tool, Pain point, Mentions you, Mentions a rival, Wish), source
   (Reddit, Hacker News, Bluesky, X when on), rival, minimum match (40 to 95, default from the product),
   and text search within excerpts. Filters live in the URL so a view can be bookmarked.
-- **Sort:** match score, then newest.
+- **Sort:** newest first, by when the post was written, then when we found it (the founder, 24 Nov 2026; the match score shows on each card and no longer sorts the feed).
 - **Card:** source and community ("Reddit · r/SaaS", "Hacker News", "Bluesky"), age ("3h"), category tag,
   match score, the excerpt with the highlighter mark over the words that ask for something, "Why it
   matched" (the classifier's one-line reason), rival chip when one is mentioned, and actions: Open post (new
@@ -830,15 +830,15 @@ one source can never call another source's host. Registry tests to add: vendor s
 
 ### 7.2 Jobs
 
-| Job             | When                                            | What                                                                                |
-| --------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 60 minutes), filter, classify, ingest |
-| `first_run`     | once, right after checkout                      | like `collect` for every source, 7-day window, twice the daily budget               |
-| `deletion_sync` | daily, per source                               | Hacker News and Bluesky existence checks; X compliance (7.6)                        |
-| `purge`         | every tick on Pro (daily on Hobby)              | `purge_expired(now)`                                                                |
-| `synthesize`    | Sunday 21:00 UTC                                | Build and Rivals synthesis per product with 5 or more relevant posts that week      |
-| `digest_daily`  | daily, 08:00 Europe/London                      | daily posts email to opted-in users with new posts                                  |
-| `digest_weekly` | Monday, 08:00 Europe/London                     | Monday digest                                                                       |
+| Job             | When                                            | What                                                                                                     |
+| --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 60 minutes), filter, classify, ingest                      |
+| `first_run`     | once, right after checkout                      | like `collect` for every source, 30-day window (the founder, 24 Nov 2026; was 7), twice the daily budget |
+| `deletion_sync` | daily, per source                               | Hacker News and Bluesky existence checks; X compliance (7.6)                                             |
+| `purge`         | every tick on Pro (daily on Hobby)              | `purge_expired(now)`                                                                                     |
+| `synthesize`    | Sunday 21:00 UTC                                | Build and Rivals synthesis per product with 5 or more relevant posts that week                           |
+| `digest_daily`  | daily, 08:00 Europe/London                      | daily posts email to opted-in users with new posts                                                       |
+| `digest_weekly` | Monday, 08:00 Europe/London                     | Monday digest                                                                                            |
 
 The runner (`src/server/pipeline/runner.ts`) claims up to 10 jobs with `claim_jobs`, runs each step under a
 time budget (240 of the 300 seconds a function may run), and finishes or reschedules it. Every step is

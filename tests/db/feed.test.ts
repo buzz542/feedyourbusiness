@@ -37,6 +37,8 @@ interface Seed {
   category: string;
   source: string;
   createdAt: Date;
+  /** When the original post was written: the feed's order (newest first). */
+  postedAt: Date;
   competitorId: string | null;
   excerpt: string;
 }
@@ -54,7 +56,7 @@ async function read(productId: string, filter: FeedFilter, view: FeedView = filt
     async () =>
       (
         await db.query<{ id: string }>(
-          `select id from public.feed_items where ${where} order by relevance desc, created_at desc, id`,
+          `select id from public.feed_items where ${where} order by posted_at desc, created_at desc, id`,
           params,
         )
       ).rows,
@@ -81,7 +83,7 @@ function expected(filter: FeedFilter, view: FeedView = filter.view) {
     })
     .sort(
       (a, b) =>
-        b.relevance - a.relevance ||
+        b.postedAt.getTime() - a.postedAt.getTime() ||
         b.createdAt.getTime() - a.createdAt.getTime() ||
         (a.id < b.id ? -1 : 1),
     )
@@ -110,6 +112,7 @@ beforeAll(async () => {
   await withRole(db, "service_role", null, async () => {
     for (let i = 0; i < 230; i++) {
       const source = FEED_SOURCES[i % 4]!;
+      const postedAt = new Date(now.getTime() - ((i * 37) % (30 * 24)) * HOUR - 60_000);
       const excerpt =
         i % 3 === 0 ? `Need a 100% better invoice tool, post ${i}` : `Unrelated chatter ${i}`;
       const post = await one<{ id: string }>(
@@ -122,7 +125,7 @@ beforeAll(async () => {
             ? `https://www.reddit.com/r/SaaS/comments/invented${i}/`
             : `https://news.ycombinator.com/item?id=invented-${i}`,
           excerpt,
-          new Date(now.getTime() - 50 * HOUR).toISOString(),
+          postedAt.toISOString(),
           `hash-${i}`,
           source === "reddit" ? "r/SaaS" : null,
           now.toISOString(),
@@ -136,6 +139,8 @@ beforeAll(async () => {
         category: CATEGORIES[i % 5]!,
         source,
         createdAt: new Date(now.getTime() - (i % 48) * HOUR - 60_000),
+        // Spread over a month, so newest-first means something.
+        postedAt,
         competitorId: owner === alice && i % 10 === 0 ? rival : null,
         excerpt,
       };

@@ -98,6 +98,16 @@ export async function settleAbandoned(budget: BudgetStore, job: Job): Promise<vo
 
 const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 
+/**
+ * How far back a run reads (the founder, 24 Nov 2026): a new product's first run reads a month, so
+ * the feed starts full; a daily run reads the last 48 hours. Retention still applies: posts are
+ * deleted 7 or 30 days after we collect them (D4), whatever their age when read.
+ */
+export const FIRST_RUN_WINDOW_HOURS = 30 * 24;
+export const DAILY_WINDOW_HOURS = 48;
+export const collectWindowHours = (firstRun: boolean): number =>
+  firstRun ? FIRST_RUN_WINDOW_HOURS : DAILY_WINDOW_HOURS;
+
 export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
   const readEnv = deps.credential ?? ((name: string) => process.env[name]);
 
@@ -155,7 +165,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     const ctx: CollectContext = {
       fetch: deps.fetchFor(source),
       terms: terms ?? [],
-      since: new Date(now().getTime() - (firstRun ? 7 * 24 : 48) * HOUR),
+      since: new Date(now().getTime() - collectWindowHours(firstRun) * HOUR),
       budget: units,
       now: now(),
       userAgent: deps.userAgent,
