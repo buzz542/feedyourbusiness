@@ -114,8 +114,8 @@ describe("reddit source", () => {
     expect(headers.get("authorization")).toBe("Bearer test-token");
     expect(headers.get("user-agent")).toMatch(/AskedFor/);
     expect(JSON.parse(String(init!.body))).toEqual([
-      { keyword: "invoice reminders", date: "Past week", num_of_posts: 20, sort_by: "New" },
-      { keyword: "late fees", date: "Past week", num_of_posts: 20, sort_by: "New" },
+      { keyword: "invoice reminders", date: "Past week", num_of_posts: 20 },
+      { keyword: "late fees", date: "Past week", num_of_posts: 20 },
     ]);
   });
 

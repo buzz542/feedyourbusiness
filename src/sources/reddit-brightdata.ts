@@ -13,7 +13,7 @@ import type { CollectContext } from "./types";
  * - github.com/brightdata/sdk-python (commit 1fc5aa8, 12 Aug 2026): Reddit posts dataset
  *   gd_lvz8ah06191smkebj4; keyword discovery is type=discover_new&discover_by=keyword with inputs
  *   keyword, date ("All time", "Past year", "Past month", "Past week", "Past 24 hours",
- *   "Past hour"), num_of_posts and sort_by ("Hot", "Top", "New", "Rising"); trigger
+ *   "Past hour"), num_of_posts; trigger
  *   POST /datasets/v3/trigger?dataset_id=...&include_errors=true with the input array as the body,
  *   answering { snapshot_id }; GET /datasets/v3/progress/<id> answering { status };
  *   GET /datasets/v3/snapshot/<id>?format=json, which answers 202 while the data is still building.
@@ -336,7 +336,6 @@ export const brightdataProvider: RedditProvider = {
       keyword: q.keyword,
       date: dateFilterFor(q.windowHours),
       num_of_posts: q.limit,
-      sort_by: "New",
     }));
     const params = new URLSearchParams({
       dataset_id: datasetId,
