@@ -330,6 +330,24 @@ function checkCronSecret(env: Env): CheckResult {
   return { status: "ok" };
 }
 
+/**
+ * The author-hash pepper (docs/PLAN.md 12.5): collection refuses to run without 32 or more
+ * characters and the .env.example value is refused, so a bad one here means no posts are collected.
+ * Only the length is checked, never shown.
+ */
+function checkAuthorPepper(env: Env): CheckResult {
+  const pepper = env.AUTHOR_HASH_PEPPER;
+  if (!pepper) return { status: "missing", detail: "AUTHOR_HASH_PEPPER" };
+  if (PLACEHOLDER.test(pepper)) return placeholderResult(["AUTHOR_HASH_PEPPER"]);
+  if (pepper.length < 32) {
+    return {
+      status: "invalid",
+      detail: "AUTHOR_HASH_PEPPER must be 32 or more characters, or no posts are collected",
+    };
+  }
+  return { status: "ok" };
+}
+
 export async function runHealthChecks(deps: HealthDeps): Promise<HealthReport> {
   const timeoutMs = deps.timeoutMs ?? 8000;
   const now = (deps.now ?? (() => new Date()))();
@@ -354,6 +372,7 @@ export async function runHealthChecks(deps: HealthDeps): Promise<HealthReport> {
     stripe_webhook: stripeWebhook,
     email: checkEmail(env),
     cron_secret: checkCronSecret(env),
+    author_pepper: checkAuthorPepper(env),
     sources: checkSources(env),
   };
   return {

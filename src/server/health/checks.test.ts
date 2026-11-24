@@ -12,6 +12,7 @@ const SECRETS = {
   STRIPE_WEBHOOK_SECRET: "whsec_supersecretvalue",
   RESEND_API_KEY: "re_supersecretvalue",
   CRON_SECRET,
+  AUTHOR_HASH_PEPPER: "a-long-random-author-pepper-of-over-32-chars",
 };
 
 const GOOD_ENV = {
@@ -80,6 +81,7 @@ describe("runHealthChecks", () => {
       expect(check.status, name).toBe("ok");
     expect(Object.keys(report.checks).sort()).toEqual(
       [
+        "author_pepper",
         "cron_secret",
         "email",
         "site_url",
@@ -122,6 +124,31 @@ describe("runHealthChecks", () => {
     it("asks for 32 or more characters", async () => {
       const report = await runHealthChecks(deps({ env: withEnv({ CRON_SECRET: "x".repeat(20) }) }));
       expect(report.checks.cron_secret?.status).toBe("invalid");
+    });
+  });
+
+  describe("author_pepper", () => {
+    const pepper = (value: string | undefined) =>
+      runHealthChecks(deps({ env: withEnv({ AUTHOR_HASH_PEPPER: value }) }));
+
+    it("is ok for 32 or more characters", async () => {
+      expect((await pepper("p".repeat(32))).checks.author_pepper?.status).toBe("ok");
+    });
+
+    it("is missing when unset, and invalid under 32 characters or when it is the placeholder", async () => {
+      expect((await pepper(undefined)).checks.author_pepper?.status).toBe("missing");
+      for (const value of ["p".repeat(31), "replace_me_with_a_long_random_string_ok_32"]) {
+        const report = await pepper(value);
+        expect(report.checks.author_pepper?.status).toBe("invalid");
+        expect(report.ok).toBe(false);
+      }
+    });
+
+    it("says why collection stops, and never echoes the value", async () => {
+      const report = await pepper("short-secret-value");
+      expect(report.checks.author_pepper?.detail).toContain("AUTHOR_HASH_PEPPER");
+      expect(report.checks.author_pepper?.detail).toContain("32");
+      expect(JSON.stringify(report)).not.toContain("short-secret-value");
     });
   });
 
