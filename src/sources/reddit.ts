@@ -220,6 +220,7 @@ export const reddit: CollectSource = {
   credentials: [
     "REDDIT_PROVIDER",
     "REDDIT_DELETION_RECHECK",
+    "REDDIT_NSFW_FIELD_OPTIONAL",
     "BRIGHTDATA_API_TOKEN",
     "BRIGHTDATA_REDDIT_DATASET_ID",
   ],

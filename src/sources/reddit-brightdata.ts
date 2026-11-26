@@ -234,6 +234,8 @@ const POST_RECORD_FIELDS = {
   over_18: z.boolean().nullish(),
   over18: z.boolean().nullish(),
   tags: z.array(z.string()).nullish(),
+  // The live dataset's own tag field (26 Nov 2026); where Reddit's NSFW tag would appear.
+  tag: z.union([z.string().max(100), z.array(z.string().max(100))]).nullish(),
   quarantine: z.boolean().nullish(),
   is_quarantined: z.boolean().nullish(),
   community_type: z.string().max(40).nullish(),
@@ -243,21 +245,38 @@ const POST_RECORD_FIELDS = {
 };
 /** The field names the schema reads (plus `error` on error records), for the F8 capture's output. */
 export const KNOWN_RECORD_FIELDS: readonly string[] = [...Object.keys(POST_RECORD_FIELDS), "error"];
-const PostRecord = z
-  .object(POST_RECORD_FIELDS)
-  .refine((r) => [r.nsfw, r.is_nsfw, r.over_18, r.over18].some((f) => typeof f === "boolean"));
+const PostRecord = z.object(POST_RECORD_FIELDS);
+const hasNsfwBoolean = (r: z.infer<typeof PostRecord>) =>
+  [r.nsfw, r.is_nsfw, r.over_18, r.over18].some((f) => typeof f === "boolean");
+const NSFW_TAG = /\bnsfw\b|over[\s-]*18|\b18\+/i;
+
+/**
+ * REDDIT_NSFW_FIELD_OPTIONAL=true (the founder, 26 Nov 2026): the live records carry no NSFW or
+ * over-18 field at all, so a record without one is read as not NSFW instead of unreadable. A post
+ * any field or tag marks NSFW is still dropped. Unset, or any value but "true", fails closed.
+ */
+export interface RecordOptions {
+  nsfwFieldOptional?: boolean;
+}
+
+const recordOptions = (ctx: CollectContext): RecordOptions => ({
+  nsfwFieldOptional: ctx.credential("REDDIT_NSFW_FIELD_OPTIONAL") === "true",
+});
 
 const PENDING_STATUSES = new Set(["starting", "running", "building", "collecting", "digesting"]);
 const FAILED_STATUSES = new Set(["failed", "canceled", "cancelled", "error"]);
 
 /** The record mapping, for tests. */
-export const toRedditRecordForTest = (raw: unknown) => toRecord(raw);
+export const toRedditRecordForTest = (raw: unknown, options: RecordOptions = {}) =>
+  toRecord(raw, options);
 
-function toRecord(raw: unknown): RedditRecord | "error" | null {
+function toRecord(raw: unknown, options: RecordOptions = {}): RedditRecord | "error" | null {
   if (ErrorRecord.safeParse(raw).success) return "error";
   const parsed = PostRecord.safeParse(raw);
   if (!parsed.success) return null;
   const r = parsed.data;
+  if (!options.nsfwFieldOptional && !hasNsfwBoolean(r)) return null;
+  const tagValues = r.tag == null ? [] : Array.isArray(r.tag) ? r.tag : [r.tag];
   return {
     postId: r.post_id,
     url: r.url,
@@ -268,7 +287,8 @@ function toRecord(raw: unknown): RedditRecord | "error" | null {
     community: r.community_name ?? null,
     nsfw:
       [r.nsfw, r.is_nsfw, r.over_18, r.over18].some((flag) => flag === true) ||
-      (r.tags ?? []).some((tag) => tag.trim().toLowerCase() === "nsfw"),
+      (r.tags ?? []).some((tag) => tag.trim().toLowerCase() === "nsfw") ||
+      tagValues.some((tag) => NSFW_TAG.test(tag)),
     restricted:
       r.quarantine === true ||
       r.is_quarantined === true ||
@@ -422,6 +442,7 @@ export const brightdataProvider: RedditProvider = {
     const ids = [...new Set(handle.split(","))];
     if (ids.some((id) => !SNAPSHOT_ID.test(id))) throw named("InvalidHandle", "Not a snapshot id");
     const call = pinnedFetch(ctx, config(ctx).token);
+    const options = recordOptions(ctx);
 
     // Progress of every run first: nothing is downloaded until all of them have finished, except
     // that a straggler is given up on after STRAGGLER_MS, so it cannot cost the finished runs.
@@ -448,7 +469,7 @@ export const brightdataProvider: RedditProvider = {
       if (snapshot.kind === "pending") return snapshot;
       units += snapshot.records.length;
       for (const raw of snapshot.records) {
-        const record = toRecord(raw);
+        const record = toRecord(raw, options);
         if (record === "error") continue;
         if (record === null) unreadable++;
         else records.push(record);

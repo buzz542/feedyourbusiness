@@ -674,6 +674,64 @@ describe("NSFW fails closed (docs/PLAN.md 2.1.2)", () => {
     expect(toRedditRecordForTest({ ...record, over_18: false })).not.toBeNull();
     expect(toRedditRecordForTest({ ...record, nsfw: "no" })).toBeNull();
   });
+
+  // The live records carry no NSFW or over-18 field at all (26 Nov 2026). The founder decided the
+  // same day: posts marked NSFW stay out, posts with no marker come through, behind a setting.
+  const noFlags = () =>
+    (JSON.parse(fixture("snapshot.json")) as Record<string, unknown>[]).map((raw) => {
+      const record = { ...raw };
+      for (const k of ["nsfw", "is_nsfw", "over_18", "over18", "tags"]) delete record[k];
+      return record;
+    });
+  const OPTIONAL = (name: string) =>
+    name === "REDDIT_NSFW_FIELD_OPTIONAL" ? "true" : CONFIG[name];
+
+  it("with REDDIT_NSFW_FIELD_OPTIONAL=true, reads a record with no NSFW field as not NSFW", async () => {
+    const routes: Array<[RegExp, Reply]> = [
+      [/\/progress\//, fixture("progress-ready.json")],
+      [/\/snapshot\//, JSON.stringify(noFlags())],
+    ];
+    const handle = await handleFrom(ctx(fakeHttp([[/\/trigger\?/, fixture("trigger.json")]])));
+    expect(await reddit.poll!(ctx(fakeHttp(routes)), handle)).toEqual({
+      kind: "failed",
+      errorClass: "InvalidResponse",
+    });
+    const state = await reddit.poll!(ctx(fakeHttp(routes), { credential: OPTIONAL }), handle);
+    if (state.kind !== "done") throw new Error(`expected done, got ${JSON.stringify(state)}`);
+    expect(state.posts.length).toBeGreaterThan(0);
+  });
+
+  it("only the exact value true turns it on", async () => {
+    const { toRedditRecordForTest } = await import("./reddit-brightdata");
+    const record = noFlags()[0]!;
+    expect(toRedditRecordForTest(record, { nsfwFieldOptional: false })).toBeNull();
+    const handle = await handleFrom(ctx(fakeHttp([[/\/trigger\?/, fixture("trigger.json")]])));
+    const routes: Array<[RegExp, Reply]> = [
+      [/\/progress\//, fixture("progress-ready.json")],
+      [/\/snapshot\//, JSON.stringify(noFlags())],
+    ];
+    for (const value of ["TRUE", "1", "yes", ""]) {
+      const credential = (name: string) =>
+        name === "REDDIT_NSFW_FIELD_OPTIONAL" ? value : CONFIG[name];
+      expect((await reddit.poll!(ctx(fakeHttp(routes), { credential }), handle)).kind).toBe(
+        "failed",
+      );
+    }
+  });
+
+  it("still drops a post that Bright Data's tag field marks NSFW or over 18", async () => {
+    const { toRedditRecordForTest } = await import("./reddit-brightdata");
+    const record = noFlags()[0]!;
+    const optional = { nsfwFieldOptional: true };
+    expect(toRedditRecordForTest(record, optional)).toMatchObject({ nsfw: false });
+    for (const tag of ["NSFW", "nsfw", ["Spoiler", "NSFW"], "Over 18", "over-18", "18+"])
+      expect(toRedditRecordForTest({ ...record, tag }, optional), String(tag)).toMatchObject({
+        nsfw: true,
+      });
+    expect(toRedditRecordForTest({ ...record, tag: "Spoiler" }, optional)).toMatchObject({
+      nsfw: false,
+    });
+  });
 });
 
 describe("the date filter (checked against the live dataset, 26 Nov 2026)", () => {
