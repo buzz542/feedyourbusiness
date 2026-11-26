@@ -719,6 +719,39 @@ describe("NSFW fails closed (docs/PLAN.md 2.1.2)", () => {
     }
   });
 
+  it("with the setting on, collection still drops posts tagged or flagged NSFW", async () => {
+    const base = noFlags();
+    const records = [
+      base[0],
+      { ...base[0], post_id: "1exa005", tag: "NSFW" },
+      { ...base[0], post_id: "1exa007", nsfw: true },
+    ];
+    const handle = await handleFrom(ctx(fakeHttp([[/\/trigger\?/, fixture("trigger.json")]])));
+    const http = fakeHttp([
+      [/\/progress\//, fixture("progress-ready.json")],
+      [/\/snapshot\//, JSON.stringify(records)],
+    ]);
+    const state = await reddit.poll!(ctx(http, { credential: OPTIONAL }), handle);
+    if (state.kind !== "done") throw new Error("expected done");
+    expect(state.posts.map((p) => p.externalId)).toEqual(["1exa001"]);
+  });
+
+  it("with the setting on, the deletion re-check counts a post now tagged NSFW, flagged or quarantined as gone", async () => {
+    const base = noFlags();
+    const records = [
+      base[0],
+      { ...base[0], post_id: "1exa005", tag: "NSFW" },
+      { ...base[0], post_id: "1exa006", quarantine: true },
+      { ...base[0], post_id: "1exa007", nsfw: true },
+    ];
+    const http = fakeHttp([
+      [/\/progress\//, fixture("progress-ready.json")],
+      [/\/snapshot\//, JSON.stringify(records)],
+    ]);
+    const state = await reddit.recheck!.poll(ctx(http, { credential: OPTIONAL }), "s_example0001");
+    expect(state).toMatchObject({ kind: "done", live: ["1exa001"] });
+  });
+
   it("still drops a post that Bright Data's tag field marks NSFW or over 18", async () => {
     const { toRedditRecordForTest } = await import("./reddit-brightdata");
     const record = noFlags()[0]!;

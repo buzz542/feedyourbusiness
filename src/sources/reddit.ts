@@ -163,6 +163,8 @@ async function poll(ctx: CollectContext, raw: string): Promise<RunState> {
 
 /** A post the re-check found intact: a record with its author and its text still there. */
 function isLive(record: RedditRecord): boolean {
+  // A post now marked NSFW, or from a private or quarantined community, is deleted here (2.1.2).
+  if (record.nsfw || record.restricted) return false;
   const author = record.author?.trim() ?? "";
   if (!author || isGone(author) || isGone(record.title) || isGone(record.body)) return false;
   return [record.title, record.body].some((part) => part.trim() !== "");

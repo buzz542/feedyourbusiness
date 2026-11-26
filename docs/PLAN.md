@@ -930,6 +930,14 @@ a pending vendor run may finish the next morning; that is acceptable before laun
 - Progress: `GET https://api.brightdata.com/datasets/v3/progress/<snapshot_id>` (`running`, `ready`, `failed`).
 - Download: `GET https://api.brightdata.com/datasets/v3/snapshot/<snapshot_id>?format=json`, read with a
   5 MB cap.
+- NSFW (the founder, 26 Nov 2026): the live records carry no NSFW or over-18 field. With
+  `REDDIT_NSFW_FIELD_OPTIONAL=true` (exactly that value) a record with no marker is read as not NSFW. A post
+  is still dropped, at collection and at the deletion re-check, if `nsfw`, `is_nsfw`, `over_18` or `over18`
+  is true, `tags` holds "nsfw", or `tag` contains NSFW, over 18 or 18+, and so is anything from a private
+  or quarantined community, a sensitive community or a profile. What `tag` holds is not verified (it may be
+  the post's flair), so with the setting on the NSFW drop rests on those markers and on collection being
+  logged out. Unset or any other value, a record with no NSFW boolean is unreadable and a run made only of
+  such records fails.
 - First task of this source (verify, then record the date in the module header): the dataset id for
   "Reddit posts, discover by keyword" (Bright Data's docs listed `gd_lvz8ah06191smkebj4` on 14 Oct 2026),
   the allowed `date` and `sort_by` values, the record fields (including whether comments or other users'
@@ -1507,6 +1515,7 @@ git-ignored.
 | `BRIGHTDATA_DPA_SIGNED_ON`                   | the date the DPA, transfer mechanism and DPIA were done (2.1.7); production refuses Reddit without it | yes      | no                      | M3        |
 | `REDDIT_DAILY_RECORDS_PER_PRODUCT`           | `120`                                                                                                 | yes      | no                      | M3        |
 | `REDDIT_DELETION_RECHECK`                    | `true`                                                                                                | yes      | no                      | M3        |
+| `REDDIT_NSFW_FIELD_OPTIONAL`                 | unset (fails closed); `true` in production per the founder, 26 Nov 2026 (7.7)                         | yes      | no                      | M3        |
 | `SOURCE_X_ENABLED`                           | `false`                                                                                               | yes      | no                      | M3        |
 | `X_BEARER_TOKEN`                             | only if you turn X on (F18)                                                                           | optional | no                      | M3        |
 | `X_DAILY_READS_PER_PRODUCT`                  | `0`                                                                                                   | yes      | no                      | M3        |
