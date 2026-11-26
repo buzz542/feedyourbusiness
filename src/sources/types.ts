@@ -56,6 +56,8 @@ export interface CollectContext {
   /** Units this run may use (reserved with consume_budget). Modules stop at it. */
   budget: number;
   now: Date;
+  /** When this job's vendor run was started, for a source that polls it; unset on the first call. */
+  startedAt?: Date;
   /** Descriptive, with a monitored contact (docs/PLAN.md 7.4): send it on every request. */
   userAgent: string;
   /** For polite pacing and backing off on 429. Tests pass a fake. */

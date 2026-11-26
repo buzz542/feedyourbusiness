@@ -29,6 +29,12 @@ import type { CollectContext } from "./types";
  * fields beyond those the plan maps, the name of the NSFW field, the multi-field syntax of
  * custom_output_fields (so the trigger does not limit fields yet), whether a snapshot can be deleted
  * (so none is), how long Bright Data keeps snapshots, and the price per 1,000 records.
+ *
+ * Measured against the live dataset on 26 Nov 2026 (supersedes the lists above): `date` is required
+ * and takes only BRIGHTDATA_DATE_FILTERS ("Past 24 hours" is refused); a run takes 160 to 540 seconds
+ * whatever its size, and the keywords of one run are worked through one after another (about 20
+ * minutes each), so start() sends one run per keyword; `custom_output_fields` did not shrink the
+ * output or speed a run up; the records carry no NSFW or over-18 field at all.
  */
 
 /** Reddit posts, discover by keyword. Any other dataset id is refused, from code or from the env. */
@@ -41,15 +47,40 @@ const PROGRESS_PATH = /^\/datasets\/v3\/progress\/[A-Za-z0-9_-]{1,100}$/;
 const SNAPSHOT_PATH = /^\/datasets\/v3\/snapshot\/[A-Za-z0-9_-]{1,100}$/;
 const SNAPSHOT_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
+/**
+ * Runs that are still going this long after the job started them are given up on, so one slow
+ * keyword cannot cost the others (26 Nov 2026 review): the finished runs are read, the rest count
+ * at their share of the budget.
+ */
+export const STRAGGLER_MS = 45 * 60_000;
+
+/** What poll() accepts of a handle (src/sources/reddit.ts), so start() stops short of it. */
+export const MAX_HANDLE_CHARS = 500;
+
 /** The most a snapshot download may be (docs/PLAN.md 7.7). */
 export const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
 
-type DateFilter = "Past hour" | "Past 24 hours" | "Past week" | "Past month" | "Past year";
+/**
+ * The date values this dataset accepts, tried against the live API on 26 Nov 2026. "Past 24 hours"
+ * and "Past day" are refused with 400 "This value is not allowed", and a request with no date is
+ * refused too ("Required field").
+ */
+export const BRIGHTDATA_DATE_FILTERS = [
+  "Past hour",
+  "Today",
+  "Past week",
+  "Past month",
+  "Past year",
+  "All time",
+] as const;
+type DateFilter = (typeof BRIGHTDATA_DATE_FILTERS)[number];
 
-/** The narrowest date filter that still covers the window. */
+/**
+ * The narrowest accepted date filter that still covers the window. Anything between one hour and a
+ * week asks for the past week: the Reddit source drops posts older than its own window anyway.
+ */
 export function dateFilterFor(windowHours: number): DateFilter {
   if (windowHours <= 1) return "Past hour";
-  if (windowHours <= 24) return "Past 24 hours";
   if (windowHours <= 7 * 24) return "Past week";
   if (windowHours <= 31 * 24) return "Past month";
   return "Past year";
@@ -248,26 +279,27 @@ function toRecord(raw: unknown): RedditRecord | "error" | null {
   };
 }
 
-/**
- * A finished snapshot's raw text, or pending: the progress check, then the download behind the 5 MB
- * cap. Shared by collect() and the founder's F8 capture (scripts/capture-brightdata-fixture.ts).
- */
-export async function downloadSnapshot(
-  ctx: CollectContext,
-  snapshotId: string,
-): Promise<{ kind: "pending" } | { kind: "ready"; text: string }> {
-  if (!SNAPSHOT_ID.test(snapshotId)) throw named("InvalidHandle", "Not a snapshot id");
-  const call = pinnedFetch(ctx, config(ctx).token);
+type Call = ReturnType<typeof pinnedFetch>;
+type RunStatus = "pending" | "ready" | "failed";
+
+/** One run's progress: still going, ready to download, or failed. */
+async function snapshotStatus(call: Call, snapshotId: string): Promise<RunStatus> {
   const progress = await call(`${API}/datasets/v3/progress/${snapshotId}`, { method: "GET" });
-  if (progress.status === 429) return { kind: "pending" };
+  if (progress.status === 429) return "pending";
   if (!progress.ok) throw httpError(progress);
   const state = ProgressResponse.safeParse(await progress.json());
   if (!state.success) throw named("InvalidResponse", "The progress answer did not match");
   const status = state.data.status.toLowerCase();
-  if (FAILED_STATUSES.has(status)) throw named("VendorRunFailed", "The vendor run failed");
-  // Unknown statuses wait too; the job gives up after an hour (src/server/pipeline/collect.ts).
-  if (status !== "ready") return { kind: "pending" };
+  if (FAILED_STATUSES.has(status)) return "failed";
+  // Unknown statuses wait too; the job gives up after two hours (src/server/pipeline/collect.ts).
+  return status === "ready" ? "ready" : "pending";
+}
 
+/** The JSON download of a run that is ready, behind the 5 MB cap, or pending when it is not yet. */
+async function fetchSnapshot(
+  call: Call,
+  snapshotId: string,
+): Promise<{ kind: "pending" } | { kind: "ready"; text: string }> {
   const download = await call(`${API}/datasets/v3/snapshot/${snapshotId}?format=json`, {
     method: "GET",
   });
@@ -283,6 +315,22 @@ export async function downloadSnapshot(
     // A download cut off mid-stream reads as an unreadable answer, as before the split.
     throw named("InvalidResponse", "The snapshot could not be read");
   }
+}
+
+/**
+ * A finished snapshot's raw text, or pending: the progress check, then the download behind the 5 MB
+ * cap. Shared by collect() and the founder's F8 capture (scripts/capture-brightdata-fixture.ts).
+ */
+export async function downloadSnapshot(
+  ctx: CollectContext,
+  snapshotId: string,
+): Promise<{ kind: "pending" } | { kind: "ready"; text: string }> {
+  if (!SNAPSHOT_ID.test(snapshotId)) throw named("InvalidHandle", "Not a snapshot id");
+  const call = pinnedFetch(ctx, config(ctx).token);
+  const status = await snapshotStatus(call, snapshotId);
+  if (status === "failed") throw named("VendorRunFailed", "The vendor run failed");
+  if (status === "pending") return { kind: "pending" };
+  return fetchSnapshot(call, snapshotId);
 }
 
 /** A downloaded snapshot as its list of raw records, or pending when the vendor is still building it. */
@@ -330,46 +378,85 @@ export const brightdataProvider: RedditProvider = {
     return parsed.data.snapshot_id;
   },
 
+  /**
+   * One run per keyword, all started now. Measured 26 Nov 2026: the vendor works through the
+   * keywords of a single run one after another (about 20 minutes each, 4 hours for 12), while
+   * separate runs go in parallel and finish in minutes. The handle is the snapshot ids joined by
+   * commas. A refused trigger after the first stops the loop but keeps the runs already started:
+   * they are billed when delivered, so they are read rather than lost.
+   */
   async start(ctx: CollectContext, queries: readonly RedditQuery[]): Promise<string> {
     const { token, datasetId } = config(ctx);
-    const inputs = queries.map((q) => ({
-      keyword: q.keyword,
-      date: dateFilterFor(q.windowHours),
-      num_of_posts: q.limit,
-    }));
+    if (queries.length === 0) throw named("NoQueries", "Nothing to search for");
+    const call = pinnedFetch(ctx, token);
     const params = new URLSearchParams({
       dataset_id: datasetId,
       type: "discover_new",
       discover_by: "keyword",
       include_errors: "true",
     });
-    const response = await pinnedFetch(ctx, token)(`${API}${TRIGGER_PATH}?${params}`, {
-      method: "POST",
-      body: JSON.stringify(inputs),
-    });
-    if (!response.ok) throw httpError(response);
-    const parsed = TriggerResponse.safeParse(await response.json());
-    if (!parsed.success) throw named("InvalidResponse", "The trigger answer did not match");
-    return parsed.data.snapshot_id;
+    const ids: string[] = [];
+    for (const q of queries) {
+      // The longest id is 100 characters: stop before the handle could outgrow what poll() reads.
+      if (ids.length > 0 && ids.join(",").length + 1 + 100 > MAX_HANDLE_CHARS) break;
+      try {
+        const response = await call(`${API}${TRIGGER_PATH}?${params}`, {
+          method: "POST",
+          body: JSON.stringify([
+            { keyword: q.keyword, date: dateFilterFor(q.windowHours), num_of_posts: q.limit },
+          ]),
+        });
+        if (!response.ok) throw httpError(response);
+        const parsed = TriggerResponse.safeParse(await response.json());
+        if (!parsed.success) throw named("InvalidResponse", "The trigger answer did not match");
+        if (!ids.includes(parsed.data.snapshot_id)) ids.push(parsed.data.snapshot_id);
+      } catch (error) {
+        if (ids.length === 0) throw error;
+        break;
+      }
+    }
+    return ids.join(",");
   },
 
-  async collect(ctx: CollectContext, snapshotId: string): Promise<RedditRun> {
-    const download = await downloadSnapshot(ctx, snapshotId);
-    if (download.kind === "pending") return download;
-    const snapshot = parseSnapshot(download.text);
-    if (snapshot.kind === "pending") return snapshot;
+  async collect(ctx: CollectContext, handle: string): Promise<RedditRun> {
+    const ids = [...new Set(handle.split(","))];
+    if (ids.some((id) => !SNAPSHOT_ID.test(id))) throw named("InvalidHandle", "Not a snapshot id");
+    const call = pinnedFetch(ctx, config(ctx).token);
+
+    // Progress of every run first: nothing is downloaded until all of them have finished, except
+    // that a straggler is given up on after STRAGGLER_MS, so it cannot cost the finished runs.
+    const late =
+      ctx.startedAt !== undefined && ctx.now.getTime() - ctx.startedAt.getTime() > STRAGGLER_MS;
+    const statuses: RunStatus[] = [];
+    for (const id of ids) {
+      const status = await snapshotStatus(call, id);
+      if (status === "pending" && !late) return { kind: "pending" };
+      statuses.push(status);
+    }
+    const ready = ids.filter((_, i) => statuses[i] === "ready");
+    if (ready.length === 0) throw named("VendorRunFailed", "The vendor run failed");
 
     const records: RedditRecord[] = [];
     let unreadable = 0;
-    for (const raw of snapshot.records) {
-      const record = toRecord(raw);
-      if (record === "error") continue;
-      if (record === null) unreadable++;
-      else records.push(record);
+    // A run that failed or was given up on may still have been billed: it counts at its share of
+    // the budget, the safe direction for the caps (docs/PLAN.md 2.1.3, 2.1.8, 7.2).
+    let units = (ids.length - ready.length) * Math.floor(ctx.budget / ids.length);
+    for (const id of ready) {
+      const download = await fetchSnapshot(call, id);
+      if (download.kind === "pending") return download;
+      const snapshot = parseSnapshot(download.text);
+      if (snapshot.kind === "pending") return snapshot;
+      units += snapshot.records.length;
+      for (const raw of snapshot.records) {
+        const record = toRecord(raw);
+        if (record === "error") continue;
+        if (record === null) unreadable++;
+        else records.push(record);
+      }
     }
     // Every post record failing the schema means the shape changed: fail loudly, store nothing.
     if (unreadable > 0 && records.length === 0)
       throw named("InvalidResponse", "No record matched the schema");
-    return { kind: "done", records, units: snapshot.records.length };
+    return { kind: "done", records, units };
   },
 };

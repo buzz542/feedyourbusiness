@@ -38,7 +38,8 @@ const isGone = (text: string) => GONE_MARKER.test(text.trim());
 /** What start() hands to poll(): the provider, its handle, and which keyword is which term. */
 const Handle = z.object({
   p: z.string().max(40),
-  h: z.string().min(1).max(200),
+  // One snapshot id per keyword, joined by commas: up to 12 runs.
+  h: z.string().min(1).max(500),
   t: z
     .array(z.tuple([z.string().max(100), z.string().max(200)]))
     .max(MAX_TERMS)

@@ -70,7 +70,12 @@ export interface CollectHandlerDeps {
 const realSleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 const POLL_DELAY_MS = 2 * 60_000;
-const MAX_POLL_MS = 60 * 60_000;
+/**
+ * How long a vendor run may take before the job gives up. A run with 12 keywords took 3 to 4 hours
+ * (26 Nov 2026), and the job once gave up after one hour: the records were billed and never read.
+ * Reddit now starts one run per keyword, which takes minutes, but a slow one must still be read.
+ */
+const MAX_POLL_MS = 2 * 60 * 60_000;
 const HOUR = 60 * 60_000;
 
 /** The error a source reported, by class name only. */
@@ -168,6 +173,9 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       since: new Date(now().getTime() - collectWindowHours(firstRun) * HOUR),
       budget: units,
       now: now(),
+      ...(typeof job.payload.startedAt === "string"
+        ? { startedAt: new Date(job.payload.startedAt) }
+        : {}),
       userAgent: deps.userAgent,
       sleep: deps.sleep ?? realSleep,
       // Only the names the source declares; any other secret reads as unset.

@@ -832,7 +832,7 @@ one source can never call another source's host. Registry tests to add: vendor s
 
 | Job             | When                                            | What                                                                                                     |
 | --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 60 minutes), filter, classify, ingest                      |
+| `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 2 hours), filter, classify, ingest                         |
 | `first_run`     | once, right after checkout                      | like `collect` for every source, 30-day window (the founder, 24 Nov 2026; was 7), twice the daily budget |
 | `deletion_sync` | daily, per source                               | Hacker News and Bluesky existence checks; X compliance (7.6)                                             |
 | `purge`         | every tick on Pro (daily on Hobby)              | `purge_expired(now)`                                                                                     |
@@ -921,7 +921,12 @@ a pending vendor run may finish the next morning; that is acceptable before laun
   any other `dataset_id` (for example a LinkedIn or Instagram dataset) is refused before it is sent (2.1.9).
 - Trigger: `POST https://api.brightdata.com/datasets/v3/trigger?dataset_id=<BRIGHTDATA_REDDIT_DATASET_ID>&type=discover_new&discover_by=keyword&include_errors=true`
   with `Authorization: Bearer <BRIGHTDATA_API_TOKEN>` and a JSON array of inputs
-  `{ "keyword", "date", "num_of_posts", "sort_by" }`. Returns `{ "snapshot_id" }`.
+  `{ "keyword", "date", "num_of_posts" }`. Returns `{ "snapshot_id" }`. One trigger per keyword, all
+  started together, and the snapshot ids kept in the job's handle (the founder and a live test, 26 Nov
+  2026: the vendor works through the keywords of one run in turn, about 20 minutes each, 4 hours for 12,
+  while separate runs go in parallel and take a few minutes). `date` is required and takes `Past hour`,
+  `Today`, `Past week`, `Past month`, `Past year` or `All time`; `Past 24 hours` and `Past day` are
+  refused (400). `sort_by` is not sent.
 - Progress: `GET https://api.brightdata.com/datasets/v3/progress/<snapshot_id>` (`running`, `ready`, `failed`).
 - Download: `GET https://api.brightdata.com/datasets/v3/snapshot/<snapshot_id>?format=json`, read with a
   5 MB cap.

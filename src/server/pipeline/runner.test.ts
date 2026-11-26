@@ -315,13 +315,44 @@ describe("settling a vendor run that never finishes", () => {
     }));
     await enqueue();
     const clock = clockFrom(T0);
-    for (let i = 0; i < 40 && store.jobs[0]!.status !== "done"; i++) {
+    for (let i = 0; i < 80 && store.jobs[0]!.status !== "done"; i++) {
       await runJobs({ store, handlers, clock: clock.now });
       clock.advance(3 * 60_000);
     }
     expect(store.jobs[0]).toMatchObject({ status: "done", payload: { result: "timeout" } });
     expect(budget.ledger.get(KEY)).toBe(20);
     expect(budget.costs.get(KEY)).toBeCloseTo(0.03, 6);
+  });
+
+  it("tells the source when its run was started, so it can give up on a straggler", async () => {
+    const seen: Array<Date | undefined> = [];
+    const { store, handlers, enqueue } = vendorSetup(async (ctx) => {
+      seen.push(ctx.startedAt);
+      return { kind: "pending", handle: "snap-1" };
+    });
+    await enqueue();
+    const clock = clockFrom(T0);
+    await runJobs({ store, handlers, clock: clock.now });
+    clock.advance(3 * 60_000);
+    await runJobs({ store, handlers, clock: clock.now });
+    expect(seen).toEqual([T0]);
+  });
+
+  it("does not give up on a run that is still building after an hour and a half", async () => {
+    // The vendor took 3 to 4 hours for a 12-keyword run (26 Nov 2026) and the job once gave up after
+    // one hour, so its records were billed and never read. One run per keyword takes minutes, but a
+    // slow run must still be read, not abandoned.
+    const { store, handlers, enqueue } = vendorSetup(async () => ({
+      kind: "pending",
+      handle: "snap-1",
+    }));
+    await enqueue();
+    const clock = clockFrom(T0);
+    for (let i = 0; i < 30; i++) {
+      await runJobs({ store, handlers, clock: clock.now });
+      clock.advance(3 * 60_000);
+    }
+    expect(store.jobs[0]!.status).toBe("waiting");
   });
 
   it("counts the whole reservation when a paid run fails after the trigger, and does not retry it", async () => {
@@ -747,7 +778,7 @@ describe("collecting Reddit through the vendor (the real module, a fake vendor)"
     const clock = clockFrom(T0);
     await runJobs({ store, handlers, clock: clock.now });
     expect(store.jobs[0]!.status).toBe("waiting");
-    expect(http).toHaveBeenCalledTimes(1); // the trigger only
+    expect(http).toHaveBeenCalledTimes(2); // the triggers only: one run per keyword
     clock.advance(3 * 60_000);
     await runJobs({ store, handlers, clock: clock.now });
     expect(store.jobs[0]!.status).toBe("done");

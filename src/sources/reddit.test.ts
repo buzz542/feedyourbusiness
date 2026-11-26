@@ -6,6 +6,8 @@ import { reddit } from "./reddit";
 import {
   API,
   assertPinnedRequest,
+  BRIGHTDATA_DATE_FILTERS,
+  dateFilterFor,
   MAX_SNAPSHOT_BYTES,
   PINNED_DATASET_IDS,
   VendorRequestRefused,
@@ -36,6 +38,16 @@ function fakeHttp(routes: Array<[RegExp, Reply]>) {
     if (typeof reply === "number") return new Response("", { status: reply });
     return new Response(reply, { status: 200, headers: { "content-type": "application/json" } });
   });
+}
+
+/** A trigger endpoint that hands out a new snapshot id for each run it is asked to start. */
+function triggers(): Reply {
+  let n = 0;
+  return () =>
+    new Response(JSON.stringify({ snapshot_id: `s_example000${++n}` }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
 }
 
 const CONFIG: Record<string, string> = {
@@ -95,44 +107,192 @@ describe("reddit source", () => {
     expect(PINNED_DATASET_IDS).toEqual([DATASET]);
   });
 
-  it("triggers one keyword discovery on the pinned dataset, newest first, within the budget", async () => {
-    const http = fakeHttp([[/\/trigger\?/, fixture("trigger.json")]]);
+  it("starts one run per keyword on the pinned dataset, all at once, within the budget", async () => {
+    // The vendor works through the keywords of one run in turn (about 20 minutes each, measured
+    // 26 Nov 2026), but runs started together go in parallel: one run per keyword.
+    const http = fakeHttp([[/\/trigger\?/, triggers()]]);
     const state = await reddit.start(ctx(http));
-    expect(state.kind).toBe("pending");
-    expect(http).toHaveBeenCalledTimes(1);
-    const [input, init] = http.mock.calls[0]!;
-    const url = new URL(String(input));
-    expect(url.origin + url.pathname).toBe("https://api.brightdata.com/datasets/v3/trigger");
-    expect(Object.fromEntries(url.searchParams)).toEqual({
-      dataset_id: DATASET,
-      type: "discover_new",
-      discover_by: "keyword",
-      include_errors: "true",
-    });
-    expect(init!.method).toBe("POST");
-    const headers = new Headers(init!.headers);
-    expect(headers.get("authorization")).toBe("Bearer test-token");
-    expect(headers.get("user-agent")).toMatch(/AskedFor/);
-    expect(JSON.parse(String(init!.body))).toEqual([
-      { keyword: "invoice reminders", date: "Past week", num_of_posts: 20 },
-      { keyword: "late fees", date: "Past week", num_of_posts: 20 },
+    if (state.kind !== "pending") throw new Error("expected pending");
+    expect(http).toHaveBeenCalledTimes(2);
+    for (const [input, init] of http.mock.calls) {
+      const url = new URL(String(input));
+      expect(url.origin + url.pathname).toBe("https://api.brightdata.com/datasets/v3/trigger");
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        dataset_id: DATASET,
+        type: "discover_new",
+        discover_by: "keyword",
+        include_errors: "true",
+      });
+      expect(init!.method).toBe("POST");
+      const headers = new Headers(init!.headers);
+      expect(headers.get("authorization")).toBe("Bearer test-token");
+      expect(headers.get("user-agent")).toMatch(/AskedFor/);
+    }
+    expect(http.mock.calls.map(([, init]) => JSON.parse(String(init!.body)))).toEqual([
+      [{ keyword: "invoice reminders", date: "Past week", num_of_posts: 20 }],
+      [{ keyword: "late fees", date: "Past week", num_of_posts: 20 }],
     ]);
+    expect(JSON.parse(state.handle).h).toBe("s_example0001,s_example0002");
   });
 
   it("asks for at most 12 terms and 5 to 20 posts each, never more than the budget", async () => {
     const terms = Array.from({ length: 30 }, (_, i) => ({ id: `t${i}`, term: `term ${i}` }));
-    const body = async (budget: number) => {
-      const http = fakeHttp([[/\/trigger\?/, fixture("trigger.json")]]);
+    const bodies = async (budget: number) => {
+      const http = fakeHttp([[/\/trigger\?/, triggers()]]);
       await reddit.start(ctx(http, { terms, budget }));
-      return JSON.parse(String(http.mock.calls[0]![1]!.body)) as { num_of_posts: number }[];
+      return http.mock.calls.map(
+        ([, init]) => JSON.parse(String(init!.body)) as { num_of_posts: number }[],
+      );
     };
-    const daily = await body(120);
+    const daily = await bodies(120);
     expect(daily).toHaveLength(12);
-    expect(daily.every((q) => q.num_of_posts === 10)).toBe(true);
-    const small = await body(42);
+    expect(daily.every((body) => body.length === 1 && body[0]!.num_of_posts === 10)).toBe(true);
+    const small = await bodies(42);
     expect(small).toHaveLength(8);
-    expect(small.reduce((sum, q) => sum + q.num_of_posts, 0)).toBeLessThanOrEqual(42);
-    expect(small.every((q) => q.num_of_posts === 5)).toBe(true);
+    expect(small.reduce((sum, body) => sum + body[0]!.num_of_posts, 0)).toBeLessThanOrEqual(42);
+    expect(small.every((body) => body[0]!.num_of_posts === 5)).toBe(true);
+  });
+
+  it("keeps the runs already started when a later trigger is refused, and starts no more", async () => {
+    let n = 0;
+    const http = fakeHttp([
+      [
+        /\/trigger\?/,
+        () =>
+          ++n === 2
+            ? new Response("", { status: 500 })
+            : new Response(JSON.stringify({ snapshot_id: `s_example000${n}` }), { status: 200 }),
+      ],
+    ]);
+    const terms = ["a one", "b two", "c three"].map((term, i) => ({ id: `t${i}`, term }));
+    const state = await reddit.start(ctx(http, { terms }));
+    if (state.kind !== "pending") throw new Error("expected pending");
+    expect(http).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(state.handle).h).toBe("s_example0001");
+  });
+
+  it("fails when the very first trigger is refused", async () => {
+    const http = fakeHttp([[/\/trigger\?/, 500]]);
+    expect(await reddit.start(ctx(http))).toEqual({ kind: "failed", errorClass: "Http500" });
+    expect(http).toHaveBeenCalledTimes(1);
+  });
+
+  describe("several runs, one handle", () => {
+    const MULTI = JSON.stringify({
+      p: "brightdata",
+      h: "s_example0001,s_example0002",
+      t: [
+        ["t-invoice", "invoice reminders"],
+        ["t-fees", "late fees"],
+      ],
+    });
+    const READY_1: [RegExp, Reply] = [/\/progress\/s_example0001$/, fixture("progress-ready.json")];
+    const READY_2: [RegExp, Reply] = [/\/progress\/s_example0002$/, fixture("progress-ready.json")];
+    const SNAP_1: [RegExp, Reply] = [/\/snapshot\/s_example0001\?/, fixture("snapshot.json")];
+    const SNAP_2: [RegExp, Reply] = [/\/snapshot\/s_example0002\?/, fixture("snapshot.json")];
+
+    it("waits for every run before it downloads any snapshot", async () => {
+      const http = fakeHttp([
+        READY_1,
+        [/\/progress\/s_example0002$/, fixture("progress-running.json")],
+      ]);
+      expect(await reddit.poll!(ctx(http), MULTI)).toEqual({ kind: "pending", handle: MULTI });
+      expect(http.mock.calls.every(([url]) => String(url).includes("/progress/"))).toBe(true);
+    });
+
+    it("merges the snapshots, counting the records of each as units", async () => {
+      const single = (await collected()).state;
+      const state = await reddit.poll!(ctx(fakeHttp([READY_1, READY_2, SNAP_1, SNAP_2])), MULTI);
+      if (state.kind !== "done" || single.kind !== "done") throw new Error("expected done");
+      expect(state.posts).toEqual(single.posts);
+      expect(state.units).toBe(single.units * 2);
+    });
+
+    it("carries on with the runs that finished when one failed", async () => {
+      const single = (await collected()).state;
+      const http = fakeHttp([
+        [/\/progress\/s_example0001$/, JSON.stringify({ status: "failed" })],
+        READY_2,
+        SNAP_2,
+      ]);
+      const state = await reddit.poll!(ctx(http), MULTI);
+      if (state.kind !== "done" || single.kind !== "done") throw new Error("expected done");
+      expect(state.posts).toEqual(single.posts);
+      // The failed run may still have been billed, so it counts at its share of the budget
+      // (120 over 2 runs), the safe direction for the caps (docs/PLAN.md 2.1.3, 2.1.8, 7.2).
+      expect(state.units).toBe(single.units + 60);
+    });
+
+    it("reads the finished runs once a straggler has been pending for 45 minutes", async () => {
+      const single = (await collected()).state;
+      const http = fakeHttp([
+        READY_1,
+        [/\/progress\/s_example0002$/, fixture("progress-running.json")],
+        SNAP_1,
+      ]);
+      const late = { startedAt: new Date(NOW.getTime() - 50 * 60_000) };
+      const state = await reddit.poll!(ctx(http, late), MULTI);
+      if (state.kind !== "done" || single.kind !== "done") throw new Error("expected done");
+      expect(state.posts).toEqual(single.posts);
+      expect(state.units).toBe(single.units + 60);
+    });
+
+    it("keeps waiting for a straggler before that", async () => {
+      const http = fakeHttp([
+        READY_1,
+        [/\/progress\/s_example0002$/, fixture("progress-running.json")],
+      ]);
+      const early = { startedAt: new Date(NOW.getTime() - 10 * 60_000) };
+      expect(await reddit.poll!(ctx(http, early), MULTI)).toEqual({
+        kind: "pending",
+        handle: MULTI,
+      });
+    });
+
+    it("stops asking at the first run that is still going", async () => {
+      const http = fakeHttp([[/\/progress\/s_example0001$/, fixture("progress-running.json")]]);
+      expect((await reddit.poll!(ctx(http), MULTI)).kind).toBe("pending");
+      expect(http).toHaveBeenCalledTimes(1);
+    });
+
+    it("counts a snapshot id repeated in a handle once", async () => {
+      const single = (await collected()).state;
+      const twice = JSON.stringify({ p: "brightdata", h: "s_example0001,s_example0001", t: [] });
+      const state = await reddit.poll!(ctx(fakeHttp([READY_1, SNAP_1])), twice);
+      if (state.kind !== "done" || single.kind !== "done") throw new Error("expected done");
+      expect(state.units).toBe(single.units);
+    });
+
+    it("stops starting runs before the handle would outgrow what poll() accepts", async () => {
+      const longIds = () => {
+        let n = 0;
+        return () =>
+          new Response(JSON.stringify({ snapshot_id: `s${++n}`.padEnd(100, "x") }), {
+            status: 200,
+          });
+      };
+      const http = fakeHttp([[/\/trigger\?/, longIds()]]);
+      const terms = Array.from({ length: 12 }, (_, i) => ({ id: `t${i}`, term: `term ${i}` }));
+      const state = await reddit.start(ctx(http, { terms }));
+      if (state.kind !== "pending") throw new Error("expected pending");
+      expect(JSON.parse(state.handle).h.length).toBeLessThanOrEqual(500);
+      expect(http).toHaveBeenCalledTimes(4);
+    });
+
+    it("fails with a class name when every run failed", async () => {
+      const http = fakeHttp([[/\/progress\//, JSON.stringify({ status: "failed" })]]);
+      expect(await reddit.poll!(ctx(http), MULTI)).toEqual({
+        kind: "failed",
+        errorClass: "VendorRunFailed",
+      });
+    });
+
+    it("refuses a handle with any bad snapshot id before calling anything", async () => {
+      const http = fakeHttp([]);
+      const bad = JSON.stringify({ p: "brightdata", h: "s_example0001,../trigger", t: [] });
+      expect((await reddit.poll!(ctx(http), bad)).kind).toBe("failed");
+      expect(http).not.toHaveBeenCalled();
+    });
   });
 
   it("makes no call when the budget cannot buy one query", async () => {
@@ -513,5 +673,38 @@ describe("NSFW fails closed (docs/PLAN.md 2.1.2)", () => {
     expect(toRedditRecordForTest(record)).toBeNull();
     expect(toRedditRecordForTest({ ...record, over_18: false })).not.toBeNull();
     expect(toRedditRecordForTest({ ...record, nsfw: "no" })).toBeNull();
+  });
+});
+
+describe("the date filter (checked against the live dataset, 26 Nov 2026)", () => {
+  it("only ever sends a value the dataset accepts", () => {
+    for (const hours of [
+      0.5,
+      1,
+      2,
+      24,
+      25,
+      48,
+      24 * 7,
+      24 * 8,
+      24 * 30,
+      24 * 31,
+      24 * 32,
+      24 * 400,
+    ])
+      expect(BRIGHTDATA_DATE_FILTERS, `${hours} hours`).toContain(dateFilterFor(hours));
+  });
+
+  it("never sends the values the vendor refused", () => {
+    // "Past 24 hours" and "Past day" came back 400 "This value is not allowed".
+    for (const hours of [1, 2, 12, 24, 36, 48])
+      expect(["Past 24 hours", "Past day"]).not.toContain(dateFilterFor(hours));
+  });
+
+  it("covers the window it is asked for, widening rather than narrowing", () => {
+    expect(dateFilterFor(1)).toBe("Past hour");
+    expect(dateFilterFor(24)).toBe("Past week");
+    expect(dateFilterFor(48)).toBe("Past week");
+    expect(dateFilterFor(24 * 30)).toBe("Past month");
   });
 });
