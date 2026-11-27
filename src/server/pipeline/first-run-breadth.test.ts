@@ -58,15 +58,18 @@ function setup(opts: { strong: number; sources: CollectSource[] }) {
   const store = new FakeJobStore();
   const budget = new FakeBudget(store);
   const lowered: string[] = [];
+  const active = (productId: string, jobId: string, freeOnly: boolean) =>
+    store.jobs.some(
+      (j) =>
+        j.productId === productId &&
+        j.kind === "first_run" &&
+        j.id !== jobId &&
+        (!freeOnly || opts.sources.find((s) => s.id === j.source)?.costPerUnitUsd === 0) &&
+        (j.status === "queued" || j.status === "running" || j.status === "waiting"),
+    );
   const firstRun: FirstRunDeps = {
-    othersActive: async (productId, jobId) =>
-      store.jobs.some(
-        (j) =>
-          j.productId === productId &&
-          j.kind === "first_run" &&
-          j.id !== jobId &&
-          (j.status === "queued" || j.status === "running" || j.status === "waiting"),
-      ),
+    othersActive: async (productId, jobId) => active(productId, jobId, false),
+    freeActive: async (productId, jobId) => active(productId, jobId, true),
     strongRecent: vi.fn(async () => opts.strong),
     lowerThreshold: async (productId) => void lowered.push(productId),
   };
@@ -148,7 +151,7 @@ describe("the first run judges how niche the product is", () => {
   it("stops waiting after ten minutes and reads the month", async () => {
     const reddit = src("reddit", 0.0015, done);
     const { store, handlers, enqueue, firstRun } = setup({ strong: 0, sources: [reddit] });
-    firstRun.othersActive = async () => true; // a free source that never finishes
+    firstRun.freeActive = async () => true; // a free source that never finishes
     await enqueue("reddit", T0);
     const clock = clockFrom(T0);
     for (let i = 0; i < 40 && store.jobs[0]!.status !== "done"; i++) {
@@ -159,6 +162,29 @@ describe("the first run judges how niche the product is", () => {
     const started = sinceOf(reddit.start).getTime() + 30 * 24 * HOUR;
     expect(started - T0.getTime()).toBeGreaterThanOrEqual(FREE_WAIT_MS);
     expect(started - T0.getTime()).toBeLessThan(FREE_WAIT_MS + 60_000);
+  });
+
+  it("does not wait for another paid source", async () => {
+    const reddit = src("reddit", 0.0015, done);
+    const x = src("x", 0.005, async () => ({ kind: "pending", handle: "x-1" }));
+    x.poll = vi.fn(async () => ({ kind: "pending", handle: "x-1" }) as RunState);
+    const { store, handlers, enqueue } = setup({ strong: 3, sources: [reddit, x] });
+    await enqueue("x", new Date(T0.getTime() - 1000));
+    await enqueue("reddit", T0);
+    await runJobs({ store, handlers, clock: () => T0 });
+    expect(reddit.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the month when the breadth cannot be looked up, and does not fail", async () => {
+    const reddit = src("reddit", 0.0015, done);
+    const { store, handlers, enqueue, firstRun } = setup({ strong: 50, sources: [reddit] });
+    firstRun.strongRecent = async () => {
+      throw new Error("db blip");
+    };
+    await enqueue("reddit", T0);
+    await runJobs({ store, handlers, clock: () => T0 });
+    expect(store.jobs[0]!.status).toBe("done");
+    expect(sinceOf(reddit.start).getTime()).toBe(T0.getTime() - 30 * 24 * HOUR);
   });
 
   it("keeps the chosen window while it polls the vendor run", async () => {
@@ -252,7 +278,7 @@ describe("the feed minimum after the first run", () => {
 });
 
 describe("startFirstRun", () => {
-  it("queues the free sources first and the paid source a few seconds later", async () => {
+  it("queues the free sources a second early, so one runner pass runs them before the paid one", async () => {
     const { startFirstRun } = await import("./first-run");
     const store = new FakeJobStore();
     await startFirstRun({
@@ -263,8 +289,39 @@ describe("startFirstRun", () => {
     });
     const at = (source: string) =>
       store.jobs.find((j) => j.kind === "first_run" && j.source === source)!.runAfter.getTime();
-    expect(at("hackernews")).toBe(T0.getTime());
-    expect(at("bluesky")).toBe(T0.getTime());
-    expect(at("reddit")).toBe(T0.getTime() + 10_000);
+    expect(at("hackernews")).toBe(T0.getTime() - 1000);
+    expect(at("bluesky")).toBe(T0.getTime() - 1000);
+    expect(at("reddit")).toBe(T0.getTime());
+  });
+
+  it("uses the same idea of paid as the collect job (a cost override)", async () => {
+    const { startFirstRun } = await import("./first-run");
+    const store = new FakeJobStore();
+    await startFirstRun({
+      store,
+      sources: [src("reddit", 0.0015, done)],
+      productId: "p1",
+      now: T0,
+      isPaid: () => false,
+    });
+    expect(store.jobs.find((j) => j.kind === "first_run")!.runAfter.getTime()).toBe(
+      T0.getTime() - 1000,
+    );
+  });
+
+  it("one runner pass after payment runs the free sources, then Reddit, with no waiting", async () => {
+    // The runner started after checkout stops at the first empty claim and never sleeps: Reddit
+    // must start in that same pass (code review, 27 Nov 2026).
+    const { startFirstRun } = await import("./first-run");
+    const reddit = src("reddit", 0.0015, done);
+    const hn = src("hackernews", 0, done);
+    const bluesky = src("bluesky", 0, done);
+    const { store, handlers } = setup({ strong: 3, sources: [reddit, hn, bluesky] });
+    await startFirstRun({ store, sources: [reddit, hn, bluesky], productId: "p1", now: T0 });
+    await runJobs({ store, handlers, clock: () => T0 });
+    expect(hn.start).toHaveBeenCalledTimes(1);
+    expect(bluesky.start).toHaveBeenCalledTimes(1);
+    expect(reddit.start).toHaveBeenCalledTimes(1);
+    expect(sinceOf(reddit.start).getTime()).toBe(T0.getTime() - 30 * 24 * HOUR);
   });
 });

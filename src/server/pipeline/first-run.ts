@@ -7,15 +7,16 @@ import type { JobStatus, JobStore } from "./ports";
  * product is, src/server/pipeline/breadth.ts) and the feed-ready email,
  * which waits until every source has finished. Dedupe keys make it happen once per product.
  */
-const PAID_DELAY_MS = 10_000;
-
 export async function startFirstRun(input: {
   store: JobStore;
   sources: readonly CollectSource[];
   productId: string;
   now: Date;
+  /** Whether a source costs money (costPerUnitFor in production, the same as the collect job). */
+  isPaid?: (source: CollectSource) => boolean;
 }): Promise<number> {
   const { productId, now } = input;
+  const isPaid = input.isPaid ?? ((source: CollectSource) => source.costPerUnitUsd > 0);
   if (input.sources.length === 0) return 0;
   return input.store.enqueue([
     ...input.sources.map((source) => ({
@@ -23,9 +24,11 @@ export async function startFirstRun(input: {
       productId,
       source: source.id,
       dedupeKey: `first_run:${productId}:${source.id}`,
-      // A paid source goes a few seconds after the free ones, so they are claimed first: it waits
-      // for their results to judge how niche the product is (src/server/pipeline/breadth.ts).
-      runAfter: source.costPerUnitUsd > 0 ? new Date(now.getTime() + PAID_DELAY_MS) : now,
+      // The free sources are due a second earlier, so one runner pass claims and runs them before
+      // the paid source, which judges how niche the product is from their results
+      // (src/server/pipeline/breadth.ts). The runner stops at the first empty claim, so nothing is
+      // queued for later.
+      runAfter: isPaid(source) ? now : new Date(now.getTime() - 1000),
     })),
     {
       kind: "digest_daily" as const,

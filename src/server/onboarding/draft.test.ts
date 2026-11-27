@@ -178,6 +178,7 @@ describe("the draft prompt", () => {
 
   it("asks for phrases buyers write, not topics or brand names", () => {
     // Research, 27 Nov 2026: track problems people describe, not broad topics or brands alone.
+    expect(DRAFT_SYSTEM).toMatch(/24 to 30 short phrases/);
     expect(DRAFT_SYSTEM).toMatch(/at least 14/);
     expect(DRAFT_SYSTEM).toMatch(/in the words of someone who needs it/);
     expect(DRAFT_SYSTEM).toMatch(/at most 3 "competitor"/);

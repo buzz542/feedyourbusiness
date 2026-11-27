@@ -210,18 +210,28 @@ export async function collectTermsFor(
  * another first-run source is still going, how many strong recent posts the product has, and
  * lowering its feed minimum to 50 when it is still the default 60.
  */
-export function createSupabaseFirstRun(admin: AdminClient): FirstRunDeps {
+export function createSupabaseFirstRun(
+  admin: AdminClient,
+  freeSourceIds: () => string[],
+): FirstRunDeps {
+  const active = async (productId: string, jobId: string, sources: string[] | null) => {
+    let query = admin
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId)
+      .eq("kind", "first_run")
+      .neq("id", jobId)
+      .in("status", ["queued", "running", "waiting"]);
+    if (sources) query = query.in("source", sources);
+    const { count, error } = await query;
+    fail(error);
+    return (count ?? 0) > 0;
+  };
   return {
-    async othersActive(productId, jobId) {
-      const { count, error } = await admin
-        .from("jobs")
-        .select("id", { count: "exact", head: true })
-        .eq("product_id", productId)
-        .eq("kind", "first_run")
-        .neq("id", jobId)
-        .in("status", ["queued", "running", "waiting"]);
-      fail(error);
-      return (count ?? 0) > 0;
+    othersActive: (productId, jobId) => active(productId, jobId, null),
+    freeActive: async (productId, jobId) => {
+      const free = freeSourceIds();
+      return free.length > 0 && active(productId, jobId, free);
     },
     async strongRecent(productId, now) {
       const since = new Date(now.getTime() - RECENT_DAYS * 24 * 3_600_000).toISOString();

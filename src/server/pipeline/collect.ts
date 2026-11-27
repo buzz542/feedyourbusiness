@@ -28,6 +28,8 @@ import { errorName } from "./runner";
 export interface FirstRunDeps {
   /** Whether another first_run job for this product is still queued, running or waiting. */
   othersActive(productId: string, jobId: string): Promise<boolean>;
+  /** The same, counting only free sources: a paid first run waits for these, never for another paid one. */
+  freeActive(productId: string, jobId: string): Promise<boolean>;
   /** This product's stored posts scoring STRONG_SCORE or more, posted in the last RECENT_DAYS. */
   strongRecent(productId: string, now: Date): Promise<number>;
   /** Lowers the product's feed minimum to NICHE_THRESHOLD if it is still the default. */
@@ -179,18 +181,24 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
         typeof job.payload.awaitingSince === "string"
           ? Date.parse(job.payload.awaitingSince)
           : now().getTime();
-      if (
-        now().getTime() - waitingSince < FREE_WAIT_MS &&
-        (await deps.firstRun.othersActive(job.productId, job.id))
-      )
-        return {
-          status: "waiting",
-          runAfter: new Date(now().getTime() + FREE_RECHECK_MS),
-          payload: { awaitingSince: new Date(waitingSince).toISOString() },
-        };
-      windowHours = firstRunWindowHours(
-        breadthOf(await deps.firstRun.strongRecent(job.productId, now())),
-      );
+      try {
+        if (
+          now().getTime() - waitingSince < FREE_WAIT_MS &&
+          (await deps.firstRun.freeActive(job.productId, job.id))
+        )
+          return {
+            status: "waiting",
+            runAfter: new Date(now().getTime() + FREE_RECHECK_MS),
+            payload: { awaitingSince: new Date(waitingSince).toISOString() },
+          };
+        windowHours = firstRunWindowHours(
+          breadthOf(await deps.firstRun.strongRecent(job.productId, now())),
+        );
+      } catch {
+        // The breadth could not be read: read the month (the niche default) rather than fail a
+        // paid first run that has reserved nothing yet.
+        windowHours = NICHE_WINDOW_HOURS;
+      }
     }
 
     const cap = deps.monthlyCap(source);

@@ -90,7 +90,11 @@ export function createServerCronDeps(): CronDeps {
     budgetFor: (source) => dailyBudgetFor(source),
     costFor: (source) => costPerUnitFor(source),
     userAgent: SOURCE_USER_AGENT,
-    firstRun: createSupabaseFirstRun(admin),
+    firstRun: createSupabaseFirstRun(admin, () =>
+      collectSources()
+        .filter((source) => costPerUnitFor(source) === 0)
+        .map((source) => source.id),
+    ),
   });
 
   return {

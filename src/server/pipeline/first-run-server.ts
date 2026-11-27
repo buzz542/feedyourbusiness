@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { firstRunProgress } from "@/server/email/supabase-digest";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
+import { costPerUnitFor } from "./config";
 import { createServerCronDeps } from "./deps";
 import { startFirstRun } from "./first-run";
 import { runJobs } from "./runner";
@@ -17,6 +18,7 @@ export async function ensureFirstRun(productId: string): Promise<void> {
     sources: deps.sources,
     productId,
     now: deps.clock(),
+    isPaid: (source) => costPerUnitFor(source) > 0,
   });
   if (added > 0)
     after(async () => {

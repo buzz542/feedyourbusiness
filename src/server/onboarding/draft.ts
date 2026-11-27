@@ -129,7 +129,7 @@ Fields:
   then well-known alternatives you are sure of. Never invent one. For each: its name, its bare
   domain in lowercase (like "example.com") or null if you are not sure, and up to 10 other names
   people use for it. Product and company names only, never a person.
-- terms: 20 to 30 short phrases, 2 to 60 characters each,
+- terms: 24 to 30 short phrases, 2 to 60 characters each,
   each written in the words of someone who needs it, the way they would type it in a post asking
   for help: never marketing keywords, broad
   topics or single generic words. Make at least 14 of them "problem" or "category". Intent "problem"
