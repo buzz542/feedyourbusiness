@@ -269,16 +269,19 @@ describe("Sheet (mobile drawer and filter sheet)", () => {
 });
 
 describe("BrandMark (the founder's logo, 27 Nov 2026)", () => {
-  it("is the FYB letters from /brand/fyb-mark.png, painted in the text color of its surface", () => {
-    const out = html(<BrandMark />);
+  it("is the FYB letters from /brand/fyb-mark.png, black on the white site", () => {
+    const out = html(<BrandMark className="h-4" />);
     expect(out).toContain("/brand/fyb-mark.png");
     expect(out).toContain('aria-hidden="true"');
-    // Brand blue on the white site, the light text color in the dark app.
-    expect(out).toMatch(/text-\[#1f3a6e\]/);
+    expect(out).toContain("text-[#101010]");
+    expect(out).not.toContain("#1f3a6e");
+    // The app is always dark, where black would vanish: the light text color there.
     expect(out).toContain("[.theme-dark_&amp;]:text-ink");
   });
 
-  it("keeps the wordmark's name for assistive technology", () => {
-    expect(html(<Wordmark />)).toContain("FeedYourBusiness");
+  it("is the mark alone: the name is for assistive technology, not repeated beside the logo", () => {
+    const out = html(<Wordmark />);
+    expect(out).toMatch(/<span class="sr-only">FeedYourBusiness<\/span>/);
+    expect(out.replace(/<span class="sr-only">.*?<\/span>/, "")).not.toContain("FeedYourBusiness");
   });
 });

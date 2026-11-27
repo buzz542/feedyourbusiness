@@ -6,7 +6,7 @@ import { CtaLink } from "./tracked";
 /**
  * The site navigation (the founder's redesign brief, 27 Nov 2026): a centered, rounded, pale-grey
  * bar with the wordmark, How it works, Example, Pricing, Sign in and, once sign-up is open, Start
- * your trial. On a phone the wordmark shows the mark alone, so the row fits.
+ * your trial. The wordmark is the logo's mark alone.
  */
 export function SiteHeader() {
   const open = isLaunchOpen();
@@ -17,7 +17,7 @@ export function SiteHeader() {
         className="mx-auto flex max-w-4xl items-center gap-1 rounded-full border border-rule bg-panel/95 py-2 pr-2 pl-4 backdrop-blur-sm"
       >
         <Link href="/" className="mr-auto" aria-label="FeedYourBusiness, home">
-          <Wordmark compact />
+          <Wordmark />
         </Link>
         <div className="hidden items-center gap-1 text-sm text-muted md:flex">
           <Link href="/#how" className="rounded-full px-3 py-1.5 hover:text-ink">
