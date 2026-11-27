@@ -65,7 +65,7 @@ function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
     since: SINCE,
     budget: 120,
     now: NOW,
-    userAgent: "FeedYourBusiness/1.0 (+https://feedyourbusiness.app; hello@feedyourbusiness.app)",
+    userAgent: "FeedYourBusiness/1.0 (+https://feedyourbusiness.app; tobyburrows1@icloud.com)",
     sleep: vi.fn(async () => {}),
     credential: (name) => CONFIG[name],
     ...over,

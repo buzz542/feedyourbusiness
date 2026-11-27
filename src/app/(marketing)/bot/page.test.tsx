@@ -28,11 +28,11 @@ describe("/bot", () => {
     expect(OWN_SITE_USER_AGENT).toContain("https://feedyourbusiness.app/bot");
   });
 
-  it("shows no contact address until the founder monitors it (F10), then shows it", () => {
-    expect(html).not.toContain(CONTACT_EMAIL);
-    expect(html).toContain("A contact address for the site reader is added here before launch.");
-    const live = renderToStaticMarkup(<BotPage contactLive />);
-    expect(live).toContain(`href="mailto:${CONTACT_EMAIL}"`);
+  it("shows the contact address only while it is live, and it is live now (27 Nov 2026)", () => {
+    const hidden = renderToStaticMarkup(<BotPage contactLive={false} />);
+    expect(hidden).not.toContain(CONTACT_EMAIL);
+    expect(hidden).toContain("A contact address for the site reader is added here before launch.");
+    expect(html).toContain(`href="mailto:${CONTACT_EMAIL}"`);
   });
 
   it("states the reader's real limits", () => {

@@ -25,7 +25,7 @@ describe("pipeline config", () => {
 
   it("names a monitored contact in the user agent", () => {
     expect(SOURCE_USER_AGENT).toMatch(
-      /^FeedYourBusiness\/1\.0 \(\+https:\/\/feedyourbusiness\.app; hello@feedyourbusiness\.app\)$/,
+      /^FeedYourBusiness\/1\.0 \(\+https:\/\/feedyourbusiness\.app; tobyburrows1@icloud\.com\)$/,
     );
   });
 
