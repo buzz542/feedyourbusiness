@@ -359,9 +359,9 @@ product-market fit, who reply to people in their own words. Not agencies, not ou
 - **Sort:** newest first, by when the post was written, then when we found it (the founder, 24 Nov 2026; the match score shows on each card and no longer sorts the feed).
 - **Card:** source and community ("Reddit · r/SaaS", "Hacker News", "Bluesky"), age ("3h"), category tag,
   match score, the excerpt with the highlighter mark over the words that ask for something, "Why it
-  matched" (the classifier's one-line reason), rival chip when one is mentioned, and actions: Open post (new
+  matched" (the classifier's one-line reason), rival chip when one is mentioned, and actions: View conversation (new
   tab, `rel="noopener noreferrer"`), Save, Mark replied, Hide, Undo. A collapsible reply tip (D8) and the
-  line "Say you built it." sit next to Open post on every card.
+  line "Say you built it." sit next to View conversation on every card.
 - **Keyboard:** `j` and `k` move, `o` opens, `s` saves, `r` marks replied, `h` hides, `?` shows the keys.
 - **Search links panel:** for each term, one-tap searches on Reddit, X, LinkedIn, Facebook, Threads and
   Indie Hackers, opened in the user's browser, with the line "Say you built it." above them.

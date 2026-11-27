@@ -22,7 +22,8 @@ import { VIEW_LABELS } from "./view-labels";
 
 /** What each view holds, under its heading. */
 const VIEW_INTROS: Record<FeedView, string> = {
-  today: "Conversations worth a closer look, from the last 24 hours.",
+  today:
+    "Conversations worth a closer look: what we found in the last 24 hours that you have not replied to or hidden.",
   all: "Every conversation we still hold for you, except the ones you hid.",
   saved: "Conversations you saved to come back to.",
   replied: "Conversations you marked as replied.",

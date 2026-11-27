@@ -497,7 +497,7 @@ describe("ReplyView", () => {
     expect(out).toContain("Saved Conversations you saved to come back to.");
     // Today is what we found in the last day, which can be an older post.
     expect(visible(view({}, { items: [], total: 0 }))).toContain(
-      "Today Conversations worth a closer look, from the last 24 hours.",
+      "Today Conversations worth a closer look: what we found in the last 24 hours that you have not replied to or hidden.",
     );
     expect(out).toContain("3 conversations, newest first.");
     expect(visible(view({ category: "wish" }, { items: items.slice(0, 1), total: 1 }))).toContain(

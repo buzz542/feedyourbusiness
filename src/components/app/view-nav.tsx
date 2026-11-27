@@ -48,7 +48,7 @@ function Count({ value, badge }: { value: number; badge?: boolean }) {
       )}
     >
       {value}
-      <span className="sr-only">{value === 1 ? " post" : " posts"}</span>
+      <span className="sr-only">{value === 1 ? " conversation" : " conversations"}</span>
     </span>
   );
 }
@@ -131,7 +131,15 @@ export function ViewNavList({
                       {item.count !== undefined ? <Count value={item.count} badge /> : null}
                     </span>
                     {/* The bar is narrow: the short name, with the full one for screen readers. */}
-                    <span>{item.id === "all" ? "All" : item.label}</span>
+                    <span>
+                      {item.id === "all" ? (
+                        <>
+                          All<span className="sr-only"> conversations</span>
+                        </>
+                      ) : (
+                        item.label
+                      )}
+                    </span>
                   </>
                 )}
               </Link>

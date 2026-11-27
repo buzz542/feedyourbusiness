@@ -43,11 +43,11 @@ describe("ViewNavList", () => {
 
   it("lists the views with their counts, then Settings, each to its own address", () => {
     expect(links(panel)).toEqual([
-      ["/app/reply", "Today 12 posts"],
-      ["/app/reply?view=all", "All conversations 40 posts"],
-      ["/app/reply?view=saved", "Saved 3 posts"],
-      ["/app/reply?view=replied", "Replied 5 posts"],
-      ["/app/reply?view=hidden", "Hidden 2 posts"],
+      ["/app/reply", "Today 12 conversations"],
+      ["/app/reply?view=all", "All conversations 40 conversations"],
+      ["/app/reply?view=saved", "Saved 3 conversations"],
+      ["/app/reply?view=replied", "Replied 5 conversations"],
+      ["/app/reply?view=hidden", "Hidden 2 conversations"],
       ["/app/settings", "Settings"],
     ]);
   });
@@ -57,11 +57,11 @@ describe("ViewNavList", () => {
     expect(panel).toMatch(/aria-current="page"[^>]*>[\s\S]*?data-current-bar=""/);
   });
 
-  it("says post, not posts, for a count of one", () => {
+  it("says conversation, not conversations, for a count of one", () => {
     const out = renderToStaticMarkup(
       <ViewNavList variant="panel" current={null} counts={{ ...COUNTS, hidden: 1 }} />,
     );
-    expect(links(out)).toContainEqual(["/app/reply?view=hidden", "Hidden 1 post"]);
+    expect(links(out)).toContainEqual(["/app/reply?view=hidden", "Hidden 1 conversation"]);
   });
 
   it("marks Settings on the settings page", () => {

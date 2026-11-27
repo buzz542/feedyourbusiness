@@ -31,7 +31,7 @@ export function AppFrame({
       <div className="theme-dark min-h-dvh bg-panel text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
         <aside className="hidden bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
           <div className="px-5 pt-6 pb-5">
-            <Link href="/app" aria-label="FeedYourBusiness, Today">
+            <Link href="/app" aria-label="FeedYourBusiness, app home">
               <Wordmark />
             </Link>
             {productName ? (
@@ -52,7 +52,7 @@ export function AppFrame({
         </aside>
         <div className="flex min-h-dvh min-w-0 flex-col bg-paper lg:my-3 lg:mr-3 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-3xl lg:border lg:border-rule">
           <header className="flex items-center gap-3 border-b border-rule bg-panel px-4 py-2.5 sm:px-6 lg:hidden">
-            <Link href="/app" aria-label="FeedYourBusiness, Today">
+            <Link href="/app" aria-label="FeedYourBusiness, app home">
               <Wordmark />
             </Link>
             {productName ? (
