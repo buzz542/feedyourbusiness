@@ -112,6 +112,45 @@ export interface CollectStore {
   recordTermStats(jobId: string, day: string, source: string, stats: TermStat[]): Promise<void>;
 }
 
+/**
+ * What one run kept and dropped, counts only (the founder, 26 Nov 2026): each post the source
+ * returned is counted once, at the step that dropped it, so we can see why a run stored nothing.
+ * No text, author, link or post id ever goes in.
+ */
+export interface CollectCounts {
+  received: number;
+  dropped: {
+    duplicate: number;
+    nsfw: number;
+    outsideWindow: number;
+    excerpt: number;
+    linkHost: number;
+    placeholderAuthor: number;
+    suppressed: number;
+    alreadyLinked: number;
+  };
+  /** Sent to the model in a batch that came back with labels. */
+  classified: number;
+  /** Sent, but the model returned no label for it. */
+  unlabeled: number;
+  notRelevant: number;
+  /** Rated below MIN_RELEVANCE, by band. */
+  below: { "0-9": number; "10-19": number; "20-29": number; "30-39": number };
+  /** A rating that is not a whole number from 0 to 100. */
+  outOfRange: number;
+  /** In batches the model refused, or answered outside the schema. */
+  refused: number;
+  invalid: number;
+  /** Left for a later run: a spend cap, the model unavailable, or out of time. */
+  notClassified: number;
+  /** Suppressed after the pre-check: ingest_post refused it. */
+  refusedAtIngest: number;
+  stored: number;
+}
+
+const band = (relevance: number): keyof CollectCounts["below"] =>
+  relevance < 10 ? "0-9" : relevance < 20 ? "10-19" : relevance < 30 ? "20-29" : "30-39";
+
 export const BATCH_SIZE = 20;
 /** Posts rated below this are discarded (docs/PLAN.md 2.3.2). */
 export const MIN_RELEVANCE = 40;
@@ -178,8 +217,11 @@ export function createCollectStep(deps: {
   store: CollectStore;
   classifier: Classifier;
   hash: AuthorHasher;
+  /** Where the counts line goes, with the counts themselves; the server log by default. */
+  log?: (line: string, counts: CollectCounts) => void;
 }) {
   const { store, classifier } = deps;
+  const log = deps.log ?? ((line: string) => console.info(line));
 
   return async function process(input: {
     job: Job;
@@ -209,22 +251,66 @@ export function createCollectStep(deps: {
       typeof job.payload.day === "string" ? job.payload.day : now.toISOString().slice(0, 10);
 
     // Step 5: everything that must never reach the model or the database, then hash at once.
+    const counts: CollectCounts = {
+      received: input.posts.length,
+      dropped: {
+        duplicate: 0,
+        nsfw: 0,
+        outsideWindow: 0,
+        excerpt: 0,
+        linkHost: 0,
+        placeholderAuthor: 0,
+        suppressed: 0,
+        alreadyLinked: 0,
+      },
+      classified: 0,
+      unlabeled: 0,
+      notRelevant: 0,
+      below: { "0-9": 0, "10-19": 0, "20-29": 0, "30-39": 0 },
+      outOfRange: 0,
+      refused: 0,
+      invalid: 0,
+      notClassified: 0,
+      refusedAtIngest: 0,
+      stored: 0,
+    };
+    const drop = counts.dropped;
     const seen = new Set<string>();
     const hashed: Hashed[] = [];
     for (const { authorKey, ...post } of input.posts) {
-      if (seen.has(post.externalId)) continue;
+      if (seen.has(post.externalId)) {
+        drop.duplicate++;
+        continue;
+      }
       seen.add(post.externalId);
+      if (post.nsfw) {
+        drop.nsfw++;
+        continue;
+      }
       // An invalid date never passes the window (NaN compares false both ways).
-      if (post.nsfw || !(post.postedAt.getTime() > since.getTime())) continue;
-      if (!post.excerpt || post.excerpt.length > MAX_EXCERPT) continue;
-      if (!onLinkHost(post.url, source.linkHosts)) continue;
-      if (PLACEHOLDER_AUTHORS.has(normalizeAuthorKey(authorKey))) continue;
+      if (!(post.postedAt.getTime() > since.getTime())) {
+        drop.outsideWindow++;
+        continue;
+      }
+      if (!post.excerpt || post.excerpt.length > MAX_EXCERPT) {
+        drop.excerpt++;
+        continue;
+      }
+      if (!onLinkHost(post.url, source.linkHosts)) {
+        drop.linkHost++;
+        continue;
+      }
+      if (PLACEHOLDER_AUTHORS.has(normalizeAuthorKey(authorKey))) {
+        drop.placeholderAuthor++;
+        continue;
+      }
       hashed.push({ ...post, authorHash: deps.hash(source.id, authorKey) });
     }
     const suppressed = await store.suppressed(source.id, [
       ...new Set(hashed.map((p) => p.authorHash)),
     ]);
     const allowed = hashed.filter((p) => !suppressed.has(p.authorHash));
+    drop.suppressed = hashed.length - allowed.length;
 
     // Step 6: posts this product already has are skipped; posts stored for another product are not.
     const linked = await store.linked(
@@ -233,6 +319,8 @@ export function createCollectStep(deps: {
       allowed.map((p) => p.externalId),
     );
     const todo = allowed.filter((p) => !linked.has(p.externalId));
+    drop.alreadyLinked = allowed.length - todo.length;
+    let attempted = 0;
 
     // Steps 7 and 8: classify 20 at a time, keep relevant labels for ids we sent, store and link.
     const kept = new Map<string, number>();
@@ -248,6 +336,7 @@ export function createCollectStep(deps: {
         break;
       }
       const batch = todo.slice(start, start + BATCH_SIZE);
+      attempted += batch.length;
       const items: ClassifyItem[] = batch.map((p, i) => ({
         id: String(i),
         source: source.id,
@@ -266,6 +355,7 @@ export function createCollectStep(deps: {
         // A spend cap stops classification: what is stored stays, the rest waits for a later run.
         if (error instanceof LlmCapError) {
           capped = error.cap;
+          attempted -= batch.length;
           break;
         }
         // A refusal skips this batch: nothing is linked, so the next run sends it again.
@@ -273,15 +363,18 @@ export function createCollectStep(deps: {
         // An answer that never fits the schema skips this batch, like a refusal.
         if (name === "LlmSchemaError") {
           invalid++;
+          counts.invalid += batch.length;
           continue;
         }
         // The model did not answer: stop, keep what is stored; tomorrow's window covers the rest.
         if (name === "LlmUnavailableError") {
           unavailable = true;
+          attempted -= batch.length;
           break;
         }
         if (!(error instanceof LlmRefusalError)) throw error;
         refused++;
+        counts.refused += batch.length;
         continue;
       }
       const byId = new Map<number, Label>();
@@ -289,10 +382,21 @@ export function createCollectStep(deps: {
         const index = /^\d{1,2}$/.test(label.id) ? Number(label.id) : -1;
         if (index >= 0 && index < batch.length && !byId.has(index)) byId.set(index, label);
       }
+      counts.classified += batch.length;
+      counts.unlabeled += batch.length - byId.size;
       for (const [index, label] of byId) {
-        if (label.category === "not_relevant") continue;
-        if (!Number.isInteger(label.relevance) || label.relevance < MIN_RELEVANCE) continue;
-        if (label.relevance > 100) continue;
+        if (label.category === "not_relevant") {
+          counts.notRelevant++;
+          continue;
+        }
+        if (!Number.isInteger(label.relevance) || label.relevance < 0 || label.relevance > 100) {
+          counts.outOfRange++;
+          continue;
+        }
+        if (label.relevance < MIN_RELEVANCE) {
+          counts.below[band(label.relevance)]++;
+          continue;
+        }
         const post = batch[index]!;
         const postId = await store.ingest(
           {
@@ -306,7 +410,10 @@ export function createCollectStep(deps: {
           },
           now,
         );
-        if (!postId) continue; // suppressed after the pre-check: ingest_post refused it
+        if (!postId) {
+          counts.refusedAtIngest++; // suppressed after the pre-check: ingest_post refused it
+          continue;
+        }
         await store.link(productId, postId, toPostLabel(label, label.category, post));
         stored++;
         if (post.termId) kept.set(post.termId, (kept.get(post.termId) ?? 0) + 1);
@@ -326,6 +433,10 @@ export function createCollectStep(deps: {
       relevant: kept.get(termId) ?? 0,
     }));
     if (stats.length > 0) await store.recordTermStats(job.id, day, source.id, stats);
+    counts.stored = stored;
+    counts.notClassified = todo.length - attempted;
+    // Counts only, with the source and our own job id: never text, an author, a link or a post id.
+    log(`[collect] counts ${source.id} ${job.id} ${JSON.stringify(counts)}`, counts);
     return {
       stored,
       refused,

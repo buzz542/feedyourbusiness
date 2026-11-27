@@ -7,6 +7,7 @@ import {
   createCollectStep,
   type Classifier,
   type ClassifyItem,
+  type CollectCounts,
   type Label,
 } from "./collect-step";
 import { FakeCollectStore } from "./fakes";
@@ -80,7 +81,7 @@ function fakeClassifier(over: (item: ClassifyItem) => Partial<Label> = () => ({}
 
 function setup(classifier = fakeClassifier()) {
   const store = new FakeCollectStore();
-  const step = createCollectStep({ store, classifier, hash });
+  const step = createCollectStep({ store, classifier, hash, log: () => {} });
   const run = (
     posts: CollectedPost[],
     source: CollectSource = hn,
@@ -477,5 +478,131 @@ describe("the runner's time budget and model failures (review)", () => {
     await run([post("1")]);
     expect(store.links[0]!.rival).toBeNull();
     expect(store.links[0]!.reason).not.toMatch(/u\/someone/);
+  });
+});
+
+describe("counts-only log of what each run kept and dropped (the founder, 26 Nov 2026)", () => {
+  it("counts every post once, by the step that dropped it, and logs counts only", async () => {
+    const lines: string[] = [];
+    const classifier = fakeClassifier((item) =>
+      item.excerpt.includes("not-relevant") ? { category: "not_relevant", relevance: 0 } : {},
+    );
+    const store = new FakeCollectStore();
+    store.suppression.add(`hackernews|${hash("hackernews", "example_author_sup")}`);
+    store.suppressedAtIngest.add(hash("hackernews", "example_author_late"));
+    let counts: CollectCounts | undefined;
+    const step = createCollectStep({
+      store,
+      classifier,
+      hash,
+      log: (line, c) => {
+        lines.push(line);
+        counts = c;
+      },
+    });
+    const posts = [
+      post("1"),
+      post("1"), // duplicate
+      post("2", { nsfw: true }),
+      post("3", { postedAt: new Date("2026-10-01T00:00:00Z") }),
+      post("4", { excerpt: "" }),
+      post("5", { url: "https://evil.example/item?id=5" }),
+      post("6", { authorKey: "[deleted]" }),
+      post("7", { authorKey: "example_author_sup" }),
+      post("8", { excerpt: "rel=5 a" }),
+      post("9", { excerpt: "rel=15 b" }),
+      post("10", { excerpt: "rel=25 c" }),
+      post("11", { excerpt: "rel=39 d" }),
+      post("12", { excerpt: "not-relevant e" }),
+      post("13", { excerpt: "rel=140 f" }),
+      post("14", { authorKey: "example_author_late" }),
+      post("15", { excerpt: "rel=40 g" }),
+    ];
+    const out = await step({ job: job(), source: hn, posts, now: NOW, since: SINCE });
+
+    expect(out.stored).toBe(2);
+    expect(counts).toEqual({
+      received: 16,
+      dropped: {
+        duplicate: 1,
+        nsfw: 1,
+        outsideWindow: 1,
+        excerpt: 1,
+        linkHost: 1,
+        placeholderAuthor: 1,
+        suppressed: 1,
+        alreadyLinked: 0,
+      },
+      classified: 9,
+      unlabeled: 0,
+      notRelevant: 1,
+      below: { "0-9": 1, "10-19": 1, "20-29": 1, "30-39": 1 },
+      outOfRange: 1,
+      refused: 0,
+      invalid: 0,
+      notClassified: 0,
+      refusedAtIngest: 1,
+      stored: 2,
+    });
+
+    // One line per run: the source, the job and numbers. No text, author, link or post id.
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^\[collect\] counts hackernews job-1 \{/);
+    for (const secret of ["example_author", "Looking for", "rel=", "ycombinator", '"1"'])
+      expect(lines[0]).not.toContain(secret);
+  });
+
+  it("counts posts already in the feed, refused or invalid batches, and the ones left for later", async () => {
+    let call = 0;
+    const classifier: Classifier = {
+      classify: async (_p, items) => {
+        call++;
+        if (call === 1) throw new LlmRefusalError();
+        if (call === 2) throw Object.assign(new Error("x"), { name: "LlmSchemaError" });
+        if (call === 3)
+          return items.slice(1).map((i) => ({
+            id: i.id,
+            relevance: 70,
+            category: "looking_for_tool" as const,
+            reason: "r",
+            ...NO_LABELS,
+          }));
+        throw new LlmCapError("product_monthly");
+      },
+    };
+    const store = new FakeCollectStore();
+    let counts: CollectCounts | undefined;
+    const step = createCollectStep({ store, classifier, hash, log: (_l, c) => void (counts = c) });
+    const already = await store.ingest({
+      source: "hackernews",
+      externalId: "old",
+      url: LINKS.hackernews!("old"),
+      excerpt: "x",
+      postedAt: NOW,
+      authorHash: "h",
+      community: null,
+    });
+    await store.link("p1", already!, {
+      relevance: 50,
+      category: "wish",
+      reason: "r",
+      highlight: null,
+      toolMentioned: null,
+      competitorId: null,
+      rival: null,
+      termId: null,
+    });
+    const many = Array.from({ length: BATCH_SIZE * 4 }, (_, i) => post(`n${i}`));
+    await step({ job: job(), source: hn, posts: [post("old"), ...many], now: NOW, since: SINCE });
+    expect(counts).toMatchObject({
+      received: 1 + BATCH_SIZE * 4,
+      dropped: { alreadyLinked: 1 },
+      refused: BATCH_SIZE,
+      invalid: BATCH_SIZE,
+      classified: BATCH_SIZE,
+      unlabeled: 1,
+      stored: BATCH_SIZE - 1,
+      notClassified: BATCH_SIZE,
+    });
   });
 });

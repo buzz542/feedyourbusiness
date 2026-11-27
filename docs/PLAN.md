@@ -864,6 +864,11 @@ mark a job `failed` with the error class; `/admin` shows it.
 8. `ingest_post` (refuses suppressed authors atomically), then insert `product_posts` with the labels,
    `on conflict (product_id, post_id) do nothing`.
 9. `settle_budget` with the actual units and cost; update `term_stats` (fetched, relevant).
+10. Log one counts-only line per run (the founder, 26 Nov 2026): how many posts the source returned, how
+    many each pre-filter dropped (duplicate, NSFW, outside the window, excerpt, link host, placeholder
+    author, suppressed, already linked), how many the model rated not relevant or below 40 (in bands of 10),
+    how many were refused, invalid, left for a later run or refused at ingest, and how many were stored. The
+    source name, our job id and numbers only: never text, an author, a link or a post id.
 
 Checkout returns to `/app/reply?welcome=1&session_id={CHECKOUT_SESSION_ID}`. The welcome step retrieves that
 Checkout Session server-side, checks its `client_reference_id` is the signed-in user, and applies the billing
