@@ -27,7 +27,7 @@ export function AppFrame({
 }) {
   return (
     <FeedCountsProvider initial={counts} threshold={threshold}>
-      <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="theme-dark min-h-dvh bg-paper text-ink lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="hidden border-r border-rule bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
           <div className="px-5 pt-6 pb-5">
             <Link href="/app" className="font-serif text-2xl tracking-tight">

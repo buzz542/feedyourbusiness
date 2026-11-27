@@ -34,10 +34,17 @@ describe("landing page", () => {
     expect(text).not.toMatch(/(^|\s)@\w|\bu\/\w/);
   });
 
-  it("shows the example from a source collected at launch, never from one behind its gate", () => {
+  it("shows the example from a source collected at launch, never from one out of launch", () => {
+    // Reddit is collected at launch (live since 26 Nov 2026); X is not, and LinkedIn never is.
     const example = /aria-label="Example post card"[\s\S]*?<\/figure>/.exec(html)?.[0] ?? "";
-    expect(example).toContain("Hacker News");
-    expect(example).not.toMatch(/Reddit|r\/\w|\bX\b/);
+    expect(example).toMatch(/Reddit|Hacker News|Bluesky/);
+    expect(example).not.toMatch(/\bX\b|LinkedIn|Facebook|Threads/);
+  });
+
+  it("follows the brief: one primary action, the example near the hero, the price beside it", () => {
+    expect(text).toContain("Find people already asking for what you built.");
+    expect(html.indexOf('aria-label="Example post card"')).toBeLessThan(html.indexOf('id="how"'));
+    expect(html).toContain('href="#example"');
   });
 
   it("puts every word of the example card in its claims row", () => {

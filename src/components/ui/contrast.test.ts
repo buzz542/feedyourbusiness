@@ -30,7 +30,7 @@ function tokens(body: string): Record<string, string> {
 }
 
 const light = tokens(block(css, /^:root\s*\{/m));
-const dark = tokens(block(block(css, /@media \(prefers-color-scheme: dark\)/), /:root\s*\{/));
+const dark = tokens(block(css, /^\.theme-dark\s*\{/m));
 
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((i) => {
@@ -120,8 +120,8 @@ describe("color tokens", () => {
     expect(contrast("#000000", "#ffffff")).toBeCloseTo(21, 5);
     // Muted text on the dark highlight is too faint, which is why highlighted text is always ink.
     expect(contrast(dark["ink-muted"]!, dark.highlight!)).toBeLessThan(4.5);
-    // Light text on the dark theme's link color fails, which is why buttons use --accent-fill.
-    expect(contrast(dark["accent-ink"]!, dark.accent!)).toBeLessThan(4.5);
+    // The field-edge color is too faint for text, which is why --control is only ever an edge.
+    expect(contrast(light.control!, light.paper!)).toBeLessThan(4.5);
   });
 });
 
@@ -131,23 +131,32 @@ describe("dark mode is designed, not inverted", () => {
   it.each([
     ["light", light],
     ["dark", dark],
-  ] as const)(
-    "%s theme: cards sit above the page and the side panel sits below it",
-    (_theme, t) => {
-      // An inverted palette would flip this order in the dark theme.
-      expect(lum(t, "surface")).toBeGreaterThan(lum(t, "paper"));
-      expect(lum(t, "panel")).toBeLessThan(lum(t, "paper"));
-    },
-  );
+  ] as const)("%s theme: cards never sit below the page, and the panel does", (_theme, t) => {
+    // The site's cards are white on white with a border (the brief, 27 Nov 2026); the app's are
+    // raised by being lighter. An inverted palette would flip this order in the dark theme.
+    expect(lum(t, "surface")).toBeGreaterThanOrEqual(lum(t, "paper"));
+    expect(lum(t, "panel")).toBeLessThan(lum(t, "paper"));
+  });
+
+  it("dark theme: cards are raised above the page by being lighter", () => {
+    expect(lum(dark, "surface")).toBeGreaterThan(lum(dark, "paper"));
+  });
 
   it.each([
     ["light", light],
     ["dark", dark],
-  ] as const)("%s theme: primary buttons keep light text on an ink-blue fill", (_theme, t) => {
-    expect(lum(t, "accent-ink")).toBeGreaterThan(lum(t, "accent-fill"));
+  ] as const)("%s theme: the primary button is a neutral, with no hue", (_theme, t) => {
+    // The brief: near-black buttons on the white site, restrained black and white, no gradients.
     const hex = t["accent-fill"]!;
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    expect(b!).toBeGreaterThan(Math.max(r!, g!));
+    expect(Math.max(r!, g!, b!) - Math.min(r!, g!, b!)).toBeLessThanOrEqual(8);
+  });
+
+  it("the primary button is the opposite of its page: dark on the site, light in the app", () => {
+    expect(lum(light, "accent-fill")).toBeLessThan(lum(light, "paper"));
+    expect(lum(light, "accent-ink")).toBeGreaterThan(lum(light, "accent-fill"));
+    expect(lum(dark, "accent-fill")).toBeGreaterThan(lum(dark, "paper"));
+    expect(lum(dark, "accent-ink")).toBeLessThan(lum(dark, "accent-fill"));
   });
 
   it("swaps no value between ink and paper", () => {

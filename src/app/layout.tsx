@@ -1,4 +1,3 @@
-import "@fontsource-variable/fraunces";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";

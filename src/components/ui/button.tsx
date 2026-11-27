@@ -9,7 +9,7 @@ import { cx } from "./cx";
 export type ButtonVariant = "primary" | "secondary" | "quiet";
 
 const BASE =
-  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[2px] px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent-fill text-accent-ink hover:opacity-90",

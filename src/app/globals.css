@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /*
-  Tokens (docs/PLAN.md 9.1 to 9.3): warm paper, near-black ink, one deep ink-blue accent, a real
-  dark mode. src/components/ui/contrast.test.ts checks every text pair at 4.5:1 and every control
+  Tokens (docs/PLAN.md 9.1 to 9.3; the founder's redesign brief, 27 Nov 2026): a white public
+  site with near-black text and buttons, and a dark app (.theme-dark). src/components/ui/contrast.test.ts checks every text pair at 4.5:1 and every control
   edge at 3:1 in both themes.
 
   Surfaces: --paper is the page, --panel the app's side panel and bars (below the page), --surface
@@ -14,45 +14,44 @@
 */
 :root {
   color-scheme: light;
-  --paper: #fbf8f1;
-  --panel: #f3eee2;
-  --surface: #fffdf9;
-  --selected: #e4e7f0;
-  --ink: #17150f;
-  --ink-muted: #565143;
-  --rule: #d9d2c0;
-  --control: #8c8473;
-  --accent: #1b2a5c;
-  --accent-fill: #1b2a5c;
-  --accent-ink: #fbf8f1;
+  --paper: #ffffff;
+  --panel: #f7f7f5;
+  --surface: #ffffff;
+  --selected: #ececea;
+  --ink: #101010;
+  --ink-muted: #66666c;
+  --rule: #e6e6e3;
+  --control: #8a8a90;
+  --accent: #101010;
+  --accent-fill: #101010;
+  --accent-ink: #ffffff;
   --highlight: #f3dd6d;
   --positive: #1e6b3c;
   --negative: #a3301f;
 }
 
 /*
-  Dark mode is its own palette, not the light one turned over: a warm charcoal page, a recessed
-  panel, cards raised above the page by being lighter, warm off-white text, a soft ink-blue for
-  links and a mid ink-blue button that keeps light text, as in the light theme.
+  The app is dark, always (the founder's brief, 27 Nov 2026): a near-black frame, a raised main
+  surface, cards raised again by being lighter, off-white text and a light primary button with dark
+  text. It is its own palette, not the light one turned over, applied with the theme-dark class on
+  the app's layouts (and on the homepage's app preview).
 */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --paper: #191714;
-    --panel: #13120f;
-    --surface: #211f1b;
-    --selected: #272c3d;
-    --ink: #ebe5d8;
-    --ink-muted: #b2aa99;
-    --rule: #38342d;
-    --control: #7d7568;
-    --accent: #a9b8ee;
-    --accent-fill: #4e66c0;
-    --accent-ink: #f7f4ec;
-    --highlight: #6b5a12;
-    --positive: #86cfa3;
-    --negative: #f2a193;
-  }
+.theme-dark {
+  color-scheme: dark;
+  --paper: #161617;
+  --panel: #0b0b0c;
+  --surface: #202022;
+  --selected: #2c2c31;
+  --ink: #f5f5f5;
+  --ink-muted: #a1a1aa;
+  --rule: #2a2a2e;
+  --control: #6e6e76;
+  --accent: #e4e4e7;
+  --accent-fill: #f5f5f5;
+  --accent-ink: #101010;
+  --highlight: #6b5a12;
+  --positive: #86cfa3;
+  --negative: #f2a193;
 }
 
 @theme inline {
@@ -70,11 +69,20 @@
   --color-highlight: var(--highlight);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
-  /* Self-hosted: Fraunces from @fontsource-variable/fraunces, Geist from the geist package. */
-  --font-serif: "Fraunces Variable", ui-serif, "Iowan Old Style", Georgia, "Times New Roman", serif;
+  /* One sans-serif, Geist, self-hosted from the geist package. font-serif now means the heading face. */
+  --font-serif:
+    var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
   --font-sans:
     var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 html {
