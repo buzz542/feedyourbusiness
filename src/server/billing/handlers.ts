@@ -1,3 +1,4 @@
+import type Stripe from "stripe";
 import { z } from "zod";
 import { isConfirmedProduct, type AccountState } from "@/server/auth/next-step";
 import { isSameOrigin, json, readBodyText } from "@/server/http/respond";
@@ -190,7 +191,16 @@ export function createCancelHandler(deps: BillingDeps): Handler {
  * Stripe webhook. Needs the raw body to verify the signature, so it must not parse JSON first.
  * 400 = we will never accept this request. 500 = try again later, Stripe will redeliver.
  */
-export function createWebhookHandler(deps: Pick<BillingDeps, "stripe" | "store">): Handler {
+export function createWebhookHandler(
+  deps: Pick<BillingDeps, "stripe" | "store"> & {
+    /**
+     * Runs once for each event this delivery applied (outcome "processed"), after it is applied:
+     * the first run starts here (first-run-trigger.ts). A failure is logged by class and never
+     * fails the delivery; the welcome step asks for the first run again.
+     */
+    afterEvent?: (event: Stripe.Event) => Promise<unknown>;
+  },
+): Handler {
   return async (request) => {
     const signature = request.headers.get("stripe-signature");
     if (!signature) return json(400, { error: "missing_signature" });
@@ -207,6 +217,14 @@ export function createWebhookHandler(deps: Pick<BillingDeps, "stripe" | "store">
 
     try {
       const outcome = await handleStripeEvent(event, deps);
+      if (outcome === "processed" && deps.afterEvent) {
+        try {
+          await deps.afterEvent(event);
+        } catch (error) {
+          const name = error instanceof Error ? error.name : "UnknownError";
+          console.error(`[billing] first run not started: ${name}`);
+        }
+      }
       return json(200, { received: true, outcome });
     } catch (error) {
       return fail("webhook", error);

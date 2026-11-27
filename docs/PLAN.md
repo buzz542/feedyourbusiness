@@ -870,7 +870,10 @@ Checkout Session server-side, checks its `client_reference_id` is the signed-in 
 patch before any entitlement check, so a new subscriber is never shown the billing page (or able to start a
 second checkout) while the webhook is still on its way. The first run is then started by a server action that enqueues
 `first_run` (dedupe key `first_run:<product>`) and processes it with `after()`, so results stream in while
-the user watches. The tick finishes anything still pending. On the Hobby plan only the daily cron ticks, so
+the user watches. The Stripe webhook starts it too, the moment an event makes the owner entitled and the
+product is active (the founder, 26 Nov 2026; `src/server/billing/first-run-trigger.ts`), so collection does
+not wait for the owner to come back from Checkout; whichever comes first wins and the dedupe key makes the
+other a no-op. The tick finishes anything still pending. On the Hobby plan only the daily cron ticks, so
 a pending vendor run may finish the next morning; that is acceptable before launch (D6).
 
 ### 7.4 Hacker News (official, free)

@@ -391,4 +391,52 @@ describe("webhook", () => {
     const event = { id: "evt_ign", type: "invoice.paid", created: 1, data: { object: {} } };
     expect((await createWebhookHandler({ stripe, store })(signed(event))).status).toBe(200);
   });
+
+  describe("starting the first run (the founder, 26 Nov 2026)", () => {
+    it("hands each newly applied event on once, after it is applied", async () => {
+      const seen: string[] = [];
+      const handler = createWebhookHandler({
+        stripe,
+        store,
+        afterEvent: async (event) => {
+          // The billing patch is already in place when the first run is asked for.
+          expect(store.row("user-1").plan).toBe("pro");
+          seen.push(event.id);
+        },
+      });
+      const event = subscriptionEvent("created", subscriptionFixture());
+      expect((await handler(signed(event))).status).toBe(200);
+      // Stripe redelivers: the duplicate is not handed on again.
+      expect((await handler(signed(event))).status).toBe(200);
+      expect(seen).toEqual([event.id]);
+    });
+
+    it("never hands on an ignored event or one that failed", async () => {
+      const seen: string[] = [];
+      const handler = createWebhookHandler({
+        stripe,
+        store,
+        afterEvent: async (event) => void seen.push(event.id),
+      });
+      await handler(signed({ id: "evt_ign2", type: "invoice.paid", created: 1, data: {} }));
+      store.failNextApply = true;
+      await handler(signed(subscriptionEvent("created", subscriptionFixture())));
+      expect(seen).toEqual([]);
+    });
+
+    it("still answers 200 when starting the first run fails, logging the class only", async () => {
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      const handler = createWebhookHandler({
+        stripe,
+        store,
+        afterEvent: async () => {
+          throw Object.assign(new Error("secret detail user-1"), { name: "JobsUnavailable" });
+        },
+      });
+      const response = await handler(signed(subscriptionEvent("created", subscriptionFixture())));
+      expect(response.status).toBe(200);
+      expect(errors).toHaveBeenCalledWith("[billing] first run not started: JobsUnavailable");
+      expect(JSON.stringify(errors.mock.calls)).not.toContain("secret detail");
+    });
+  });
 });

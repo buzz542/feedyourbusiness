@@ -1,10 +1,12 @@
 import "server-only";
 import { loadAccount } from "@/server/auth/account";
 import { loadAllowlist } from "@/server/auth/allowlist";
+import { ensureFirstRun } from "@/server/pipeline/first-run-server";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { loadBillingConfig } from "./config";
-import type { BillingDeps } from "./handlers";
+import { startFirstRunAfterEvent } from "./first-run-trigger";
+import type { BillingDeps, createWebhookHandler } from "./handlers";
 import { createStripeAdapter } from "./stripe-adapter";
 import { createSupabaseProfileStore } from "./supabase-store";
 
@@ -37,9 +39,33 @@ export function getBillingDeps(): BillingDeps {
   };
 }
 
-export function getWebhookDeps(): Pick<BillingDeps, "stripe" | "store"> {
+/** The owner's first product, as the app shows it, read with the service role (no session here). */
+async function firstProductOf(userId: string): Promise<{ id: string; status: string } | null> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("products")
+    .select("id, status")
+    .eq("owner_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error)
+    throw Object.assign(new Error("Could not load the product"), { name: "ProductLoadError" });
+  return data;
+}
+
+export function getWebhookDeps(): Parameters<typeof createWebhookHandler>[0] {
   const { stripe, store } = core();
-  return { stripe, store };
+  return {
+    stripe,
+    store,
+    // The first run starts the moment the owner is entitled (the founder, 26 Nov 2026).
+    afterEvent: (event) =>
+      startFirstRunAfterEvent(event, {
+        store,
+        productFor: firstProductOf,
+        startFirstRun: ensureFirstRun,
+      }),
+  };
 }
 
 export async function getEmailForUser(userId: string): Promise<string | null> {
