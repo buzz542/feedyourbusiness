@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cx } from "./cx";
+import { wrapTab } from "./focus-wrap";
 import { CloseIcon } from "./icons";
 
 const PANEL: Record<"left" | "bottom", string> = {
@@ -86,6 +87,7 @@ export function Sheet({
           setOpen(false);
           button.current?.focus();
         }}
+        onKeyDown={(event) => wrapTab(event, event.currentTarget)}
         onPointerDown={(event) => {
           pressedBackdrop.current = event.target === event.currentTarget;
         }}

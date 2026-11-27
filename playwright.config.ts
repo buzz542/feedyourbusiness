@@ -24,6 +24,9 @@ export const E2E_ONBOARDING_EMAIL = "e2e-onboarding@example.test";
 export const E2E_BILLING_EMAIL = "e2e-billing@example.test";
 /** The Reply E2E's address (tests/e2e/reply.spec.ts); also on the allowlist. */
 export const E2E_REPLY_EMAIL = "e2e-reply@example.test";
+/** The redesign E2E's addresses (tests/e2e/redesign.spec.ts): one with posts, one without. */
+export const E2E_REDESIGN_EMAIL = "e2e-redesign@example.test";
+export const E2E_EMPTY_EMAIL = "e2e-empty@example.test";
 
 // The onboarding E2E must never call the real model or a real site: refuse to run when the
 // server's env would turn the fakes off (a VERCEL_ENV pulled into .env.local, for instance).
@@ -56,6 +59,8 @@ export default defineConfig({
         E2E_ONBOARDING_EMAIL,
         E2E_BILLING_EMAIL,
         E2E_REPLY_EMAIL,
+        E2E_REDESIGN_EMAIL,
+        E2E_EMPTY_EMAIL,
       ]
         .filter(Boolean)
         .join(","),

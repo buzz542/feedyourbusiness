@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
+import { wrapTab } from "@/components/ui/focus-wrap";
 import { CheckIcon, CloseIcon } from "@/components/ui/icons";
 import type { FeedItem } from "@/server/store/feed";
 import { ConversationDetail } from "./conversation-detail";
@@ -205,6 +206,7 @@ function DetailDialog({ id, children }: { id: string; children: ReactNode }) {
         }}
         // A click on the backdrop (the dialog element itself, outside its panel) closes it, when
         // the press started there too.
+        onKeyDown={(event) => wrapTab(event, event.currentTarget)}
         onPointerDown={(event) => {
           pressedBackdrop.current = event.target === event.currentTarget;
         }}
