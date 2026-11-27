@@ -1,3 +1,4 @@
+import { checkOwnSiteUrl } from "@/server/net/own-site";
 import { cleanDomain } from "@/server/onboarding/draft";
 import { parseEdits, type EditField } from "@/server/onboarding/review";
 
@@ -45,8 +46,8 @@ export type ProfilePlan =
   | {
       ok: true;
       profile: ProfileUpdate;
-      removeTermIds: string[];
-      addTerms: { term: string; intent: TermIntent }[];
+      /** Every term to keep, with its intent; apply_product_edits removes, renames and adds. */
+      terms: { term: string; intent: TermIntent }[];
     }
   | { ok: false; errors: Partial<Record<ProfileField, string>> };
 
@@ -74,16 +75,18 @@ export function intentFor(
 
 const WEBSITE_ERROR = "Use your product's own https address.";
 
-/** The product's own https address, or an error. Platform and review sites are refused. */
+/**
+ * The product's own https address, or an error: onboarding's own-site rules (no platform,
+ * third-party, local or IP host, https on the default port, no credentials), and a real domain.
+ */
 function website(raw: string): { ok: true; url: string } | { ok: false } {
   let url: URL;
   try {
-    url = new URL(raw.trim());
+    url = checkOwnSiteUrl(raw.trim());
   } catch {
     return { ok: false };
   }
-  if (url.protocol !== "https:" || url.username || url.password || url.port) return { ok: false };
-  if (url.href.length > 2048 || cleanDomain(url.hostname, null) === null) return { ok: false };
+  if (cleanDomain(url.hostname, null) === null) return { ok: false };
   return { ok: true, url: url.href };
 }
 
@@ -117,8 +120,6 @@ export function planProfileSave(form: FormData, current: CurrentProfile): Profil
     errors.terms = `Keep it to ${ALTERNATIVE_TERM_CAP} "alternative to" terms.`;
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
-  const keep = new Set(terms.map((t) => t.term.toLowerCase()));
-  const saved = new Set(current.terms.map((t) => t.term.toLowerCase()));
   const { profile } = parsed.edits;
   return {
     ok: true,
@@ -130,7 +131,6 @@ export function planProfileSave(form: FormData, current: CurrentProfile): Profil
       audience: profile.audience,
       relevance_threshold: profile.relevance_threshold,
     },
-    removeTermIds: current.terms.filter((t) => !keep.has(t.term.toLowerCase())).map((t) => t.id),
-    addTerms: terms.filter((t) => !saved.has(t.term.toLowerCase())),
+    terms,
   };
 }

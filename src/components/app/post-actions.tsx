@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { Button } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { CheckIcon, CloseIcon } from "@/components/ui/icons";
+import type { FeedItem } from "@/server/store/feed";
+import { ConversationDetail } from "./conversation-detail";
 import { useFeedCounts } from "./feed-counts";
 
 type State = "new" | "saved" | "replied" | "hidden";
@@ -63,8 +65,12 @@ export function PostActions({
   setState: SetPostState;
   open?: ReactNode;
   counted?: { createdAt: string; relevance: number };
-  /** The conversation detail, shown in a dialog from the Details button (the founder's brief). */
-  detail?: ReactNode;
+  /**
+   * The conversation detail's data, shown in a dialog from the Details button (the founder's
+   * brief). Plain data, rendered here only while the dialog is open, so the page carries no second
+   * rendered copy of each card.
+   */
+  detail?: { item: FeedItem; rivalName: string | null; now: string };
   /** Called when the conversation is opened: View conversation, or Details. */
   markOpened?: MarkOpened;
 }) {
@@ -133,7 +139,11 @@ export function PostActions({
       {toggles}
       {detail ? (
         <DetailDialog id={id}>
-          {detail}
+          <ConversationDetail
+            item={detail.item}
+            now={new Date(detail.now)}
+            rivalName={detail.rivalName}
+          />
           {/* The same controls as the card, sharing its state: a change here shows there too. */}
           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-rule pt-4">
             {open}
@@ -158,6 +168,8 @@ function DetailDialog({ id, children }: { id: string; children: ReactNode }) {
   const button = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [isOpen, setOpen] = useState(false);
+  /** Where the press started: a drag that ends on the backdrop (selecting text) never closes it. */
+  const pressedBackdrop = useRef(false);
   const dialogId = `detail-${id}`;
 
   useEffect(() => {
@@ -176,6 +188,8 @@ function DetailDialog({ id, children }: { id: string; children: ReactNode }) {
         aria-haspopup="dialog"
         aria-controls={dialogId}
         aria-expanded={isOpen}
+        // Which conversation: the card's source line and age, for anyone moving by button.
+        aria-describedby={`meta-${id}`}
         onClick={() => setOpen(true)}
         className={cx(TOGGLE, "border-control bg-surface hover:border-ink")}
       >
@@ -189,9 +203,14 @@ function DetailDialog({ id, children }: { id: string; children: ReactNode }) {
           setOpen(false);
           button.current?.focus();
         }}
-        // A click on the backdrop (the dialog element itself, outside its panel) closes it.
+        // A click on the backdrop (the dialog element itself, outside its panel) closes it, when
+        // the press started there too.
+        onPointerDown={(event) => {
+          pressedBackdrop.current = event.target === event.currentTarget;
+        }}
         onClick={(event) => {
-          if (event.target === event.currentTarget) event.currentTarget.close();
+          if (event.target === event.currentTarget && pressedBackdrop.current)
+            event.currentTarget.close();
         }}
         className="m-0 h-dvh max-h-none w-full max-w-none bg-paper p-0 text-ink backdrop:bg-black/60 sm:ml-auto sm:max-w-md sm:border-l sm:border-rule"
       >

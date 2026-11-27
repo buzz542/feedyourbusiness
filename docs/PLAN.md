@@ -1439,9 +1439,12 @@ Only the `events` table, written server-side, with no cookies, IPs or user agent
 activation, weekly active users, replies per user per week and trial-to-paid from it.
 
 The founder's redesign brief (27 Nov 2026) adds four names (migration `events_redesign`): `cta_clicked`
-with the CTA's placement (nav, hero, pricing or final) and `example_viewed`, both recorded with no user
-from the homepage through a server action; and `first_conversation_opened` (View conversation or Details)
-and `first_conversation_saved`, which a unique index keeps to one each per user. "Signup completed" is the
+with the CTA's placement (`nav` is the header's button on every public page; `hero`, `pricing` and `final`
+are on the homepage) and `example_viewed` (after "See an example" or a scroll to it), both recorded with no
+user through a server action and `record_public_event`, which stops at 5,000 of each a UTC day so a script
+cannot flood them; and `first_conversation_opened` (View conversation or Details) and
+`first_conversation_saved`, which a unique index keeps to one each per user (the 13-month purge removes
+them like every event, so a user active for longer can be counted again). "Signup completed" is the
 existing `signed_up`. No conversation text, post id or personal data is in any payload.
 
 ### 12.7 Rate limits

@@ -73,6 +73,7 @@ export function AppFrame({
                 id="app-menu"
                 title="Menu"
                 side="left"
+                closeAbove="(min-width: 1024px)"
                 trigger={
                   <>
                     <MenuIcon />

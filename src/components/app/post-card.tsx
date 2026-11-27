@@ -4,7 +4,6 @@ import { Highlight } from "@/components/ui/highlight";
 import { ChevronIcon, ExternalIcon, TipIcon } from "@/components/ui/icons";
 import { CATEGORY_LABELS, DISCLOSURE, REPLY_TIPS, SOURCE_LABELS } from "@/server/reply/tips";
 import type { FeedItem } from "@/server/store/feed";
-import { ConversationDetail } from "./conversation-detail";
 import { PostActions, type MarkOpened, type SetPostState } from "./post-actions";
 import { age, sourceLine, unitRange } from "./post-card-parts";
 
@@ -45,7 +44,11 @@ export function PostCard({
   const community = item.community && item.community !== source ? item.community : null;
   return (
     <article className="flex flex-col gap-4 rounded-2xl border border-rule bg-surface p-5 has-[[data-state=hidden]]:border-dashed has-[[data-state=hidden]]:border-control sm:p-6">
-      <header data-card-meta="" className="flex items-baseline gap-3 text-sm text-muted">
+      <header
+        id={`meta-${item.id}`}
+        data-card-meta=""
+        className="flex items-baseline gap-3 text-sm text-muted"
+      >
         <p className="min-w-0 truncate">
           <span className="font-medium text-ink">{source}</span>
           {community ? (
@@ -98,7 +101,7 @@ export function PostCard({
           setState={setState}
           counted={{ createdAt: item.createdAt, relevance: item.relevance }}
           markOpened={markOpened}
-          detail={<ConversationDetail item={item} now={now} rivalName={rivalName ?? null} />}
+          detail={{ item, rivalName: rivalName ?? null, now: now.toISOString() }}
           open={
             <a
               href={item.url}

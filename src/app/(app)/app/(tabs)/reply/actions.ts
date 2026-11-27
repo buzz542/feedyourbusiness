@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { track } from "@/server/analytics/track";
 import { createSupabaseEventStore } from "@/server/analytics/supabase-events";
 import { requireAppUser } from "@/server/auth/session";
@@ -22,7 +23,13 @@ export async function setPostState(input: {
         .select("id");
       return !error && (data?.length ?? 0) === 1;
     },
-    track: (name, userId) => track(createSupabaseEventStore(), name, userId),
+    // A user's first save is recorded after the response: after the first, every save would
+    // otherwise wait on an insert the database refuses as already recorded.
+    track: async (name, userId) => {
+      if (name === "first_conversation_saved")
+        after(() => track(createSupabaseEventStore(), name, userId).then(() => undefined));
+      else await track(createSupabaseEventStore(), name, userId);
+    },
   })(user.id, input);
   // No revalidation: the card stays on screen with its Undo; the next visit reads the new state.
   return result;

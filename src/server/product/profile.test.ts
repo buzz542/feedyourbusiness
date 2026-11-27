@@ -12,22 +12,22 @@ const current = {
   url: "https://shuttle.example/",
   terms: [
     { id: "t1", term: "airport transfer", intent: "category" },
-    { id: "t2", term: "Mozio", intent: "competitor" },
-    { id: "t3", term: "alternative to Mozio", intent: "alternative" },
+    { id: "t2", term: "Rideo", intent: "competitor" },
+    { id: "t3", term: "alternative to Rideo", intent: "alternative" },
   ],
-  competitors: ["Mozio", "Kiwitaxi", "Holiday Taxis", "Suntransfers"],
+  competitors: ["Rideo", "Taxora", "Sunny Cabs", "Transferly"],
 };
 
 function form(over: Record<string, string> = {}) {
   const f = new FormData();
   const values = {
-    name: "ShuttleHunt",
+    name: "Shuttler",
     url: "https://shuttle.example/",
     one_liner: "Compare airport transfer prices.",
     description: "Compare private airport transfers across Europe.",
     audience: "Travelers flying into European airports.",
     relevance_threshold: "50",
-    terms: "airport transfer\nMozio\ntaxi from the airport",
+    terms: "airport transfer\nRideo\ntaxi from the airport",
     ...over,
   };
   for (const [k, v] of Object.entries(values)) f.set(k, v);
@@ -36,13 +36,13 @@ function form(over: Record<string, string> = {}) {
 
 describe("intentFor", () => {
   it("keeps a saved term's intent, ignoring case", () => {
-    expect(intentFor("MOZIO", current.terms, current.competitors)).toBe("competitor");
+    expect(intentFor("RIDEO", current.terms, current.competitors)).toBe("competitor");
   });
 
   it("reads a new term: a competitor's name alone, an alternative phrase, or a problem", () => {
-    expect(intentFor("kiwitaxi", [], current.competitors)).toBe("competitor");
-    expect(intentFor("Alternatives to Kiwitaxi", [], current.competitors)).toBe("alternative");
-    expect(intentFor("Holiday Taxis alternative", [], current.competitors)).toBe("alternative");
+    expect(intentFor("taxora", [], current.competitors)).toBe("competitor");
+    expect(intentFor("Alternatives to Taxora", [], current.competitors)).toBe("alternative");
+    expect(intentFor("Sunny Cabs alternative", [], current.competitors)).toBe("alternative");
     expect(intentFor("taxi from the airport", [], current.competitors)).toBe("problem");
   });
 });
@@ -53,22 +53,26 @@ describe("planProfileSave", () => {
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     expect(plan.profile).toEqual({
-      name: "ShuttleHunt",
+      name: "Shuttler",
       url: "https://shuttle.example/",
       one_liner: "Compare airport transfer prices.",
       description: "Compare private airport transfers across Europe.",
       audience: "Travelers flying into European airports.",
       relevance_threshold: 50,
     });
-    expect(plan.removeTermIds).toEqual(["t3"]);
-    expect(plan.addTerms).toEqual([{ term: "taxi from the airport", intent: "problem" }]);
+    // The whole list, each with its intent: the database removes, renames and adds in one go.
+    expect(plan.terms).toEqual([
+      { term: "airport transfer", intent: "category" },
+      { term: "Rideo", intent: "competitor" },
+      { term: "taxi from the airport", intent: "problem" },
+    ]);
   });
 
   it("keeps onboarding's caps: at most 3 brand names alone and 4 alternative phrases", () => {
     expect(BRAND_TERM_CAP).toBe(3);
     expect(ALTERNATIVE_TERM_CAP).toBe(4);
     const brands = planProfileSave(
-      form({ terms: "Mozio\nKiwitaxi\nHoliday Taxis\nSuntransfers\nairport transfer" }),
+      form({ terms: "Rideo\nTaxora\nSunny Cabs\nTransferly\nairport transfer" }),
       current,
     );
     expect(brands).toEqual({
@@ -78,10 +82,10 @@ describe("planProfileSave", () => {
     const alternatives = planProfileSave(
       form({
         terms: [
-          "alternative to Mozio",
-          "alternative to Kiwitaxi",
-          "Holiday Taxis alternative",
-          "alternatives to Suntransfers",
+          "alternative to Rideo",
+          "alternative to Taxora",
+          "Sunny Cabs alternative",
+          "alternatives to Transferly",
           "cheaper alternative to a taxi",
         ].join("\n"),
       }),
@@ -98,6 +102,8 @@ describe("planProfileSave", () => {
       "http://shuttle.example/",
       "https://www.reddit.com/r/travel",
       "https://user:pw@shuttle.example/",
+      "https://intranet.local/",
+      "https://localhost/",
       "not a url",
     ]) {
       const plan = planProfileSave(form({ url }), current);

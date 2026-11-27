@@ -29,7 +29,8 @@ function Field({ label, grow, children }: { label: string; grow?: boolean; child
 
 /**
  * Reply filters across the top (docs/PLAN.md 4.4), as a plain GET form, so every view can be
- * bookmarked and the form works without JavaScript. Under it, how many filters are on and one
+ * bookmarked and, on wider screens, the form works without JavaScript (on a phone the sheet needs
+ * it). Under it, how many filters are on and one
  * link per filter that removes it. On a phone the form is in a sheet that opens from the bottom,
  * from a button that says how many filters are on.
  *
@@ -159,6 +160,7 @@ export function FilterBar({
         id="filter-sheet"
         title="Filters"
         side="bottom"
+        closeAbove="(min-width: 640px)"
         triggerClassName="flex min-h-11 items-center gap-2 rounded-xl border border-rule bg-surface px-3 text-sm font-medium sm:hidden"
         trigger={
           <>

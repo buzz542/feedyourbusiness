@@ -39,7 +39,11 @@ export function CtaLink({
   );
 }
 
-/** Records the example as viewed once per page view, when half of it is on screen. */
+/**
+ * Records the example as viewed once per page view: when "See an example" takes the visitor there,
+ * or when half of it comes on screen after they scrolled. On wide screens it sits beside the hero,
+ * so seeing it on load alone would only count page views.
+ */
 export function ExampleViewed({
   id,
   className,
@@ -52,19 +56,40 @@ export function ExampleViewed({
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          sendEvent({ name: "example_viewed" });
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    if (!el) return;
+    let sent = false;
+    const send = () => {
+      if (sent) return;
+      sent = true;
+      sendEvent({ name: "example_viewed" });
+    };
+    const onHash = () => {
+      if (window.location.hash === `#${id}`) send();
+    };
+    window.addEventListener("hashchange", onHash);
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(
+            (entries) => {
+              if (window.scrollY > 0 && entries.some((e) => e.isIntersecting)) send();
+            },
+            { threshold: 0.5 },
+          );
+    observer?.observe(el);
+    // The observer reports once on load; a later scroll alone does not re-report a visible box.
+    const onScroll = () => {
+      const box = el.getBoundingClientRect();
+      if (box.top < window.innerHeight && box.bottom > 0) send();
+      if (sent) window.removeEventListener("scroll", onScroll);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("scroll", onScroll);
+      observer?.disconnect();
+    };
+  }, [id]);
   return (
     <div ref={ref} id={id} className={className}>
       {children}

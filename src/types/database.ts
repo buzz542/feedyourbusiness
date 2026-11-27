@@ -792,6 +792,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_product_edits: {
+        Args: { p_product_id: string; p_profile: Json; p_terms: Json }
+        Returns: undefined
+      }
       claim_billing_event: {
         Args: { p_event_id: string; p_type: string }
         Returns: string
@@ -921,6 +925,15 @@ export type Database = {
         }[]
       }
       purge_expired: { Args: { p_now: string }; Returns: Json }
+      record_public_event: {
+        Args: {
+          p_daily_cap: number
+          p_name: string
+          p_now: string
+          p_props: Json
+        }
+        Returns: boolean
+      }
       record_term_stats: {
         Args: {
           p_day: string

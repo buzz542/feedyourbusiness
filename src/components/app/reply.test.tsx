@@ -386,7 +386,7 @@ describe("FilterBar", () => {
     expect(html).not.toContain("<details");
   });
 
-  it("works without JavaScript: a GET form to the Reply tab with a submit button", () => {
+  it("on wider screens works without JavaScript: a GET form to the Reply tab with a submit button", () => {
     const forms = [...html.matchAll(/<form[^>]*>/g)].map((m) => m[0]);
     expect(forms.length).toBeGreaterThan(0);
     for (const form of forms) {
@@ -644,17 +644,31 @@ describe("conversation detail (the founder's brief, 27 Nov 2026)", () => {
   });
 
   it("shows no author, and the address only as a link", () => {
-    const out = renderToStaticMarkup(<ConversationDetail item={item} now={NOW} rivalName={null} />);
+    // Plant author-like values where an author could leak: none reaches the panel.
+    const planted = {
+      ...item,
+      author: "example_author_handle",
+      authorHash: "example-author-hash",
+      authorHandle: "@example_author_handle",
+    } as FeedItem;
+    const out = renderToStaticMarkup(
+      <ConversationDetail item={planted} now={NOW} rivalName={null} />,
+    );
+    expect(out).not.toContain("example_author");
+    expect(out).not.toContain("example-author-hash");
     expect(visible(out)).not.toContain("reddit.com");
   });
 
-  it("puts a Details button on each card that opens a labelled dialog, closed at first", () => {
+  it("puts a Details button on each card that opens a labeled dialog, closed at first", () => {
     const out = renderToStaticMarkup(
       <PostCard item={item} now={NOW} rivalName={null} setState={setState} />,
     );
     const button = /<button[^>]*data-action="details"[^>]*>/.exec(out)?.[0] ?? "";
     expect(button).toContain('aria-haspopup="dialog"');
     expect(button).toContain(`aria-controls="detail-${item.id}"`);
+    // Described by its own card's source line and age.
+    expect(button).toContain(`aria-describedby="meta-${item.id}"`);
+    expect(out).toContain(`id="meta-${item.id}"`);
     expect(out).toMatch(
       new RegExp(
         `<dialog[^>]*id="detail-${item.id}"[^>]*aria-labelledby="detail-${item.id}-title"`,

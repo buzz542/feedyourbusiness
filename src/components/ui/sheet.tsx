@@ -22,6 +22,7 @@ export function Sheet({
   trigger,
   triggerClassName,
   triggerLabel,
+  closeAbove,
   children,
 }: {
   id: string;
@@ -31,12 +32,18 @@ export function Sheet({
   triggerClassName?: string;
   /** The button's accessible name when the trigger shows no words. */
   triggerLabel?: string;
+  /**
+   * A media query past which the sheet's button is hidden (a phone turned to a wide screen): the
+   * sheet closes then, so a hidden open dialog never leaves the page inert.
+   */
+  closeAbove?: string;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [open, setOpen] = useState(false);
+  const pressedBackdrop = useRef(false);
 
   useEffect(() => {
     const el = dialog.current;
@@ -44,6 +51,17 @@ export function Sheet({
     el.showModal();
     heading.current?.focus();
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !closeAbove || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(closeAbove);
+    const onChange = () => {
+      if (query.matches) dialog.current?.close();
+    };
+    onChange();
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, [open, closeAbove]);
 
   return (
     <>
@@ -68,10 +86,17 @@ export function Sheet({
           setOpen(false);
           button.current?.focus();
         }}
+        onPointerDown={(event) => {
+          pressedBackdrop.current = event.target === event.currentTarget;
+        }}
         onClick={(event) => {
-          // The backdrop is the dialog element itself; a link inside navigates and closes.
+          // The backdrop is the dialog element itself (closes only when the press started there
+          // too, so a drag that selects text never does); a link inside navigates and closes.
           const target = event.target as HTMLElement;
-          if (target === event.currentTarget || target.closest("a[href]"))
+          if (
+            (target === event.currentTarget && pressedBackdrop.current) ||
+            target.closest("a[href]")
+          )
             event.currentTarget.close();
         }}
         className={cx("m-0 border-rule bg-panel p-0 text-ink backdrop:bg-black/60", PANEL[side])}

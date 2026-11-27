@@ -790,8 +790,11 @@ describe("review fixes", () => {
          cross join (values ('anon'), ('authenticated')) as r (role)
         where has_function_privilege(r.role, p.oid, 'execute')`,
     );
-    // Functions written for a signed-in user on purpose, from earlier migrations.
-    const forUsers = new Set<string>(["apply_onboarding_edits(uuid,jsonb,text[],jsonb)"]);
+    // Functions written for a signed-in user on purpose (security invoker: RLS decides).
+    const forUsers = new Set<string>([
+      "apply_onboarding_edits(uuid,jsonb,text[],jsonb)",
+      "apply_product_edits(uuid,jsonb,jsonb)",
+    ]);
     expect(open.filter((o) => !forUsers.has(o.fn))).toEqual([]);
   });
 });

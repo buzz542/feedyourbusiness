@@ -136,7 +136,8 @@ export function ProductForm({
           </label>
           <p id="terms-hint" className="text-sm text-muted">
             Up to 40. At most 3 that are only a competitor&apos;s name, and 4 &quot;alternative
-            to&quot; phrases. Phrases people write when they need you find more than brand names.
+            to&quot; phrases. Phrases people write when they need you tend to find more than brand
+            names.
           </p>
           <textarea
             id="product-terms"
