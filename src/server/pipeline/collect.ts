@@ -138,6 +138,12 @@ const storedWindow = (value: unknown): number | null =>
  */
 export const FIRST_RUN_WINDOW_HOURS = 30 * 24;
 export const DAILY_WINDOW_HOURS = 48;
+/**
+ * A paid source's daily run keeps the week it pays for (27 Nov 2026): the vendor's narrowest
+ * accepted filter over 48 hours is "Past week", and of 82 posts paid for on 26 Nov only 22 were
+ * from the last 48 hours. Posts already in a product's feed are skipped before classification.
+ */
+export const PAID_DAILY_WINDOW_HOURS = 7 * 24;
 export const collectWindowHours = (firstRun: boolean): number =>
   firstRun ? FIRST_RUN_WINDOW_HOURS : DAILY_WINDOW_HOURS;
 
@@ -175,7 +181,9 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     // A paid first run waits for the free sources, then reads a week for a wide topic or a month
     // for a niche one. Nothing is reserved while it waits. The window is kept in the payload so
     // every poll of the vendor run uses the same one.
-    let windowHours = storedWindow(job.payload.windowHours) ?? collectWindowHours(firstRun);
+    let windowHours =
+      storedWindow(job.payload.windowHours) ??
+      (!firstRun && paid ? PAID_DAILY_WINDOW_HOURS : collectWindowHours(firstRun));
     if (firstRun && paid && deps.firstRun && !("reserved" in job.payload)) {
       const waitingSince =
         typeof job.payload.awaitingSince === "string"

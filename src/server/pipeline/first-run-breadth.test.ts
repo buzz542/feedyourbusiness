@@ -213,14 +213,27 @@ describe("the first run judges how niche the product is", () => {
     expect(sinceOf(hn.start).getTime()).toBe(T0.getTime() - 30 * 24 * HOUR);
   });
 
-  it("a daily run still reads the last 48 hours", async () => {
+  it("a paid daily run keeps the week it pays for", async () => {
+    // 26 Nov 2026: the vendor's narrowest accepted filter over 48 hours is "Past week". Of 82 posts
+    // paid for, 22 were from the last 48 hours and 56 from 2 to 7 days, all thrown away unread.
+    // Posts already in the feed are skipped before classification, so nothing shows twice.
     const reddit = src("reddit", 0.0015, done);
     const { store, handlers } = setup({ strong: 3, sources: [reddit] });
     await store.enqueue([
       { kind: "collect", productId: "p1", source: "reddit", dedupeKey: "collect:p1:reddit:d" },
     ]);
     await runJobs({ store, handlers, clock: clockFrom(T0).now });
-    expect(sinceOf(reddit.start).getTime()).toBe(T0.getTime() - 48 * HOUR);
+    expect(sinceOf(reddit.start).getTime()).toBe(T0.getTime() - 7 * 24 * HOUR);
+  });
+
+  it("a free daily run still reads the last 48 hours", async () => {
+    const hn = src("hackernews", 0, done);
+    const { store, handlers } = setup({ strong: 3, sources: [hn] });
+    await store.enqueue([
+      { kind: "collect", productId: "p1", source: "hackernews", dedupeKey: "collect:p1:hn:d" },
+    ]);
+    await runJobs({ store, handlers, clock: clockFrom(T0).now });
+    expect(sinceOf(hn.start).getTime()).toBe(T0.getTime() - 48 * HOUR);
   });
 });
 

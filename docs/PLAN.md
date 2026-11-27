@@ -855,7 +855,7 @@ mark a job `failed` with the error class; `/admin` shows it.
    `vendor_usage(source, this month) + units <= BRIGHTDATA_MONTHLY_RECORD_CAP`. If either fails, finish with
    reason `budget` or `monthly_cap` (shown in `/admin`).
 4. `start()`. If pending, store the handle, set `waiting`, `run_after` now plus 2 minutes; later ticks `poll`.
-5. When done: drop NSFW, drop posts older than the window (48 hours for daily runs; on the first run 30 days for the free sources and 7 or 30 days for the paid source, 7.2),
+5. When done: drop NSFW, drop posts older than the window (48 hours for a free source's daily run, 7 days for a paid one, which is the week its vendor filter already bills for; on the first run 30 days for the free sources and 7 or 30 days for the paid source, 7.2),
    hash authors (12.5), drop authors on the suppression list (cheap pre-check before paying for the model).
 6. Skip posts this product already has. Posts stored for another product are classified for this one.
 7. Classify in batches of 20 (8.2). Discard relevance below 40 and `not_relevant`.
