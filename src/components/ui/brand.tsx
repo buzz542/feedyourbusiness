@@ -28,11 +28,12 @@ export function BrandMark({ className }: { className?: string }) {
 }
 
 /** The mark and the wordmark together, as one name for assistive technology. */
-export function Wordmark({ className }: { className?: string }) {
+export function Wordmark({ className, compact }: { className?: string; compact?: boolean }) {
   return (
     <span className={cx("inline-flex items-center gap-2 font-semibold tracking-tight", className)}>
       <BrandMark />
-      <span>FeedYourBusiness</span>
+      {/* compact: the mark alone below 400px wide; the link's label still names us. */}
+      <span className={compact ? "hidden min-[400px]:inline" : undefined}>FeedYourBusiness</span>
     </span>
   );
 }

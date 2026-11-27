@@ -72,7 +72,7 @@ export function FeedKeyboard() {
         {FEED_KEYS.map(([key, , label]) => (
           <div key={key} className="contents">
             <dt>
-              <kbd className="inline-block min-w-6 rounded-xl border border-control bg-paper px-1.5 text-center font-mono text-xs leading-5">
+              <kbd className="inline-block min-w-6 rounded-md border border-control bg-paper px-1.5 text-center font-mono text-xs leading-5">
                 {key}
               </kbd>
             </dt>

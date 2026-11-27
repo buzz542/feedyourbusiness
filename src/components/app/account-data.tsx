@@ -58,7 +58,7 @@ export function AccountData({
             onChange={(e) => setTyped(e.target.value)}
             autoComplete="off"
             spellCheck={false}
-            className="w-48 rounded-xl border border-rule bg-paper px-2 py-1"
+            className="w-48 rounded-xl border border-control bg-paper px-2 py-1"
           />
         </label>
         <Button

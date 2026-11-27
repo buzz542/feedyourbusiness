@@ -19,4 +19,23 @@ describe("the site navigation", () => {
     const { default: Layout } = await import("./layout");
     expect(renderToStaticMarkup(<Layout>{null}</Layout>)).not.toContain("Start your trial");
   });
+
+  it("keeps a page's own width: its content sits in one readable column", async () => {
+    const { default: Layout } = await import("./layout");
+    const html = renderToStaticMarkup(
+      <Layout>
+        <form className="max-w-sm">x</form>
+      </Layout>,
+    );
+    expect(html).toMatch(/<div class="[^"]*max-w-3xl[^"]*"><form class="max-w-sm">/);
+    expect(html).not.toContain("not([data-wide])");
+  });
+});
+
+describe("the skip link", () => {
+  it("sits above the sticky navigation when it has focus", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("src/app/layout.tsx", "utf8")).toMatch(/Skip to content/);
+    expect(readFileSync("src/app/layout.tsx", "utf8")).toContain("focus:z-50");
+  });
 });

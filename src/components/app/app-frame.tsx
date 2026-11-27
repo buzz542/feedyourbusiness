@@ -28,7 +28,10 @@ export function AppFrame({
 }) {
   return (
     <FeedCountsProvider initial={counts} threshold={threshold}>
-      <div className="theme-dark min-h-dvh bg-panel text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+      <div
+        data-app-theme=""
+        className="theme-dark min-h-dvh bg-panel text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]"
+      >
         <aside className="hidden bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
           <div className="px-5 pt-6 pb-5">
             <Link href="/app" aria-label="FeedYourBusiness, app home">
@@ -70,7 +73,7 @@ export function AppFrame({
           </main>
           <div className="px-4 pb-20 sm:px-6 lg:px-10 lg:pb-0">
             <div className="mx-auto w-full max-w-3xl">
-              <SiteFooter />
+              <SiteFooter signedIn />
             </div>
           </div>
         </div>

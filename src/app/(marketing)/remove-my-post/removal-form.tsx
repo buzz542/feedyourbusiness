@@ -53,7 +53,7 @@ export function RemovalForm({
         <select
           name="source"
           required
-          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-control bg-paper px-2 py-1.5"
         >
           {sources.map(([value, label]) => (
             <option key={value} value={value}>
@@ -68,7 +68,7 @@ export function RemovalForm({
           name="linkOrHandle"
           required
           maxLength={500}
-          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-control bg-paper px-2 py-1.5"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -79,7 +79,7 @@ export function RemovalForm({
           required
           maxLength={320}
           autoComplete="email"
-          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-control bg-paper px-2 py-1.5"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -88,7 +88,7 @@ export function RemovalForm({
           name="details"
           maxLength={1000}
           rows={3}
-          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-control bg-paper px-2 py-1.5"
         />
       </label>
       <label className="flex items-start gap-2 text-sm">
@@ -98,7 +98,7 @@ export function RemovalForm({
       <button
         type="submit"
         disabled={busy}
-        className="self-start rounded-xl bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50"
+        className="self-start rounded-full bg-accent-fill px-4 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50"
       >
         Send request
       </button>

@@ -185,7 +185,7 @@ function AppPreview() {
  */
 export default function Home() {
   return (
-    <div data-wide className="flex flex-col gap-28 pb-8">
+    <div className="flex flex-col gap-28 pb-8">
       <section
         aria-labelledby="hero"
         className="grid items-center gap-12 pt-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:pt-16"

@@ -78,11 +78,25 @@
     Roboto, sans-serif;
 }
 
-h1,
-h2,
-h3 {
-  font-weight: 600;
-  letter-spacing: -0.02em;
+@layer base {
+  /* In the base layer, so a heading's own font-* and tracking-* utilities still win. */
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  /* Keyboard focus and anchor jumps stop clear of the sticky site navigation (WCAG 2.4.11). */
+  html {
+    scroll-padding-top: 6rem;
+  }
+
+  /* The app is dark to its edges: overscroll, the scrollbar and the browser chrome too. */
+  html:has([data-app-theme]) {
+    background: #0b0b0c;
+    color-scheme: dark;
+  }
 }
 
 html {

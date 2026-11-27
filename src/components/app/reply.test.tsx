@@ -517,7 +517,7 @@ describe("ReplyView", () => {
   });
 
   it.each([
-    ["today", "No conversations to show yet."],
+    ["today", "Nothing new today."],
     ["all", "No conversations to show yet."],
     ["saved", "Your saved conversations will appear here."],
     ["replied", "Conversations you mark as replied will appear here."],

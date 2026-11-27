@@ -186,6 +186,43 @@ describe("where the tokens are used", () => {
     expect(wrong).toEqual([]);
   });
 
+  /**
+   * Every form field's edge is --control, tested at 3:1 above; --rule is a decorative line that
+   * vanishes against the page (about 1.25:1), so a field bordered with it has no visible box
+   * (WCAG 1.4.11; code review, 27 Nov 2026). Class strings given as a constant are resolved.
+   */
+  const fieldsOnRule = (file: string, source: string) => {
+    const consts = new Map(
+      [...source.matchAll(/const (\w+)\s*=\s*\n?\s*"([^"]*)"/g)].map((m) => [m[1]!, m[2]!]),
+    );
+    return [...source.matchAll(/<(input|select|textarea)\b[\s\S]*?>/g)].flatMap((m) => {
+      const tag = m[0];
+      const literal = /className="([^"]*)"/.exec(tag)?.[1];
+      const named = /className=\{(\w+)\}/.exec(tag)?.[1];
+      const classes = literal ?? (named ? consts.get(named) : undefined) ?? "";
+      return /\bborder-rule\b/.test(classes) ? [`${file}: <${m[1]} ${classes}`] : [];
+    });
+  };
+
+  it("edges every form field with --control, never the faint --rule", () => {
+    expect(ui.flatMap(({ file, source }) => fieldsOnRule(file, source))).toEqual([]);
+  });
+
+  it("catches a planted field on --rule, literal or through a constant", () => {
+    expect(fieldsOnRule("x", '<input className="border border-rule" />')).toHaveLength(1);
+    expect(
+      fieldsOnRule("x", 'const FIELD = "border border-rule";\n<textarea className={FIELD} />'),
+    ).toHaveLength(1);
+    expect(fieldsOnRule("x", '<input className="border border-control" />')).toHaveLength(0);
+  });
+
+  it("keeps the base heading style in the base layer, so heading utilities still win", () => {
+    const base = block(css, /@layer base\s*\{/);
+    expect(base).toMatch(/h1,\s*h2,\s*h3\s*\{/);
+    const outside = css.replace(/@layer base\s*\{[\s\S]*?\n\}/, "");
+    expect(outside).not.toMatch(/^h1,/m);
+  });
+
   it("catches a planted text-accent-ink on bg-accent", () => {
     const planted = classStrings('<a className="bg-accent text-accent-ink">Go</a>', /accent-ink/);
     expect(planted.filter((s) => !/\bbg-accent-fill\b/.test(s))).toHaveLength(1);

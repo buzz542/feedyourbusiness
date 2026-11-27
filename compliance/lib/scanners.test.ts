@@ -559,6 +559,7 @@ describe("copy scanner on app UI (docs/PLAN.md 3.2)", () => {
 
   it("knows which files are public copy, which are app UI, and which are neither", () => {
     expect(copyScopeOf("src/app/(marketing)/pricing/page.tsx", deny)).toBe("public");
+    expect(copyScopeOf("src/app/(home)/page.tsx", deny)).toBe("public");
     expect(copyScopeOf("src/app/layout.tsx", deny)).toBe("public");
     expect(copyScopeOf("emails/daily.ts", deny)).toBe("public");
     expect(copyScopeOf(appFile, deny)).toBe("app");

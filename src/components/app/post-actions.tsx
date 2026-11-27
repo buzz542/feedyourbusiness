@@ -30,7 +30,7 @@ export const nextState = (current: State, pressed: Pressable): State =>
   current === pressed ? "new" : pressed;
 
 const TOGGLE =
-  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50 sm:px-3";
+  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50 sm:px-3";
 
 /**
  * View conversation, then Save, Hide and I replied (docs/PLAN.md 4.4), with Undo for the last change.

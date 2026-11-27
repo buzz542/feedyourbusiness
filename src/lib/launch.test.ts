@@ -69,7 +69,7 @@ describe("the private beta sentence", () => {
   it("shows on the landing and pricing pages while closed, and goes when open", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");
-    const { default: Landing } = await import("@/app/(marketing)/page");
+    const { default: Landing } = await import("@/app/(home)/page");
     const { default: Pricing } = await import("@/app/(marketing)/pricing/page");
     for (const Page of [Landing, Pricing]) {
       vi.stubEnv("LAUNCH_OPEN", "");

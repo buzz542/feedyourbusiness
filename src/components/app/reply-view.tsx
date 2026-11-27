@@ -33,7 +33,7 @@ const VIEW_INTROS: Record<FeedView, string> = {
 /** What to do next when a view is empty (docs/PLAN.md 4.9; the founder's brief, 27 Nov 2026). */
 const EMPTY: Record<FeedView, { title: string; body: string }> = {
   today: {
-    title: "No conversations to show yet.",
+    title: "Nothing new today.",
     body: "New conversations arrive each morning. Look through All conversations, or run the searches below.",
   },
   all: {
