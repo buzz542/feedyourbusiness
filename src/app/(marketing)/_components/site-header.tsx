@@ -6,7 +6,8 @@ import { CtaLink } from "./tracked";
 /**
  * The site navigation (the founder's redesign brief, 27 Nov 2026): a centered, rounded, pale-grey
  * bar with the wordmark, How it works, Example, Pricing, Sign in and, once sign-up is open, Start
- * your trial. The wordmark is the logo's mark alone.
+ * your trial. The logo is the mark alone, with the name spelled out in the middle (not on a
+ * narrow phone).
  */
 export function SiteHeader() {
   const open = isLaunchOpen();
@@ -19,6 +20,15 @@ export function SiteHeader() {
         <Link href="/" className="mr-auto" aria-label="FeedYourBusiness, home">
           <Wordmark />
         </Link>
+        {/* The name in words, centered in the gap between the logo and the links, so FYB reads as
+            the logo and not as the name of the business (the founder, 27 Nov 2026). The logo link
+            already names us for assistive technology. Below 430px there is no room for it. */}
+        <span
+          aria-hidden="true"
+          className="hidden min-w-0 flex-1 truncate px-6 text-center text-sm font-semibold tracking-tight text-ink min-[430px]:block"
+        >
+          FeedYourBusiness
+        </span>
         <div className="hidden items-center gap-1 text-sm text-muted md:flex">
           <Link href="/#how" className="rounded-full px-3 py-1.5 hover:text-ink">
             How it works
