@@ -129,11 +129,18 @@ Fields:
   then well-known alternatives you are sure of. Never invent one. For each: its name, its bare
   domain in lowercase (like "example.com") or null if you are not sure, and up to 10 other names
   people use for it. Product and company names only, never a person.
-- terms: 20 to 30 short phrases, 2 to 60 characters each, that people actually write when they need
-  this product, not marketing keywords. Intent "problem" for phrases describing the pain ("how do I
-  chase late invoices"), "category" for looking for a kind of tool ("invoicing app for
-  freelancers"), "alternative" for 3 to 6 "alternative to <competitor>" phrases when there are
-  competitors, "competitor" for a competitor's name alone. No handles, email addresses or links.
+- terms: 20 to 30 short phrases, 2 to 60 characters each,
+  each written in the words of someone who needs it, the way they would type it in a post asking
+  for help: never marketing keywords, broad
+  topics or single generic words. Make at least 14 of them "problem" or "category". Intent "problem"
+  for the pain or the question as they would say it ("how do I chase late invoices", "client still
+  has not paid", "anyone else spend hours on invoices"), "category" for asking for a kind of tool
+  or service ("invoicing app for freelancers", "any recommendations for an invoicing tool"),
+  "alternative" for switching, at most 4 "alternative" phrases ("alternative to <competitor>",
+  "<competitor> too expensive"), and at most 3 "competitor" terms for a competitor's name alone.
+  When the product serves particular places, platforms or industries, name the most common ones in
+  some phrases ("invoicing for Etsy sellers", "taxi from Athens airport"). No handles, email
+  addresses or links.
 - subreddits: up to 10 Reddit communities where this audience asks for tools or advice about the
   problem, by name only, without "r/". Never a user's profile. Never a community about health,
   sexuality, religion, politics, ethnicity or anything similar, and never an adult or NSFW one.
@@ -177,14 +184,35 @@ const uniqueBy = <T>(items: T[], key: (item: T) => string): T[] => {
   });
 };
 
-/** Terms by the 8.3 rules: tidy, product labels of 2 to 60 characters, unique ignoring case, at most 30. */
+/**
+ * At most this many terms of an intent (the founder, 27 Nov 2026): a brand name alone mostly finds
+ * chatter about that brand, not people who need the product. The rest are problem and category.
+ */
+const TERM_CAPS: Partial<Record<Draft["terms"][number]["intent"], number>> = {
+  competitor: 3,
+  alternative: 4,
+};
+
+/**
+ * Terms by the 8.3 rules: tidy, product labels of 2 to 60 characters, unique ignoring case, at
+ * most 3 brand names and 4 "alternative" phrases, at most 30.
+ */
 function cleanTerms(raw: Draft["terms"]): CleanDraft["terms"] {
+  const counted = new Map<string, number>();
   return uniqueBy(
     raw
       .map((t) => ({ term: tidy(t.term), intent: t.intent }))
       .filter((t) => t.term.length >= 2 && isProductLabel(t.term, 60)),
     (t) => t.term.toLowerCase(),
-  ).slice(0, 30);
+  )
+    .filter((t) => {
+      const cap = TERM_CAPS[t.intent];
+      if (cap === undefined) return true;
+      const n = (counted.get(t.intent) ?? 0) + 1;
+      counted.set(t.intent, n);
+      return n <= cap;
+    })
+    .slice(0, 30);
 }
 
 /** The 8.3 rules, applied to the model's answer before anything is saved. */

@@ -830,15 +830,15 @@ one source can never call another source's host. Registry tests to add: vendor s
 
 ### 7.2 Jobs
 
-| Job             | When                                            | What                                                                                                     |
-| --------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 2 hours), filter, classify, ingest                         |
-| `first_run`     | once, right after checkout                      | like `collect` for every source, 30-day window (the founder, 24 Nov 2026; was 7), twice the daily budget |
-| `deletion_sync` | daily, per source                               | Hacker News and Bluesky existence checks; X compliance (7.6)                                             |
-| `purge`         | every tick on Pro (daily on Hobby)              | `purge_expired(now)`                                                                                     |
-| `synthesize`    | Sunday 21:00 UTC                                | Build and Rivals synthesis per product with 5 or more relevant posts that week                           |
-| `digest_daily`  | daily, 08:00 Europe/London                      | daily posts email to opted-in users with new posts                                                       |
-| `digest_weekly` | Monday, 08:00 Europe/London                     | Monday digest                                                                                            |
+| Job             | When                                            | What                                                                                                                                                                                                                                                                                                                                       |
+| --------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `collect`       | daily, per entitled product, per enabled source | budget check, `start`, `poll` until done (max 2 hours), filter, classify, ingest                                                                                                                                                                                                                                                           |
+| `first_run`     | once, right after checkout                      | like `collect` for every source, twice the daily budget; the free sources read 30 days, then the paid source reads 7 days for a wide topic (10 or more posts scoring 60+ from the last 14 days) or 30 for a niche one, and a niche product's feed minimum drops from 60 to 50 (the founder, 27 Nov 2026; `src/server/pipeline/breadth.ts`) |
+| `deletion_sync` | daily, per source                               | Hacker News and Bluesky existence checks; X compliance (7.6)                                                                                                                                                                                                                                                                               |
+| `purge`         | every tick on Pro (daily on Hobby)              | `purge_expired(now)`                                                                                                                                                                                                                                                                                                                       |
+| `synthesize`    | Sunday 21:00 UTC                                | Build and Rivals synthesis per product with 5 or more relevant posts that week                                                                                                                                                                                                                                                             |
+| `digest_daily`  | daily, 08:00 Europe/London                      | daily posts email to opted-in users with new posts                                                                                                                                                                                                                                                                                         |
+| `digest_weekly` | Monday, 08:00 Europe/London                     | Monday digest                                                                                                                                                                                                                                                                                                                              |
 
 The runner (`src/server/pipeline/runner.ts`) claims up to 10 jobs with `claim_jobs`, runs each step under a
 time budget (240 of the 300 seconds a function may run), and finishes or reschedules it. Every step is
@@ -1130,7 +1130,7 @@ const Draft = z.object({
 ```
 
 Terms are phrases people actually write ("looking for a tool to", "how do I", "alternative to <rival>"),
-not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist. After the call:
+not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist (since 27 Nov 2026, the founder: phrases in the words of someone who needs the product, at least 14 problem or category terms, at most 4 "alternative" and at most 3 brand names alone, and the most common places, platforms or industries named where the product serves them; the save keeps at most 3 brand names and 4 "alternative" terms). After the call:
 suggested subreddits on the sensitive-community list (2.3.7) or starting with `u_` (a user's profile,
 case-insensitive) are dropped; a competitor `domain` on a platform host is dropped (the competitor stays);
 in every text field (name, one-liner, description, audience, terms, competitor names and aliases) a value

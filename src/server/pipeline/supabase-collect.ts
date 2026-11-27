@@ -1,5 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/server/supabase/admin";
+import { DEFAULT_THRESHOLD, NICHE_THRESHOLD, RECENT_DAYS, STRONG_SCORE } from "./breadth";
+import type { FirstRunDeps } from "./collect";
 import type { CollectStore } from "./collect-step";
 import type { DeletionStore } from "./deletion-sync";
 import type { CollectTerm } from "@/sources/types";
@@ -201,4 +203,44 @@ export async function collectTermsFor(
   });
   fail(termsError);
   return (data ?? []).map((t) => ({ id: t.id, term: t.term }));
+}
+
+/**
+ * The first run's judgment of how niche a product is (src/server/pipeline/breadth.ts): whether
+ * another first-run source is still going, how many strong recent posts the product has, and
+ * lowering its feed minimum to 50 when it is still the default 60.
+ */
+export function createSupabaseFirstRun(admin: AdminClient): FirstRunDeps {
+  return {
+    async othersActive(productId, jobId) {
+      const { count, error } = await admin
+        .from("jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("product_id", productId)
+        .eq("kind", "first_run")
+        .neq("id", jobId)
+        .in("status", ["queued", "running", "waiting"]);
+      fail(error);
+      return (count ?? 0) > 0;
+    },
+    async strongRecent(productId, now) {
+      const since = new Date(now.getTime() - RECENT_DAYS * 24 * 3_600_000).toISOString();
+      const { count, error } = await admin
+        .from("product_posts")
+        .select("id, posts!inner(posted_at)", { count: "exact", head: true })
+        .eq("product_id", productId)
+        .gte("relevance", STRONG_SCORE)
+        .gte("posts.posted_at", since);
+      fail(error);
+      return count ?? 0;
+    },
+    async lowerThreshold(productId) {
+      const { error } = await admin
+        .from("products")
+        .update({ relevance_threshold: NICHE_THRESHOLD })
+        .eq("id", productId)
+        .eq("relevance_threshold", DEFAULT_THRESHOLD);
+      fail(error);
+    },
+  };
 }

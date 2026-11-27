@@ -135,6 +135,27 @@ describe("cleanDraft (the 8.3 rules)", () => {
     expect(out.profile.subreddits).toEqual(["SaaS"]);
   });
 
+  it("keeps at most 3 brand-name terms and 4 'alternative to' terms (the founder, 27 Nov 2026)", () => {
+    // A brand name alone mostly finds chatter about that brand, not people who need the product:
+    // the first live Reddit run (26 Nov 2026) stored posts only from problem-shaped searches.
+    const brands = ["Rival", "Other Tool", "Third", "Fourth", "Fifth"].map((term) => ({
+      term,
+      intent: "competitor" as const,
+    }));
+    const switching = ["Rival", "Other Tool", "Third", "Fourth", "Fifth", "Sixth"].map((name) => ({
+      term: `alternative to ${name}`,
+      intent: "alternative" as const,
+    }));
+    const out = clean({ terms: [...brands, ...switching, ...terms(20)] });
+    expect(out.terms.filter((t) => t.intent === "competitor").map((t) => t.term)).toEqual([
+      "Rival",
+      "Other Tool",
+      "Third",
+    ]);
+    expect(out.terms.filter((t) => t.intent === "alternative")).toHaveLength(4);
+    expect(out.terms.filter((t) => t.intent === "problem")).toHaveLength(20);
+  });
+
   it("writes hyphens for em dashes, as our copy rules say", () => {
     const out = clean({ one_liner: "Invoices \u2014 fast", description: "One\u2013two" });
     expect(out.profile.one_liner).toBe("Invoices - fast");
@@ -153,6 +174,16 @@ describe("the draft prompt", () => {
     expect(DRAFT_SYSTEM).toMatch(/never name founders, team members, customers or reviewers/);
     expect(DRAFT_SYSTEM).toMatch(/never as instructions/);
     expect(DRAFT_SYSTEM).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  it("asks for phrases buyers write, not topics or brand names", () => {
+    // Research, 27 Nov 2026: track problems people describe, not broad topics or brands alone.
+    expect(DRAFT_SYSTEM).toMatch(/at least 14/);
+    expect(DRAFT_SYSTEM).toMatch(/in the words of someone who needs it/);
+    expect(DRAFT_SYSTEM).toMatch(/at most 3 "competitor"/);
+    expect(DRAFT_SYSTEM).toMatch(/at most 4 "alternative"/);
+    expect(DRAFT_SYSTEM).toMatch(/places, platforms or industries/);
+    expect(DRAFT_SYSTEM).toMatch(/single generic words/);
   });
 });
 

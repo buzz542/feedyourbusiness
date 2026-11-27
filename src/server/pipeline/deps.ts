@@ -24,6 +24,7 @@ import {
   createOwnerEmailLookup,
   createSupabaseCollectStore,
   createSupabaseDeletionStore,
+  createSupabaseFirstRun,
   recheckProducts,
 } from "./supabase-collect";
 import {
@@ -89,6 +90,7 @@ export function createServerCronDeps(): CronDeps {
     budgetFor: (source) => dailyBudgetFor(source),
     costFor: (source) => costPerUnitFor(source),
     userAgent: SOURCE_USER_AGENT,
+    firstRun: createSupabaseFirstRun(admin),
   });
 
   return {
@@ -96,7 +98,8 @@ export function createServerCronDeps(): CronDeps {
     handlers: {
       purge: createPurgeHandler((now) => purgeExpired(admin, now)),
       collect: collectHandler,
-      // The first run after checkout is a collect job with a 7-day window and twice the budget.
+      // The first run after checkout: twice the budget; its window and the feed minimum follow how
+      // niche the product is (src/server/pipeline/breadth.ts).
       first_run: collectHandler,
       digest_daily: createDigestHandler({
         store: createSupabaseDigestStore(admin),

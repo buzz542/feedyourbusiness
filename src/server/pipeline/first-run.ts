@@ -3,9 +3,12 @@ import type { JobStatus, JobStore } from "./ports";
 
 /**
  * The first run after checkout (docs/PLAN.md 7.3): one `first_run` job per enabled collect source
- * (7-day window, twice the daily budget; the collect handler runs them) and the feed-ready email,
+ * (twice the daily budget; the collect handler runs them, and the window follows how niche the
+ * product is, src/server/pipeline/breadth.ts) and the feed-ready email,
  * which waits until every source has finished. Dedupe keys make it happen once per product.
  */
+const PAID_DELAY_MS = 10_000;
+
 export async function startFirstRun(input: {
   store: JobStore;
   sources: readonly CollectSource[];
@@ -20,7 +23,9 @@ export async function startFirstRun(input: {
       productId,
       source: source.id,
       dedupeKey: `first_run:${productId}:${source.id}`,
-      runAfter: now,
+      // A paid source goes a few seconds after the free ones, so they are claimed first: it waits
+      // for their results to judge how niche the product is (src/server/pipeline/breadth.ts).
+      runAfter: source.costPerUnitUsd > 0 ? new Date(now.getTime() + PAID_DELAY_MS) : now,
     })),
     {
       kind: "digest_daily" as const,

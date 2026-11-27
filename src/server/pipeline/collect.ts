@@ -8,6 +8,13 @@ import type {
   RunState,
 } from "@/sources/types";
 import type { BudgetStore, Job, JobHandler } from "./ports";
+import {
+  breadthOf,
+  FREE_RECHECK_MS,
+  FREE_WAIT_MS,
+  firstRunWindowHours,
+  NICHE_WINDOW_HOURS,
+} from "./breadth";
 import { errorName } from "./runner";
 
 /**
@@ -16,6 +23,16 @@ import { errorName } from "./runner";
  * idempotent), and settle the budget (once). A job that crashes and runs again repeats only work
  * that is safe to repeat.
  */
+
+/** What the first run needs to judge how niche a product is (src/server/pipeline/breadth.ts). */
+export interface FirstRunDeps {
+  /** Whether another first_run job for this product is still queued, running or waiting. */
+  othersActive(productId: string, jobId: string): Promise<boolean>;
+  /** This product's stored posts scoring STRONG_SCORE or more, posted in the last RECENT_DAYS. */
+  strongRecent(productId: string, now: Date): Promise<number>;
+  /** Lowers the product's feed minimum to NICHE_THRESHOLD if it is still the default. */
+  lowerThreshold(productId: string): Promise<void>;
+}
 
 export interface CollectHandlerDeps {
   /** The source when it is registered and its kill switch is on; otherwise null. */
@@ -62,6 +79,8 @@ export interface CollectHandlerDeps {
   /** Price per unit (costPerUnitFor); the module's costPerUnitUsd when unset. */
   costFor?(source: CollectSource): number;
   userAgent: string;
+  /** Unset, every first run reads the month and the feed minimum is never changed. */
+  firstRun?: FirstRunDeps;
   sleep?: (ms: number) => Promise<void>;
   /** Defaults to the server's environment. */
   credential?: (name: string) => string | undefined;
@@ -103,6 +122,12 @@ export async function settleAbandoned(budget: BudgetStore, job: Job): Promise<vo
 
 const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 
+/** A window kept in the payload, if it is a sane number of hours. */
+const storedWindow = (value: unknown): number | null =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= NICHE_WINDOW_HOURS
+    ? value
+    : null;
+
 /**
  * How far back a run reads (the founder, 24 Nov 2026): a new product's first run reads a month, so
  * the feed starts full; a daily run reads the last 48 hours. Retention still applies: posts are
@@ -118,7 +143,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
 
   const abandon = (job: Job) => settleAbandoned(deps.budget, job);
 
-  const handler: JobHandler = async (job, { now, deadline }) => {
+  const run: JobHandler = async (job, { now, deadline }) => {
     const source = job.source ? deps.sourceFor(job.source) : null;
     if (!source || !job.productId) {
       if ("reserved" in job.payload) await abandon(job);
@@ -141,7 +166,32 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
 
     const firstRun = job.kind === "first_run";
     const unitCost = deps.costFor?.(source) ?? source.costPerUnitUsd;
+    const paid = unitCost > 0;
     const units = (deps.budgetFor?.(source) ?? source.dailyBudget) * (firstRun ? 2 : 1);
+
+    // A paid first run waits for the free sources, then reads a week for a wide topic or a month
+    // for a niche one. Nothing is reserved while it waits. The window is kept in the payload so
+    // every poll of the vendor run uses the same one.
+    let windowHours = storedWindow(job.payload.windowHours) ?? collectWindowHours(firstRun);
+    if (firstRun && paid && deps.firstRun && !("reserved" in job.payload)) {
+      const waitingSince =
+        typeof job.payload.awaitingSince === "string"
+          ? Date.parse(job.payload.awaitingSince)
+          : now().getTime();
+      if (
+        now().getTime() - waitingSince < FREE_WAIT_MS &&
+        (await deps.firstRun.othersActive(job.productId, job.id))
+      )
+        return {
+          status: "waiting",
+          runAfter: new Date(now().getTime() + FREE_RECHECK_MS),
+          payload: { awaitingSince: new Date(waitingSince).toISOString() },
+        };
+      windowHours = firstRunWindowHours(
+        breadthOf(await deps.firstRun.strongRecent(job.productId, now())),
+      );
+    }
+
     const cap = deps.monthlyCap(source);
     const reserved = await deps.budget.reserve({
       jobId: job.id,
@@ -156,7 +206,6 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     if (reserved === "monthly_cap") return { status: "done", payload: { result: "monthly_cap" } };
 
     const handle = typeof job.payload.handle === "string" ? job.payload.handle : null;
-    const paid = unitCost > 0;
     const reservedUnits = Number(job.payload.reserved ?? units);
     // The reservation is written in the same transaction that charges the budget, so it is the
     // checkpoint: a paid job that comes back reserved but with no vendor handle may already have
@@ -170,7 +219,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
     const ctx: CollectContext = {
       fetch: deps.fetchFor(source),
       terms: terms ?? [],
-      since: new Date(now().getTime() - collectWindowHours(firstRun) * HOUR),
+      since: new Date(now().getTime() - windowHours * HOUR),
       budget: units,
       now: now(),
       ...(typeof job.payload.startedAt === "string"
@@ -205,7 +254,7 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       return {
         status: "waiting",
         runAfter: new Date(now().getTime() + POLL_DELAY_MS),
-        payload: { handle: state.handle, startedAt, unitCost },
+        payload: { handle: state.handle, startedAt, unitCost, windowHours },
       };
     }
     if (state.kind === "failed") {
@@ -251,6 +300,25 @@ export function createCollectHandler(deps: CollectHandlerDeps): JobHandler {
       status: "done",
       payload: { result: out.deferred ? "partial" : "ok", ...summary },
     };
+  };
+  // When the last first-run source has finished, a niche product's feed minimum drops to 50.
+  const judge = async (productId: string, jobId: string, at: Date) => {
+    const firstRunDeps = deps.firstRun;
+    if (!firstRunDeps || (await firstRunDeps.othersActive(productId, jobId))) return;
+    if (breadthOf(await firstRunDeps.strongRecent(productId, at)) === "niche")
+      await firstRunDeps.lowerThreshold(productId);
+  };
+
+  const handler: JobHandler = async (job, context) => {
+    const result = await run(job, context);
+    if (job.kind === "first_run" && result.status === "done" && job.productId) {
+      try {
+        await judge(job.productId, job.id, context.now());
+      } catch {
+        // Best effort: judging the product never fails the collect job; the default stays.
+      }
+    }
+    return result;
   };
   handler.onFailed = abandon;
   return handler;
