@@ -90,16 +90,16 @@ export function ViewNavList({
               key={item.id}
               className={cx(
                 variant === "bar" && "flex-1",
-                variant === "panel" && item.id === "settings" && "mt-4 border-t border-rule pt-4",
+                variant === "panel" && item.id === "settings" && "mt-6",
               )}
             >
               <Link
                 href={item.href}
                 aria-current={on ? "page" : undefined}
                 className={cx(
-                  "relative flex rounded-[2px]",
+                  "relative flex rounded-xl",
                   variant === "panel"
-                    ? "min-h-9 items-center gap-3 px-3 text-sm"
+                    ? "min-h-10 items-center gap-3 px-3 text-sm"
                     : "min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] leading-none",
                   on
                     ? "bg-selected font-semibold text-ink"
@@ -130,7 +130,8 @@ export function ViewNavList({
                       <Icon size={20} />
                       {item.count !== undefined ? <Count value={item.count} badge /> : null}
                     </span>
-                    <span>{item.label}</span>
+                    {/* The bar is narrow: the short name, with the full one for screen readers. */}
+                    <span>{item.id === "all" ? "All" : item.label}</span>
                   </>
                 )}
               </Link>
@@ -165,7 +166,7 @@ export function SettingsLink() {
       href="/app/settings"
       aria-current={on ? "page" : undefined}
       className={cx(
-        "inline-flex min-h-9 items-center gap-1.5 rounded-[2px] px-2 text-sm",
+        "inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-sm",
         on ? "bg-selected font-semibold text-ink" : "text-muted hover:text-ink",
       )}
     >

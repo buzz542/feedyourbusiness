@@ -47,6 +47,11 @@ describe("landing page", () => {
     expect(html).toContain('href="#example"');
   });
 
+  it("shows the disclosure on the example card, as the real Reply card does (PLAN 2.2.3)", () => {
+    const example = /aria-label="Example post card"[\s\S]*?<\/figure>/.exec(html)![0];
+    expect(example).toContain("Say you built it.");
+  });
+
   it("puts every word of the example card in its claims row", () => {
     const row = claims.split("\n").find((l) => l.startsWith("| landing-example "))!;
     const example = /aria-label="Example post card"[\s\S]*?<\/figure>/.exec(html)![0];

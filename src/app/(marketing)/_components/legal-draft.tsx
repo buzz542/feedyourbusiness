@@ -5,7 +5,7 @@ export function LegalDraft({ title, children }: { title: string; children: React
   return (
     <article className="space-y-6">
       <h1 className="font-serif text-3xl tracking-tight">{title}</h1>
-      <p className="rounded-[2px] border border-rule p-3 text-sm text-muted">
+      <p className="rounded-xl border border-rule p-3 text-sm text-muted">
         Draft for legal review. It is not in force yet and may change before launch.
       </p>
       {children}

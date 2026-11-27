@@ -43,7 +43,7 @@ export function RemovalQueue({
   return (
     <ol className="flex flex-col gap-4">
       {items.map((item) => (
-        <li key={item.id} className="rounded-[2px] border border-rule p-4">
+        <li key={item.id} className="rounded-xl border border-rule p-4">
           <p className="text-sm text-muted">
             {item.source ?? "unknown platform"} · due {day(item.dueAt)}
             {item.targetAt < now ? " · past the 72-hour target" : ""}

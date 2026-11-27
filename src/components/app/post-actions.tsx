@@ -30,12 +30,12 @@ export const nextState = (current: State, pressed: Pressable): State =>
   current === pressed ? "new" : pressed;
 
 const TOGGLE =
-  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[2px] border px-2.5 py-1.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50 sm:px-3";
+  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50 sm:px-3";
 
 /**
- * Open post, then Save, Hide and I replied (docs/PLAN.md 4.4), with Undo for the last change.
+ * View conversation, then Save, Hide and I replied (docs/PLAN.md 4.4), with Undo for the last change.
  * The toggles never leave the card, so the focus stays where it was; the pressed one says so with
- * aria-pressed, a check and its border, never color alone. `open` is the Open post link. Each
+ * aria-pressed, a check and its border, never color alone. `open` is the View conversation link. Each
  * change the server accepts is passed to the side panel's counts, with what they are counted by.
  */
 export function PostActions({

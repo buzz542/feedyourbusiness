@@ -97,18 +97,18 @@ describe("PostCard", () => {
   it("says why it matched in one line, with the category and the rival", () => {
     expect(html.match(/data-card-why=""/g)).toHaveLength(1);
     expect(visible(part(html, "data-card-why"))).toBe(
-      "Looking for a tool Mentions Acme Invoices Why it matched: Asks for a tool that chases late invoices.",
+      "Why it matched Looking for a tool Mentions Acme Invoices Asks for a tool that chases late invoices.",
     );
   });
 
-  it("ends with one row of actions: Open post, Save, Hide, I replied", () => {
+  it("ends with one row of actions: View conversation, Save, Hide, I replied", () => {
     expect(html).toMatch(/<footer[^>]*data-card-actions=""[^>]*>[\s\S]*<\/footer><\/article>$/);
     const actions = part(html, "data-card-actions");
     const labels = [
       ...actions.matchAll(/data-action="(\w+)"[^>]*>([\s\S]*?)<\/(?:a|button)>/g),
     ].map((m) => [m[1], visible(m[2]!)]);
     expect(labels).toEqual([
-      ["open", "Open post (opens in a new tab)"],
+      ["open", "View conversation (opens in a new tab)"],
       ["save", "Save"],
       ["hide", "Hide"],
       ["replied", "I replied"],
@@ -121,7 +121,7 @@ describe("PostCard", () => {
     );
   });
 
-  it("puts the disclosure first in the row right above Open post, with the reply tip beside it", () => {
+  it("puts the disclosure first in the row right above View conversation, with the reply tip beside it", () => {
     expect(html).toContain(REPLY_TIPS.looking_for_tool);
     // The last block before the actions: the disclosure, then the tip toggle, then the tip itself.
     const lastBlock = /<details[^>]*>([\s\S]*?)<\/details><footer[^>]*data-card-actions=""/.exec(
@@ -131,7 +131,7 @@ describe("PostCard", () => {
     const summary = /<summary[^>]*>([\s\S]*?)<\/summary>/.exec(lastBlock![1]!)![1]!;
     expect(visible(summary)).toBe("Say you built it. Reply tip");
     expect(visible(lastBlock![1]!)).toContain(REPLY_TIPS.looking_for_tool);
-    // Open post is the first control after it.
+    // View conversation is the first control after it.
     const footer = part(html, "data-card-actions");
     expect(footer.indexOf('data-action="open"')).toBeLessThan(footer.indexOf('data-action="save"'));
     expect(html.match(/Say you built it\./g)).toHaveLength(1);
@@ -199,13 +199,13 @@ describe("PostCard shows no author", () => {
       "Posted 3h ago",
       "84% match",
       CATEGORY_LABELS.looking_for_tool,
-      "Why it matched:",
+      "Why it matched",
       bluesky.reason,
       bluesky.excerpt,
       "Reply tip",
       REPLY_TIPS.looking_for_tool,
       "Say you built it.",
-      "Open post (opens in a new tab)",
+      "View conversation (opens in a new tab)",
       "Save",
       "Hide",
       "I replied",
@@ -494,14 +494,14 @@ describe("ReplyView", () => {
 
   it("heads the column with the view and what it holds, then how many posts it has", () => {
     const out = visible(view({ view: "saved" }, { items: items.slice(0, 3), total: 3 }));
-    expect(out).toContain("Saved Posts you saved to come back to.");
+    expect(out).toContain("Saved Conversations you saved to come back to.");
     // Today is what we found in the last day, which can be an older post.
     expect(visible(view({}, { items: [], total: 0 }))).toContain(
-      "Today Posts we found in the last 24 hours",
+      "Today Conversations worth a closer look, from the last 24 hours.",
     );
-    expect(out).toContain("3 posts, best match first.");
+    expect(out).toContain("3 conversations, newest first.");
     expect(visible(view({ category: "wish" }, { items: items.slice(0, 1), total: 1 }))).toContain(
-      "1 post match these filters, best match first.",
+      "1 conversation matches these filters, newest first.",
     );
   });
 
@@ -517,11 +517,11 @@ describe("ReplyView", () => {
   });
 
   it.each([
-    ["today", "Nothing new today"],
-    ["all", "No posts yet"],
-    ["saved", "Nothing saved"],
-    ["replied", "No replies marked yet"],
-    ["hidden", "Nothing hidden"],
+    ["today", "No conversations to show yet."],
+    ["all", "No conversations to show yet."],
+    ["saved", "Your saved conversations will appear here."],
+    ["replied", "Conversations you mark as replied will appear here."],
+    ["hidden", "Conversations you hide will appear here."],
   ])("says what to do next when %s is empty", (v, title) => {
     const out = view({ view: v }, { items: [], total: 0 });
     expect(visible(out)).toContain(title);
@@ -530,7 +530,7 @@ describe("ReplyView", () => {
 
   it("offers to clear the filters when they match nothing, keeping the view", () => {
     const out = view({ view: "saved", source: "bluesky" }, { items: [], total: 0 });
-    expect(visible(out)).toContain("No posts match these filters");
-    expect(out).toMatch(/<a[^>]*href="\/app\/reply\?view=saved"[^>]*>Clear all filters<\/a>/);
+    expect(visible(out)).toContain("No conversations match these filters.");
+    expect(out).toMatch(/<a[^>]*href="\/app\/reply\?view=saved"[^>]*>Clear filters<\/a>/);
   });
 });

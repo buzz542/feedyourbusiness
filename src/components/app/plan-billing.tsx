@@ -21,7 +21,7 @@ export function PlanBilling({
         Plan and billing
       </h2>
       {view.banner ? (
-        <p role="alert" className="rounded-[2px] border border-negative p-3 text-sm">
+        <p role="alert" className="rounded-xl border border-negative p-3 text-sm">
           {view.banner}
         </p>
       ) : null}

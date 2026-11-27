@@ -54,11 +54,11 @@ export default function BotPage({ contactLive = CONTACT_EMAIL_LIVE }: { contactL
           for the token FeedYourBusiness if you have one, or else the group for every robot. To keep
           those pages off limits, add:
         </p>
-        <pre className="overflow-x-auto rounded-[2px] border border-rule p-3 text-sm">
+        <pre className="overflow-x-auto rounded-xl border border-rule p-3 text-sm">
           {"User-agent: FeedYourBusiness\nDisallow: /"}
         </pre>
         <p>It identifies itself with this User-Agent:</p>
-        <pre className="overflow-x-auto rounded-[2px] border border-rule p-3 text-sm">
+        <pre className="overflow-x-auto rounded-xl border border-rule p-3 text-sm">
           {OWN_SITE_USER_AGENT}
         </pre>
       </section>

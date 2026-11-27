@@ -57,7 +57,7 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
         </h2>
         <ul className="space-y-4">
           {collect.map((source) => (
-            <li key={source.id} className="rounded-[2px] border border-rule p-4">
+            <li key={source.id} className="rounded-xl border border-rule p-4">
               <h3 className="font-medium">{source.displayName}</h3>
               <p className="mt-1">{HOW[source.id]}</p>
               {source.vendor ? (

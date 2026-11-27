@@ -18,7 +18,7 @@ export function FirstRunProgress({ progress }: { progress: readonly SourceProgre
   return (
     <section
       aria-live="polite"
-      className="rounded-[2px] border border-control bg-surface p-4 text-sm sm:p-5"
+      className="rounded-xl border border-control bg-surface p-4 text-sm sm:p-5"
     >
       <h2 className="font-serif text-lg tracking-tight">Your first collection is running</h2>
       <p className="mt-1 text-muted">

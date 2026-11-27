@@ -6,7 +6,7 @@ import type { EditField } from "@/server/onboarding/review";
 import type { OnboardingView } from "@/server/onboarding/wiring";
 import { saveAndConfirmAction, type EditState } from "./actions";
 
-const field = "w-full rounded-[2px] border border-rule bg-paper p-2";
+const field = "w-full rounded-xl border border-rule bg-paper p-2";
 
 /** "Change something": every field, folded away; one button saves and confirms (4.3 step 4). */
 export function EditForm({ view }: { view: OnboardingView }) {

@@ -65,14 +65,14 @@ export function FeedKeyboard() {
     <div
       role="dialog"
       aria-label="Keyboard shortcuts"
-      className="fixed right-4 bottom-24 z-30 w-72 rounded-[2px] border border-control bg-surface p-4 text-sm lg:bottom-6"
+      className="fixed right-4 bottom-24 z-30 w-72 rounded-xl border border-control bg-surface p-4 text-sm lg:bottom-6"
     >
       <h2 className="mb-3 font-serif text-lg tracking-tight">Keyboard shortcuts</h2>
       <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2">
         {FEED_KEYS.map(([key, , label]) => (
           <div key={key} className="contents">
             <dt>
-              <kbd className="inline-block min-w-6 rounded-[2px] border border-control bg-paper px-1.5 text-center font-mono text-xs leading-5">
+              <kbd className="inline-block min-w-6 rounded-xl border border-control bg-paper px-1.5 text-center font-mono text-xs leading-5">
                 {key}
               </kbd>
             </dt>

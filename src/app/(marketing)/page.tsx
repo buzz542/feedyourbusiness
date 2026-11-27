@@ -122,7 +122,9 @@ function SectionHeading({ id, children }: { id: string; children: ReactNode }) {
 function AppPreview() {
   return (
     <figure aria-label="Example post card" className="flex flex-col gap-3">
-      <p className="text-xs font-medium tracking-wide text-muted uppercase">Example, invented</p>
+      <p className="text-xs font-medium tracking-wide text-muted uppercase">
+        Example, invented, for a product that sends invoice reminders
+      </p>
       <div className="theme-dark overflow-hidden rounded-3xl border border-rule bg-panel p-2 text-ink shadow-2xl shadow-black/10 sm:p-3">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[9.5rem_minmax(0,1fr)]">
           <div className="hidden flex-col gap-1 p-3 text-sm sm:flex" aria-hidden="true">
@@ -136,7 +138,9 @@ function AppPreview() {
             <span className="px-2.5 py-1.5 text-muted">Hidden</span>
           </div>
           <div className="flex flex-col gap-4 rounded-2xl bg-paper p-4 sm:p-6">
-            <h3 className="text-xl tracking-tight">Today</h3>
+            <p className="text-xl font-semibold tracking-tight" aria-hidden="true">
+              Today
+            </p>
             <article className="flex flex-col gap-4 rounded-2xl border border-rule bg-surface p-5">
               <p className="text-sm text-muted">
                 <span className="font-medium text-ink">Reddit</span>
@@ -151,6 +155,7 @@ function AppPreview() {
                 <p className="font-medium">Why it matched</p>
                 <p className="mt-1 text-muted">{EXAMPLE_WHY}</p>
               </div>
+              <p className="text-sm font-medium">Say you built it.</p>
               {/* The Reply card's actions for the eye only: the example cannot be clicked. */}
               <div aria-hidden="true" className="flex flex-wrap gap-2">
                 <span className="inline-flex min-h-9 items-center rounded-full px-3.5 text-sm font-medium bg-accent-fill text-accent-ink">

@@ -31,7 +31,7 @@ export function PasswordForm() {
         required
         minLength={MIN_PASSWORD_LENGTH}
         maxLength={200}
-        className="w-full rounded-[2px] border border-rule bg-paper px-3 py-2"
+        className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
       />
       <label htmlFor="confirm" className="block text-sm font-medium">
         Type it again
@@ -44,7 +44,7 @@ export function PasswordForm() {
         required
         minLength={MIN_PASSWORD_LENGTH}
         maxLength={200}
-        className="w-full rounded-[2px] border border-rule bg-paper px-3 py-2"
+        className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
       />
       <Button type="submit" disabled={pending}>
         {pending ? "Saving" : "Save password"}

@@ -1226,6 +1226,8 @@ the live API, so it runs by hand, never in CI. Replace section 18's model estima
 
 ## 9. UI and visual system
 
+> **Visual direction (the founder's redesign brief, 27 Nov 2026), superseding 9.1 to 9.4 where they differ:** a white, spacious public site (#ffffff, #f7f7f5, near-black #101010 text and buttons) and an app that is always dark (#0b0b0c frame, #161617 main panel, #202022 cards, #f5f5f5 text, #a1a1aa muted, #2a2a2e borders), set by the `theme-dark` class rather than the visitor's system setting; one sans-serif (Geist) for headings and text; rounded navigation, cards and pill buttons; an original mark (a speech bubble holding feed lines). Contrast is still held to 4.5:1 for text and 3:1 for controls (`src/components/ui/contrast.test.ts`). Copy, claims and disclosure rules are unchanged.
+
 ### 9.1 Keep the format
 
 The site keeps its current format: warm paper background, near-black ink, one deep ink-blue accent, a serif

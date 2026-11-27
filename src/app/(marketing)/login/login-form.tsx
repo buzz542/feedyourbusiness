@@ -40,7 +40,7 @@ export function LoginForm({ next }: { next: string | null }) {
           inputMode="email"
           required
           maxLength={320}
-          className="w-full rounded-[2px] border border-rule bg-paper px-3 py-2"
+          className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
         />
         <label htmlFor="password" className="block text-sm font-medium">
           Password
@@ -51,7 +51,7 @@ export function LoginForm({ next }: { next: string | null }) {
           type="password"
           autoComplete="current-password"
           maxLength={200}
-          className="w-full rounded-[2px] border border-rule bg-paper px-3 py-2"
+          className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
         />
         <Button type="submit" name="intent" value="password" disabled={pending} className="w-full">
           {pending ? "Working" : "Sign in"}

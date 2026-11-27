@@ -28,10 +28,10 @@ export function AccountMenu({
   if (variant === "inline") return <div className="min-w-0 text-sm">{body}</div>;
   return (
     <details className="relative">
-      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center rounded-[2px] px-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center rounded-xl px-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
         Account
       </summary>
-      <div className="absolute right-0 z-30 mt-2 w-64 rounded-[2px] border border-control bg-surface p-3 text-sm">
+      <div className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-control bg-surface p-3 text-sm">
         {body}
       </div>
     </details>

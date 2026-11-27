@@ -22,34 +22,34 @@ import { VIEW_LABELS } from "./view-labels";
 
 /** What each view holds, under its heading. */
 const VIEW_INTROS: Record<FeedView, string> = {
-  today: "Posts we found in the last 24 hours that you have not replied to or hidden.",
-  all: "Every post we still hold for you, except the ones you hid.",
-  saved: "Posts you saved to come back to.",
-  replied: "Posts you marked as replied.",
-  hidden: "Posts you hid. Press Hide again on one to bring it back.",
+  today: "Conversations worth a closer look, from the last 24 hours.",
+  all: "Every conversation we still hold for you, except the ones you hid.",
+  saved: "Conversations you saved to come back to.",
+  replied: "Conversations you marked as replied.",
+  hidden: "Conversations you hid. Press Hide again on one to bring it back.",
 };
 
-/** What to do next when a view is empty (docs/PLAN.md 4.9). */
+/** What to do next when a view is empty (docs/PLAN.md 4.9; the founder's brief, 27 Nov 2026). */
 const EMPTY: Record<FeedView, { title: string; body: string }> = {
   today: {
-    title: "Nothing new today",
-    body: "New posts arrive each morning. Look through All, or run the searches below.",
+    title: "No conversations to show yet.",
+    body: "New conversations arrive each morning. Look through All conversations, or run the searches below.",
   },
   all: {
-    title: "No posts yet",
-    body: "Posts show up here once we collect matches for your product. Try a lower minimum match, or run the searches below.",
+    title: "No conversations to show yet.",
+    body: "They show up here once we collect matches for your product. Try a lower minimum match, or run the searches below.",
   },
   saved: {
-    title: "Nothing saved",
-    body: "Press Save on a post, or s, to keep it here for later.",
+    title: "Your saved conversations will appear here.",
+    body: "Press Save on a conversation, or s, to keep it here for later.",
   },
   replied: {
-    title: "No replies marked yet",
-    body: "After you reply to a post, press I replied, or r, and it moves here.",
+    title: "Conversations you mark as replied will appear here.",
+    body: "After you reply, press I replied, or r, and it moves here.",
   },
   hidden: {
-    title: "Nothing hidden",
-    body: "Posts you hide wait here until they are deleted, in case you want one back.",
+    title: "Conversations you hide will appear here.",
+    body: "They wait here until they are deleted, in case you want one back.",
   },
 };
 
@@ -101,10 +101,10 @@ export function ReplyView({
       {feed.items.length === 0 ? (
         filtered ? (
           <EmptyState
-            title="No posts match these filters"
+            title="No conversations match these filters."
             action={
               <Link href={clearFiltersHref(filter)} className={buttonClass("secondary")}>
-                Clear all filters
+                Clear filters
               </Link>
             }
           >
@@ -117,8 +117,9 @@ export function ReplyView({
         <>
           <p className="-mb-2 text-sm text-muted">
             <span className="font-medium text-ink tabular-nums">{feed.total}</span>{" "}
-            {feed.total === 1 ? "post" : "posts"}
-            {filtered ? " match these filters" : ""}, best match first.
+            {feed.total === 1 ? "conversation" : "conversations"}
+            {filtered ? (feed.total === 1 ? " matches these filters" : " match these filters") : ""}
+            , newest first.
           </p>
           <ol className="flex flex-col gap-4">
             {feed.items.map((item) => (
@@ -127,7 +128,7 @@ export function ReplyView({
                 id={`post-${item.id}`}
                 data-feed-card
                 tabIndex={-1}
-                className="rounded-[2px] [contain-intrinsic-size:auto_16rem] [content-visibility:auto] focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-accent"
+                className="rounded-2xl [contain-intrinsic-size:auto_16rem] [content-visibility:auto] focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-accent"
               >
                 <PostCard
                   item={item}

@@ -98,7 +98,7 @@ export function PlanControls({
   return (
     <div className="flex flex-col gap-3">
       {confirming ? (
-        <div className="flex flex-col gap-3 rounded-[2px] border border-rule p-4" role="group">
+        <div className="flex flex-col gap-3 rounded-xl border border-rule p-4" role="group">
           <p className="text-sm">
             {state.accessUntil ? (
               <>

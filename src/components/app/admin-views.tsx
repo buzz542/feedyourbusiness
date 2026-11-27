@@ -14,7 +14,7 @@ export function AdminViewsPanel({ views }: { views: AdminViews }) {
         </h2>
         <ul className="flex flex-col gap-2">
           {health.map((s) => (
-            <li key={s.id} className="rounded-[2px] border border-rule p-3 text-sm">
+            <li key={s.id} className="rounded-xl border border-rule p-3 text-sm">
               <p className="font-medium">
                 {s.name}: {s.enabled ? "switched on" : "off"}
               </p>

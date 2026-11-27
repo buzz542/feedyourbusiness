@@ -11,7 +11,7 @@ export function EmptyState({
   children?: ReactNode;
 }) {
   return (
-    <section className="rounded-[2px] border border-dashed border-control bg-surface px-6 py-12 text-center">
+    <section className="rounded-xl border border-dashed border-control bg-surface px-6 py-12 text-center">
       <h2 className="font-serif text-xl tracking-tight">{title}</h2>
       {children ? (
         <div className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-muted">

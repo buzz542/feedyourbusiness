@@ -18,7 +18,7 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
       {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
-          className="flex flex-col gap-3 rounded-[2px] border border-rule bg-surface p-4 sm:p-5"
+          className="flex flex-col gap-3 rounded-xl border border-rule bg-surface p-4 sm:p-5"
         >
           <div className="flex justify-between gap-4">
             <Skeleton className="h-4 w-1/3" />

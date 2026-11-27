@@ -106,10 +106,10 @@ describe("Chip", () => {
 });
 
 describe("Card", () => {
-  it("has a 1px rule border, square-ish corners and no shadow", () => {
+  it("has a 1px rule border, rounded corners and no shadow", () => {
     const out = html(<Card>Body</Card>);
     expect(out).toContain("border-rule");
-    expect(out).toContain("rounded-[2px]");
+    expect(out).toContain("rounded-xl");
     expect(out).not.toMatch(/shadow/);
   });
 

@@ -45,7 +45,7 @@ export function AccountData({
         . It has your account, product, search terms, competitors and the links in your feed with
         our labels. Post text is not included.
       </p>
-      <div className="flex flex-col gap-2 rounded-[2px] border border-rule p-4">
+      <div className="flex flex-col gap-2 rounded-xl border border-rule p-4">
         <h3 className="font-medium">Delete your account</h3>
         <p className="text-sm text-muted">
           This cancels your subscription at once, with no further charges, and deletes your account,
@@ -58,7 +58,7 @@ export function AccountData({
             onChange={(e) => setTyped(e.target.value)}
             autoComplete="off"
             spellCheck={false}
-            className="w-48 rounded-[2px] border border-rule bg-paper px-2 py-1"
+            className="w-48 rounded-xl border border-rule bg-paper px-2 py-1"
           />
         </label>
         <Button

@@ -41,7 +41,7 @@ export function RemovalForm({
 
   if (done)
     return (
-      <p role="status" className="rounded-[2px] border border-rule p-4">
+      <p role="status" className="rounded-xl border border-rule p-4">
         We have your request. We will email you when it is done.
       </p>
     );
@@ -53,7 +53,7 @@ export function RemovalForm({
         <select
           name="source"
           required
-          className="rounded-[2px] border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
         >
           {sources.map(([value, label]) => (
             <option key={value} value={value}>
@@ -68,7 +68,7 @@ export function RemovalForm({
           name="linkOrHandle"
           required
           maxLength={500}
-          className="rounded-[2px] border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -79,7 +79,7 @@ export function RemovalForm({
           required
           maxLength={320}
           autoComplete="email"
-          className="rounded-[2px] border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -88,7 +88,7 @@ export function RemovalForm({
           name="details"
           maxLength={1000}
           rows={3}
-          className="rounded-[2px] border border-rule bg-paper px-2 py-1.5"
+          className="rounded-xl border border-rule bg-paper px-2 py-1.5"
         />
       </label>
       <label className="flex items-start gap-2 text-sm">
@@ -98,7 +98,7 @@ export function RemovalForm({
       <button
         type="submit"
         disabled={busy}
-        className="self-start rounded-[2px] bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50"
+        className="self-start rounded-xl bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50"
       >
         Send request
       </button>

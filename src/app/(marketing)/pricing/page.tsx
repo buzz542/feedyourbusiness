@@ -19,7 +19,7 @@ export default function PricingPage() {
       <h1 className="font-serif text-4xl leading-tight tracking-tight">Pricing</h1>
       <section
         aria-labelledby="plan-heading"
-        className="mt-8 flex flex-col gap-4 rounded-[2px] border border-rule p-6"
+        className="mt-8 flex flex-col gap-4 rounded-xl border border-rule p-6"
       >
         <h2 id="plan-heading" className="font-serif text-2xl tracking-tight">
           One plan
@@ -44,7 +44,7 @@ export default function PricingPage() {
         </ul>
         <Link
           href="/login?next=%2Fapp"
-          className="self-start rounded-[2px] bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
+          className="self-start rounded-xl bg-accent-fill px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
         >
           Start your 3-day trial
         </Link>

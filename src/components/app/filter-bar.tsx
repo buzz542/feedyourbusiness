@@ -15,7 +15,7 @@ import {
 } from "@/server/store/feed";
 
 const FIELD =
-  "h-9 rounded-[2px] border border-control bg-surface px-2.5 text-sm text-ink hover:border-ink";
+  "h-9 rounded-xl border border-control bg-surface px-2.5 text-sm text-ink hover:border-ink";
 
 function Field({ label, grow, children }: { label: string; grow?: boolean; children: ReactNode }) {
   return (
@@ -152,7 +152,7 @@ export function FilterBar({
           {apply}
         </div>
       </form>
-      <details className="group rounded-[2px] border border-rule bg-surface sm:hidden">
+      <details className="group rounded-xl border border-rule bg-surface sm:hidden">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
           <FilterIcon />
           Filters

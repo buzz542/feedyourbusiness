@@ -29,7 +29,7 @@ export function SearchLinksPanel({
   return (
     <section
       aria-labelledby="search-links"
-      className="mt-4 flex flex-col gap-4 rounded-[2px] border border-rule bg-panel p-4 sm:p-5"
+      className="mt-4 flex flex-col gap-4 rounded-xl border border-rule bg-panel p-4 sm:p-5"
     >
       <div className="flex flex-col gap-1">
         <h2 id="search-links" className="font-serif text-lg tracking-tight">

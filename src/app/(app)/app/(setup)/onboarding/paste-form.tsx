@@ -41,7 +41,7 @@ export function PasteForm({ initial = "" }: { initial?: string }) {
         required
         defaultValue={state.kind === "message" ? state.input : initial}
         aria-describedby="onboarding-hint onboarding-status"
-        className="w-full rounded-[2px] border border-rule bg-paper p-3"
+        className="w-full rounded-xl border border-rule bg-paper p-3"
       />
       <p id="onboarding-hint" className="text-sm text-muted">
         No website yet? Describe your product in a sentence or two.

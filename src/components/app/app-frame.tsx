@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SiteFooter } from "@/app/(marketing)/_components/site-footer";
+import { Wordmark } from "@/components/ui/brand";
 import type { ViewCounts } from "@/lib/feed-views";
 import { AccountMenu } from "./account-menu";
 import { FeedCountsProvider } from "./feed-counts";
@@ -27,11 +28,11 @@ export function AppFrame({
 }) {
   return (
     <FeedCountsProvider initial={counts} threshold={threshold}>
-      <div className="theme-dark min-h-dvh bg-paper text-ink lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <aside className="hidden border-r border-rule bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
+      <div className="theme-dark min-h-dvh bg-panel text-ink lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+        <aside className="hidden bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
           <div className="px-5 pt-6 pb-5">
-            <Link href="/app" className="font-serif text-2xl tracking-tight">
-              FeedYourBusiness
+            <Link href="/app" aria-label="FeedYourBusiness, Today">
+              <Wordmark />
             </Link>
             {productName ? (
               <p className="mt-0.5 truncate text-sm text-muted" title={productName}>
@@ -40,19 +41,19 @@ export function AppFrame({
             ) : null}
           </div>
           <ViewNav variant="panel" className="flex-1 overflow-y-auto px-3" />
-          <div className="border-t border-rule px-5 py-4">
+          <div className="px-5 py-4">
             <AccountMenu email={email} variant="inline" />
             <p className="mt-3 text-xs text-muted">
               Press{" "}
-              <kbd className="rounded-[2px] border border-control px-1 font-mono text-ink">?</kbd>{" "}
-              for keyboard shortcuts.
+              <kbd className="rounded-md border border-control px-1 font-mono text-ink">?</kbd> for
+              keyboard shortcuts.
             </p>
           </div>
         </aside>
-        <div className="flex min-h-dvh min-w-0 flex-col">
-          <header className="flex items-center gap-3 border-b border-rule bg-panel px-4 py-2 sm:px-6 lg:hidden">
-            <Link href="/app" className="font-serif text-xl tracking-tight">
-              FeedYourBusiness
+        <div className="flex min-h-dvh min-w-0 flex-col bg-paper lg:my-3 lg:mr-3 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-3xl lg:border lg:border-rule">
+          <header className="flex items-center gap-3 border-b border-rule bg-panel px-4 py-2.5 sm:px-6 lg:hidden">
+            <Link href="/app" aria-label="FeedYourBusiness, Today">
+              <Wordmark />
             </Link>
             {productName ? (
               <span className="hidden min-w-0 truncate text-sm text-muted sm:inline">

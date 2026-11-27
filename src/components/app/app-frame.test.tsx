@@ -44,7 +44,7 @@ describe("ViewNavList", () => {
   it("lists the views with their counts, then Settings, each to its own address", () => {
     expect(links(panel)).toEqual([
       ["/app/reply", "Today 12 posts"],
-      ["/app/reply?view=all", "All 40 posts"],
+      ["/app/reply?view=all", "All conversations 40 posts"],
       ["/app/reply?view=saved", "Saved 3 posts"],
       ["/app/reply?view=replied", "Replied 5 posts"],
       ["/app/reply?view=hidden", "Hidden 2 posts"],
@@ -86,7 +86,7 @@ describe("ViewNavList", () => {
     const out = renderToStaticMarkup(<ViewNavList variant="panel" current={null} counts={null} />);
     expect(links(out).map(([, text]) => text)).toEqual([
       "Today",
-      "All",
+      "All conversations",
       "Saved",
       "Replied",
       "Hidden",
