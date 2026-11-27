@@ -26,6 +26,8 @@ export function FeedKeyboard() {
         setHelp(false);
         return;
       }
+      // A conversation's detail dialog is open: the page behind is inert, so its keys wait.
+      if (document.querySelector("dialog[open]")) return;
       const action = feedKeyAction({
         key: event.key,
         altKey: event.altKey,

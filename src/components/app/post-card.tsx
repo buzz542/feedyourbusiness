@@ -4,37 +4,11 @@ import { Highlight } from "@/components/ui/highlight";
 import { ChevronIcon, ExternalIcon, TipIcon } from "@/components/ui/icons";
 import { CATEGORY_LABELS, DISCLOSURE, REPLY_TIPS, SOURCE_LABELS } from "@/server/reply/tips";
 import type { FeedItem } from "@/server/store/feed";
+import { ConversationDetail } from "./conversation-detail";
 import { PostActions, type SetPostState } from "./post-actions";
+import { age, sourceLine, unitRange } from "./post-card-parts";
 
-/** "Reddit · r/SaaS", "Hacker News", "Bluesky" (docs/PLAN.md 4.4). */
-export function sourceLine(source: string, community: string | null): string {
-  const label = SOURCE_LABELS[source] ?? source;
-  return community && community !== label ? `${label} · ${community}` : label;
-}
-
-/** "15m", "3h", "2d": the post's age. */
-export function age(postedAt: string, now: Date): string {
-  const minutes = Math.max(0, Math.floor((now.getTime() - Date.parse(postedAt)) / 60_000));
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
-}
-
-/**
- * Stored highlight offsets count code points (as Postgres counts the excerpt); <Highlight> slices
- * UTF-16 units. Converts, or returns null for a range that does not fit.
- */
-export function unitRange(
-  text: string,
-  start: number | null,
-  end: number | null,
-): { start: number; end: number } | null {
-  if (start === null || end === null) return null;
-  const points = Array.from(text);
-  if (start < 0 || end <= start || end > points.length) return null;
-  const from = points.slice(0, start).join("").length;
-  return { start: from, end: from + points.slice(start, end).join("").length };
-}
+export { age, sourceLine, unitRange };
 
 const Dot = () => (
   <span aria-hidden="true" className="px-1.5">
@@ -47,7 +21,7 @@ const Dot = () => (
  * with the match score; the excerpt as stored (280 characters at most) with the highlighter; one
  * block on why it matched, set apart, with the category and any rival; "Say you built it." with the
  * reply tip beside it, right above View conversation; then one row of actions: View conversation,
- * Save, Hide, I replied.
+ * Save, Hide, I replied, and Details, which opens the conversation detail (conversation-detail.tsx).
  *
  * It renders the fields named here and nothing else. No author is ever shown (D5): no name,
  * handle, hash or avatar, and the post's address is only ever the link, never words on the card.
@@ -121,6 +95,7 @@ export function PostCard({
           state={item.state}
           setState={setState}
           counted={{ createdAt: item.createdAt, relevance: item.relevance }}
+          detail={<ConversationDetail item={item} now={now} rivalName={rivalName ?? null} />}
           open={
             <a
               href={item.url}

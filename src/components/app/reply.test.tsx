@@ -16,6 +16,7 @@ import {
 } from "@/server/store/feed";
 import { linkSources, sources } from "@/sources/registry";
 import { subredditSearchLinks } from "@/sources/subreddit-links";
+import { ConversationDetail } from "./conversation-detail";
 import { FeedError } from "./feed-error";
 import { FirstRunProgress } from "./first-run-progress";
 import { REFRESH_FOR_MS, refreshDelay } from "./first-run-refresh";
@@ -105,7 +106,7 @@ describe("PostCard", () => {
     );
   });
 
-  it("ends with one row of actions: View conversation, Save, Hide, I replied", () => {
+  it("ends with one row of actions: View conversation, Save, Hide, I replied, Details", () => {
     expect(html).toMatch(/<footer[^>]*data-card-actions=""[^>]*>[\s\S]*<\/footer><\/article>$/);
     const actions = part(html, "data-card-actions");
     const labels = [
@@ -116,6 +117,7 @@ describe("PostCard", () => {
       ["save", "Save"],
       ["hide", "Hide"],
       ["replied", "I replied"],
+      ["details", "Details"],
     ]);
   });
 
@@ -213,6 +215,7 @@ describe("PostCard shows no author", () => {
       "Save",
       "Hide",
       "I replied",
+      "Details",
     ];
     let rest = text;
     for (const piece of allowed) rest = rest.replace(piece, " ");
@@ -578,5 +581,46 @@ describe("ReplyView", () => {
     const out = view({ view: "saved", source: "bluesky" }, { items: [], total: 0 });
     expect(visible(out)).toContain("No conversations match these filters.");
     expect(out).toMatch(/<a[^>]*href="\/app\/reply\?view=saved"[^>]*>Clear filters<\/a>/);
+  });
+});
+
+describe("conversation detail (the founder's brief, 27 Nov 2026)", () => {
+  it("holds everything we keep about the post, and says the excerpt is all we keep", () => {
+    const out = renderToStaticMarkup(<ConversationDetail item={item} now={NOW} rivalName={null} />);
+    const text = visible(out);
+    expect(text).toContain("Reddit · r/SaaS");
+    expect(text).toMatch(/Posted Nov 2, 2026 ?, 3h ago/);
+    expect(text).toContain("84% match");
+    expect(text).toContain("🙏 Is there a tool that chases late invoices?");
+    expect(text).toContain(
+      "We keep up to 280 characters of each post. Open the original conversation for the full thread.",
+    );
+    expect(text).toContain("Why it matched");
+    expect(text).toContain("Asks for a tool that chases late invoices.");
+    expect(text).toContain("Say you built it.");
+    // The post's words and our explanation stay apart.
+    expect(out).toMatch(/data-detail-excerpt=""[\s\S]*data-detail-why=""/);
+  });
+
+  it("shows no author, and the address only as a link", () => {
+    const out = renderToStaticMarkup(<ConversationDetail item={item} now={NOW} rivalName={null} />);
+    expect(visible(out)).not.toContain("reddit.com");
+  });
+
+  it("puts a Details button on each card that opens a labelled dialog, closed at first", () => {
+    const out = renderToStaticMarkup(
+      <PostCard item={item} now={NOW} rivalName={null} setState={setState} />,
+    );
+    const button = /<button[^>]*data-action="details"[^>]*>/.exec(out)?.[0] ?? "";
+    expect(button).toContain('aria-haspopup="dialog"');
+    expect(button).toContain(`aria-controls="detail-${item.id}"`);
+    expect(out).toMatch(
+      new RegExp(
+        `<dialog[^>]*id="detail-${item.id}"[^>]*aria-labelledby="detail-${item.id}-title"`,
+      ),
+    );
+    // Closed: no second copy of the controls until it opens.
+    expect(out.match(/data-action="save"/g)).toHaveLength(1);
+    expect(out).not.toMatch(/<dialog[^>]*\sopen/);
   });
 });
