@@ -6,6 +6,7 @@ import { Chip } from "./chip";
 import { EmptyState } from "./empty-state";
 import { Highlight } from "./highlight";
 import * as Icons from "./icons";
+import { Sheet } from "./sheet";
 import { Sparkline } from "./sparkline";
 import { Tabs } from "./tabs";
 
@@ -232,5 +233,36 @@ describe("Sparkline", () => {
     expect(out).not.toMatch(/NaN|Infinity/);
     // Four slots across 2..96: 2, 33.3, 64.7, 96. The value 3 stays in slot three.
     expect(xy(out).map(([x]) => x)).toEqual([2, 64.7]);
+  });
+});
+
+describe("Sheet (mobile drawer and filter sheet)", () => {
+  const out = html(
+    <Sheet id="nav" title="Menu" side="left" trigger={<span>Menu</span>}>
+      <a href="/app/reply">Today</a>
+    </Sheet>,
+  );
+
+  it("is a button that opens a labelled native dialog, closed at first", () => {
+    const button = /<button[^>]*aria-haspopup="dialog"[^>]*>/.exec(out)?.[0] ?? "";
+    expect(button).toContain('aria-controls="nav"');
+    expect(button).toContain('aria-expanded="false"');
+    expect(out).toMatch(/<dialog[^>]*id="nav"[^>]*aria-labelledby="nav-title"/);
+    expect(out).not.toMatch(/<dialog[^>]*\sopen/);
+  });
+
+  it("renders its contents only while open, so the page holds one copy of the nav", () => {
+    expect(out).not.toContain('href="/app/reply"');
+  });
+
+  it("slides from the side it is given", () => {
+    expect(out).toMatch(/<dialog[^>]*data-side="left"/);
+    expect(
+      html(
+        <Sheet id="f" title="Filters" side="bottom" trigger="Filters">
+          x
+        </Sheet>,
+      ),
+    ).toMatch(/<dialog[^>]*data-side="bottom"/);
   });
 });

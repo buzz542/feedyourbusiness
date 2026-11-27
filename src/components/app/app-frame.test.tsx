@@ -24,6 +24,8 @@ const links = (markup: string) =>
       .trim(),
   ]);
 
+const visible = (markup: string) => markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
 describe("currentNavItem", () => {
   it("reads the view from the address, with Today as the default", () => {
     expect(currentNavItem("/app/reply", null)).toBe("today");
@@ -124,6 +126,13 @@ describe("AppFrame", () => {
     expect(html).toContain("Invoicer");
     expect(html).toContain("Settings");
     expect(html).toContain('href="/app/product"');
+  });
+
+  it("opens a navigation drawer from the narrow top bar, beside the tab bar of views", () => {
+    const header = /<header[^>]*lg:hidden[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    expect(header).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-controls="app-menu"/);
+    expect(visible(header)).toContain("Menu");
+    expect(html).toMatch(/<dialog[^>]*id="app-menu"[^>]*data-side="left"/);
   });
 
   it("keeps the legal links in reach", () => {

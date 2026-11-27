@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { buttonClass } from "@/components/ui/button";
-import { ChevronIcon, CloseIcon, FilterIcon, SearchIcon } from "@/components/ui/icons";
+import { CloseIcon, FilterIcon, SearchIcon } from "@/components/ui/icons";
+import { Sheet } from "@/components/ui/sheet";
 import { CATEGORY_LABELS, SOURCE_LABELS } from "@/server/reply/tips";
 import {
   activeFilterKeys,
@@ -29,7 +30,8 @@ function Field({ label, grow, children }: { label: string; grow?: boolean; child
 /**
  * Reply filters across the top (docs/PLAN.md 4.4), as a plain GET form, so every view can be
  * bookmarked and the form works without JavaScript. Under it, how many filters are on and one
- * link per filter that removes it. On a phone the form folds away under a summary with the count.
+ * link per filter that removes it. On a phone the form is in a sheet that opens from the bottom,
+ * from a button that says how many filters are on.
  *
  * `sources` are the collect sources switched on now: a source behind its gate (Reddit until 2.1.7
  * holds, X out of launch) is not offered. The page drops one the address asks for
@@ -152,36 +154,43 @@ export function FilterBar({
           {apply}
         </div>
       </form>
-      <details className="group rounded-xl border border-rule bg-surface sm:hidden">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
-          <FilterIcon />
-          Filters
-          {count > 0 ? (
-            <>
-              <span
-                data-filter-count=""
-                className="rounded-full bg-selected px-2 text-xs leading-5 tabular-nums"
-              >
-                {count}
-              </span>
-              <span className="sr-only"> on</span>
-            </>
-          ) : null}
-          <ChevronIcon className="ml-auto transition-transform group-open:rotate-90" />
-        </summary>
+      {/* On a phone: a compact sheet from the bottom (the founder's brief). */}
+      <Sheet
+        id="filter-sheet"
+        title="Filters"
+        side="bottom"
+        triggerClassName="flex min-h-11 items-center gap-2 rounded-xl border border-rule bg-surface px-3 text-sm font-medium sm:hidden"
+        trigger={
+          <>
+            <FilterIcon />
+            Filters
+            {count > 0 ? (
+              <>
+                <span
+                  data-filter-count=""
+                  className="rounded-full bg-selected px-2 text-xs leading-5 tabular-nums"
+                >
+                  {count}
+                </span>
+                <span className="sr-only"> on</span>
+              </>
+            ) : null}
+          </>
+        }
+      >
         <form
           method="get"
           action="/app/reply"
           role="search"
           aria-label="Filter posts"
-          className="grid grid-cols-2 gap-3 border-t border-rule p-3"
+          className="grid grid-cols-2 gap-3"
         >
           {view}
           {choices}
           {search}
           {apply}
         </form>
-      </details>
+      </Sheet>
       {count > 0 ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <p className="text-muted">

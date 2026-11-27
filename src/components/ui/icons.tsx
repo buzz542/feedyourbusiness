@@ -100,6 +100,12 @@ export const SettingsIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const MenuIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />
+  </Icon>
+);
+
 /** A box: the product the feed is about. */
 export const ProductIcon = (p: IconProps) => (
   <Icon {...p}>

@@ -377,6 +377,15 @@ describe("FilterBar", () => {
     expect(render({}, ["hackernews"])).not.toContain('name="source"');
   });
 
+  it("on a phone, folds the filters into a sheet whose button says how many are on", () => {
+    const button = /<button[^>]*aria-controls="filter-sheet"[^>]*>([\s\S]*?)<\/button>/.exec(html);
+    expect(button?.[0]).toContain('aria-haspopup="dialog"');
+    expect(button?.[0]).toMatch(/class="[^"]*sm:hidden/);
+    expect(visible(button![1]!)).toBe("Filters 3 on");
+    expect(html).toMatch(/<dialog[^>]*id="filter-sheet"[^>]*data-side="bottom"/);
+    expect(html).not.toContain("<details");
+  });
+
   it("works without JavaScript: a GET form to the Reply tab with a submit button", () => {
     const forms = [...html.matchAll(/<form[^>]*>/g)].map((m) => m[0]);
     expect(forms.length).toBeGreaterThan(0);

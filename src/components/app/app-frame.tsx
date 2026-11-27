@@ -2,16 +2,19 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SiteFooter } from "@/app/(marketing)/_components/site-footer";
 import { Wordmark } from "@/components/ui/brand";
+import { MenuIcon } from "@/components/ui/icons";
+import { Sheet } from "@/components/ui/sheet";
 import type { ViewCounts } from "@/lib/feed-views";
 import { AccountMenu } from "./account-menu";
 import { FeedCountsProvider } from "./feed-counts";
-import { TopBarLink, ViewNav } from "./view-nav";
+import { ViewNav } from "./view-nav";
 
 /**
  * The app frame (docs/PLAN.md 9.5). Wide screens (1024px and up): a fixed side panel with the
  * wordmark, the product, Today, All, Saved, Replied, Hidden, Product and Settings, and the account, with
- * the page in the main column. Narrow screens (iPad portrait and phones): a top bar with Settings
- * and the account, one column, and a tab bar of the views at the bottom.
+ * the page in the main column. Narrow screens (iPad portrait and phones): a top bar with a Menu
+ * button that opens a navigation drawer (every view, Product, Settings and the account), one
+ * column, and a tab bar of the five views at the bottom, so they stay one tap away.
  */
 export function AppFrame({
   productName,
@@ -63,10 +66,31 @@ export function AppFrame({
                 {productName}
               </span>
             ) : null}
-            <div className="ml-auto flex items-center gap-1">
-              <TopBarLink item="product" />
-              <TopBarLink item="settings" />
-              <AccountMenu email={email} />
+            {/* The drawer holds every place in the app and the account; the tab bar below keeps
+                the five views one tap away (the founder's brief: a navigation drawer on phones). */}
+            <div className="ml-auto">
+              <Sheet
+                id="app-menu"
+                title="Menu"
+                side="left"
+                trigger={
+                  <>
+                    <MenuIcon />
+                    Menu
+                  </>
+                }
+                triggerClassName="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm text-muted hover:text-ink"
+              >
+                {productName ? (
+                  <p className="truncate text-sm text-muted" title={productName}>
+                    {productName}
+                  </p>
+                ) : null}
+                <ViewNav variant="panel" />
+                <div className="border-t border-rule pt-4">
+                  <AccountMenu email={email} variant="inline" />
+                </div>
+              </Sheet>
             </div>
           </header>
           <main id="main" className="flex-1 px-4 pt-6 pb-10 sm:px-6 lg:px-10 lg:pt-8">

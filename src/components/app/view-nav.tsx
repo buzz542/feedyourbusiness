@@ -58,8 +58,8 @@ function Count({ value, badge }: { value: number; badge?: boolean }) {
 
 /**
  * The views, then Product and Settings (docs/PLAN.md 9.5). "panel" is the side panel on wide
- * screens; "bar" is the tab bar at the bottom of narrow ones, with the five views (Product and
- * Settings are in the top bar). The
+ * screens and in the narrow screens' drawer; "bar" is the tab bar at the bottom of narrow ones,
+ * with the five views. The
  * current item has aria-current, a heavier weight and a bar in the accent color, never color alone.
  */
 export function ViewNavList({
@@ -172,24 +172,5 @@ export function ViewNav({ variant, className }: { variant: "panel" | "bar"; clas
       counts={counts}
       className={className}
     />
-  );
-}
-
-/** Product or Settings in the top bar on narrow screens, marked when it is the current page. */
-export function TopBarLink({ item }: { item: "product" | "settings" }) {
-  const on = currentNavItem(usePathname(), null) === item;
-  const Icon = ICONS[item];
-  return (
-    <Link
-      href={`/app/${item}`}
-      aria-current={on ? "page" : undefined}
-      className={cx(
-        "inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-sm",
-        on ? "bg-selected font-semibold text-ink" : "text-muted hover:text-ink",
-      )}
-    >
-      <Icon />
-      {item === "product" ? "Product" : "Settings"}
-    </Link>
   );
 }
