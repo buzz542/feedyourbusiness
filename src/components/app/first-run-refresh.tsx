@@ -19,7 +19,8 @@ export function refreshDelay(elapsedMs: number): number | null {
 
 /**
  * While the first run is active, re-renders the page on the server so posts show as soon as they
- * are stored (the founder, 26 Nov 2026). Skips a refresh while the tab is hidden. Renders nothing;
+ * are stored (the founder, 26 Nov 2026). Skips a refresh while the tab is hidden and refreshes once
+ * when it is shown again. Renders nothing;
  * the progress panel says the page updates itself.
  */
 export function FirstRunRefresh() {
@@ -36,7 +37,16 @@ export function FirstRunRefresh() {
       }, delay);
     };
     schedule();
-    return () => clearTimeout(timer);
+    // Back on the tab: show what was stored while it was hidden, without waiting for the timer.
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && refreshDelay(Date.now() - opened) !== null)
+        router.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [router]);
   return null;
 }

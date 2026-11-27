@@ -538,8 +538,8 @@ describe("counts-only log of what each run kept and dropped (the founder, 26 Nov
       notRelevant: 1,
       below: { "0-9": 1, "10-19": 1, "20-29": 1, "30-39": 1 },
       outOfRange: 1,
-      refused: 0,
-      invalid: 0,
+      refusedPosts: 0,
+      invalidPosts: 0,
       notClassified: 0,
       refusedAtIngest: 1,
       stored: 2,
@@ -597,12 +597,81 @@ describe("counts-only log of what each run kept and dropped (the founder, 26 Nov
     expect(counts).toMatchObject({
       received: 1 + BATCH_SIZE * 4,
       dropped: { alreadyLinked: 1 },
-      refused: BATCH_SIZE,
-      invalid: BATCH_SIZE,
+      refusedPosts: BATCH_SIZE,
+      invalidPosts: BATCH_SIZE,
       classified: BATCH_SIZE,
       unlabeled: 1,
       stored: BATCH_SIZE - 1,
       notClassified: BATCH_SIZE,
     });
+  });
+
+  /** Every post the source returned is in exactly one bucket ("classified" is a subtotal). */
+  const bucketed = (c: CollectCounts) =>
+    Object.values(c.dropped).reduce((a, b) => a + b, 0) +
+    Object.values(c.below).reduce((a, b) => a + b, 0) +
+    c.refusedPosts +
+    c.invalidPosts +
+    c.unlabeled +
+    c.notRelevant +
+    c.outOfRange +
+    c.refusedAtIngest +
+    c.stored +
+    c.notClassified;
+
+  it("puts every post in exactly one bucket when the model stops answering or time runs out", async () => {
+    for (const stop of ["unavailable", "deferred"] as const) {
+      let call = 0;
+      const labels = fakeClassifier();
+      const classifier: Classifier = {
+        classify: async (p, items, o) => {
+          if (++call === 2 && stop === "unavailable")
+            throw Object.assign(new Error("x"), { name: "LlmUnavailableError" });
+          return labels.classify(p, items, o);
+        },
+      };
+      let counts: CollectCounts | undefined;
+      const step = createCollectStep({
+        store: new FakeCollectStore(),
+        classifier,
+        hash,
+        log: (_l, c) => void (counts = c),
+      });
+      const many = Array.from({ length: BATCH_SIZE * 3 }, (_, i) => post(`m${i}`));
+      await step({
+        job: job(),
+        source: hn,
+        posts: [post("m0"), ...many],
+        now: NOW,
+        since: SINCE,
+        ...(stop === "deferred" ? { timeLeft: () => (call < 2 ? 10 * 60_000 : 0) } : {}),
+      });
+      expect(counts, stop).toMatchObject({
+        received: 1 + BATCH_SIZE * 3,
+        stored: stop === "unavailable" ? BATCH_SIZE : BATCH_SIZE * 2,
+        notClassified: stop === "unavailable" ? BATCH_SIZE * 2 : BATCH_SIZE,
+      });
+      expect(bucketed(counts!), stop).toBe(counts!.received);
+    }
+  });
+
+  it("still logs the counts, marked failed, when the run throws", async () => {
+    const lines: string[] = [];
+    const store = new FakeCollectStore();
+    store.ingest = async () => {
+      throw Object.assign(new Error("db down"), { name: "IngestError" });
+    };
+    const step = createCollectStep({
+      store,
+      classifier: fakeClassifier(),
+      hash,
+      log: (line) => lines.push(line),
+    });
+    await expect(
+      step({ job: job(), source: hn, posts: [post("1")], now: NOW, since: SINCE }),
+    ).rejects.toThrow("db down");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('"failed":true');
+    expect(lines[0]).not.toContain("db down");
   });
 });

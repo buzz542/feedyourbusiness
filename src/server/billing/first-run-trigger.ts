@@ -9,7 +9,10 @@ import { customerIdOf, isEntitled } from "./subscription";
  * keys make it happen once.
  *
  * Only an entitled owner with an active product starts one. A first_run job for anyone else would
- * end "not_collectable" and use up its once-per-product dedupe key.
+ * end "not_collectable" and use up its once-per-product dedupe key. Only the events that make an
+ * owner entitled ask: checkout completed, a subscription created, or an update whose previous
+ * status was not entitled. The dedupe keys live in job rows that are purged after 30 days, so a
+ * later renewal must never ask.
  */
 export interface FirstRunTriggerDeps {
   store: Pick<ProfileStore, "getBillingProfile" | "findUserIdByCustomerId">;
@@ -27,8 +30,18 @@ async function ownerOf(
       const session = event.data.object;
       return session.mode === "subscription" ? (session.client_reference_id ?? null) : null;
     }
-    case "customer.subscription.created":
     case "customer.subscription.updated": {
+      // Only a move into an entitled status (incomplete to trialing, say). A renewal or a trial
+      // ending is an update too, and job rows (with their dedupe keys) are purged after 30 days,
+      // so any other update starting a run would start a second, paid "first run" every month.
+      const before = (event.data.previous_attributes as { status?: unknown } | undefined)?.status;
+      if (typeof before !== "string" || isEntitled(before)) return null;
+      const sub = event.data.object;
+      return (
+        sub.metadata?.user_id || (await store.findUserIdByCustomerId(customerIdOf(sub.customer)))
+      );
+    }
+    case "customer.subscription.created": {
       const sub = event.data.object;
       return (
         sub.metadata?.user_id || (await store.findUserIdByCustomerId(customerIdOf(sub.customer)))

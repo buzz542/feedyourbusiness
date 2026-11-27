@@ -138,14 +138,16 @@ export interface CollectCounts {
   below: { "0-9": number; "10-19": number; "20-29": number; "30-39": number };
   /** A rating that is not a whole number from 0 to 100. */
   outOfRange: number;
-  /** In batches the model refused, or answered outside the schema. */
-  refused: number;
-  invalid: number;
+  /** Posts (not batches) in batches the model refused, or answered outside the schema. */
+  refusedPosts: number;
+  invalidPosts: number;
   /** Left for a later run: a spend cap, the model unavailable, or out of time. */
   notClassified: number;
   /** Suppressed after the pre-check: ingest_post refused it. */
   refusedAtIngest: number;
   stored: number;
+  /** The run threw before it finished: the counts stop where it did. */
+  failed?: true;
 }
 
 const band = (relevance: number): keyof CollectCounts["below"] =>
@@ -268,8 +270,8 @@ export function createCollectStep(deps: {
       notRelevant: 0,
       below: { "0-9": 0, "10-19": 0, "20-29": 0, "30-39": 0 },
       outOfRange: 0,
-      refused: 0,
-      invalid: 0,
+      refusedPosts: 0,
+      invalidPosts: 0,
       notClassified: 0,
       refusedAtIngest: 0,
       stored: 0,
@@ -330,113 +332,120 @@ export function createCollectStep(deps: {
     let invalid = 0;
     let unavailable = false;
     let deferred = false;
-    for (let start = 0; start < todo.length; start += BATCH_SIZE) {
-      if (input.timeLeft && input.timeLeft() < MIN_BATCH_MS) {
-        deferred = true;
-        break;
-      }
-      const batch = todo.slice(start, start + BATCH_SIZE);
-      attempted += batch.length;
-      const items: ClassifyItem[] = batch.map((p, i) => ({
-        id: String(i),
-        source: source.id,
-        community: p.community,
-        excerpt: p.excerpt,
-      }));
-      let labels: Label[];
-      try {
-        // The call ends before the runner's budget does, the SDK's retries included (8.1).
-        labels = input.timeLeft
-          ? await classifier.classify(productId, items, {
-              deadlineMs: input.timeLeft() - CLASSIFY_MARGIN_MS,
-            })
-          : await classifier.classify(productId, items);
-      } catch (error) {
-        // A spend cap stops classification: what is stored stays, the rest waits for a later run.
-        if (error instanceof LlmCapError) {
-          capped = error.cap;
-          attempted -= batch.length;
+    let finished = false;
+    try {
+      for (let start = 0; start < todo.length; start += BATCH_SIZE) {
+        if (input.timeLeft && input.timeLeft() < MIN_BATCH_MS) {
+          deferred = true;
           break;
         }
-        // A refusal skips this batch: nothing is linked, so the next run sends it again.
-        const name = error instanceof Error ? error.name : "";
-        // An answer that never fits the schema skips this batch, like a refusal.
-        if (name === "LlmSchemaError") {
-          invalid++;
-          counts.invalid += batch.length;
+        const batch = todo.slice(start, start + BATCH_SIZE);
+        attempted += batch.length;
+        const items: ClassifyItem[] = batch.map((p, i) => ({
+          id: String(i),
+          source: source.id,
+          community: p.community,
+          excerpt: p.excerpt,
+        }));
+        let labels: Label[];
+        try {
+          // The call ends before the runner's budget does, the SDK's retries included (8.1).
+          labels = input.timeLeft
+            ? await classifier.classify(productId, items, {
+                deadlineMs: input.timeLeft() - CLASSIFY_MARGIN_MS,
+              })
+            : await classifier.classify(productId, items);
+        } catch (error) {
+          // A spend cap stops classification: what is stored stays, the rest waits for a later run.
+          if (error instanceof LlmCapError) {
+            capped = error.cap;
+            attempted -= batch.length;
+            break;
+          }
+          // A refusal skips this batch: nothing is linked, so the next run sends it again.
+          const name = error instanceof Error ? error.name : "";
+          // An answer that never fits the schema skips this batch, like a refusal.
+          if (name === "LlmSchemaError") {
+            invalid++;
+            counts.invalidPosts += batch.length;
+            continue;
+          }
+          // The model did not answer: stop, keep what is stored; tomorrow's window covers the rest.
+          if (name === "LlmUnavailableError") {
+            unavailable = true;
+            attempted -= batch.length;
+            break;
+          }
+          if (!(error instanceof LlmRefusalError)) throw error;
+          refused++;
+          counts.refusedPosts += batch.length;
           continue;
         }
-        // The model did not answer: stop, keep what is stored; tomorrow's window covers the rest.
-        if (name === "LlmUnavailableError") {
-          unavailable = true;
-          attempted -= batch.length;
-          break;
+        const byId = new Map<number, Label>();
+        for (const label of labels) {
+          const index = /^\d{1,2}$/.test(label.id) ? Number(label.id) : -1;
+          if (index >= 0 && index < batch.length && !byId.has(index)) byId.set(index, label);
         }
-        if (!(error instanceof LlmRefusalError)) throw error;
-        refused++;
-        counts.refused += batch.length;
-        continue;
+        counts.classified += batch.length;
+        counts.unlabeled += batch.length - byId.size;
+        for (const [index, label] of byId) {
+          if (label.category === "not_relevant") {
+            counts.notRelevant++;
+            continue;
+          }
+          if (!Number.isInteger(label.relevance) || label.relevance < 0 || label.relevance > 100) {
+            counts.outOfRange++;
+            continue;
+          }
+          if (label.relevance < MIN_RELEVANCE) {
+            counts.below[band(label.relevance)]++;
+            continue;
+          }
+          const post = batch[index]!;
+          const postId = await store.ingest(
+            {
+              source: source.id,
+              externalId: post.externalId,
+              url: post.url,
+              excerpt: post.excerpt,
+              postedAt: post.postedAt,
+              authorHash: post.authorHash,
+              community: post.community,
+            },
+            now,
+          );
+          if (!postId) {
+            counts.refusedAtIngest++; // suppressed after the pre-check: ingest_post refused it
+            continue;
+          }
+          await store.link(productId, postId, toPostLabel(label, label.category, post));
+          stored++;
+          if (post.termId) kept.set(post.termId, (kept.get(post.termId) ?? 0) + 1);
+        }
       }
-      const byId = new Map<number, Label>();
-      for (const label of labels) {
-        const index = /^\d{1,2}$/.test(label.id) ? Number(label.id) : -1;
-        if (index >= 0 && index < batch.length && !byId.has(index)) byId.set(index, label);
-      }
-      counts.classified += batch.length;
-      counts.unlabeled += batch.length - byId.size;
-      for (const [index, label] of byId) {
-        if (label.category === "not_relevant") {
-          counts.notRelevant++;
-          continue;
-        }
-        if (!Number.isInteger(label.relevance) || label.relevance < 0 || label.relevance > 100) {
-          counts.outOfRange++;
-          continue;
-        }
-        if (label.relevance < MIN_RELEVANCE) {
-          counts.below[band(label.relevance)]++;
-          continue;
-        }
-        const post = batch[index]!;
-        const postId = await store.ingest(
-          {
-            source: source.id,
-            externalId: post.externalId,
-            url: post.url,
-            excerpt: post.excerpt,
-            postedAt: post.postedAt,
-            authorHash: post.authorHash,
-            community: post.community,
-          },
-          now,
-        );
-        if (!postId) {
-          counts.refusedAtIngest++; // suppressed after the pre-check: ingest_post refused it
-          continue;
-        }
-        await store.link(productId, postId, toPostLabel(label, label.category, post));
-        stored++;
-        if (post.termId) kept.set(post.termId, (kept.get(post.termId) ?? 0) + 1);
-      }
-    }
 
-    // Step 9 (the budget is settled by the handler): posts fetched and kept, per term, once per job.
-    // A post found twice for the same term counts once.
-    const fetched = new Map<string, Set<string>>();
-    for (const term of input.terms ?? []) fetched.set(term.id, new Set());
-    for (const post of input.posts)
-      if (post.termId)
-        fetched.set(post.termId, (fetched.get(post.termId) ?? new Set()).add(post.externalId));
-    const stats = [...fetched].map(([termId, ids]) => ({
-      termId,
-      fetched: ids.size,
-      relevant: kept.get(termId) ?? 0,
-    }));
-    if (stats.length > 0) await store.recordTermStats(job.id, day, source.id, stats);
-    counts.stored = stored;
-    counts.notClassified = todo.length - attempted;
-    // Counts only, with the source and our own job id: never text, an author, a link or a post id.
-    log(`[collect] counts ${source.id} ${job.id} ${JSON.stringify(counts)}`, counts);
+      // Step 9 (the budget is settled by the handler): posts fetched and kept, per term, once per job.
+      // A post found twice for the same term counts once.
+      const fetched = new Map<string, Set<string>>();
+      for (const term of input.terms ?? []) fetched.set(term.id, new Set());
+      for (const post of input.posts)
+        if (post.termId)
+          fetched.set(post.termId, (fetched.get(post.termId) ?? new Set()).add(post.externalId));
+      const stats = [...fetched].map(([termId, ids]) => ({
+        termId,
+        fetched: ids.size,
+        relevant: kept.get(termId) ?? 0,
+      }));
+      if (stats.length > 0) await store.recordTermStats(job.id, day, source.id, stats);
+      finished = true;
+    } finally {
+      // Logged even when the run throws: those are the runs whose counts matter most.
+      counts.stored = stored;
+      counts.notClassified = Math.max(0, todo.length - attempted);
+      if (!finished) counts.failed = true;
+      // Counts only, with the source and our own job id: never text, an author, a link or a post id.
+      log(`[collect] counts ${source.id} ${job.id} ${JSON.stringify(counts)}`, counts);
+    }
     return {
       stored,
       refused,

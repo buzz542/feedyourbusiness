@@ -161,6 +161,11 @@ describe("Node version", () => {
     }
   });
 
+  it("gives the Stripe webhook the full 300 seconds, since it now works the first run (after())", () => {
+    const code = readFileSync("src/app/api/billing/webhook/route.ts", "utf8");
+    expect(code).toMatch(/export const maxDuration = 300;/);
+  });
+
   it("pins Vercel (engines) to the .nvmrc major, no lower than vitest and vite need", () => {
     const major = Number(readFileSync(".nvmrc", "utf8").trim());
     const match = /^>=(\d+)\.(\d+)\.(\d+) <(\d+)$/.exec(pkg.engines?.node ?? "");
