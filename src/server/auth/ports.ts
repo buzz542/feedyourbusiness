@@ -20,6 +20,12 @@ export type EmailTokenType = "magiclink" | "email";
 /** Supabase Auth through the user's own (cookie) session. PKCE throughout. */
 export interface AuthGateway {
   sendMagicLink(email: string, redirectTo: string): Promise<void>;
+  /**
+   * Create an account with a password and have Supabase email a verification link that returns to
+   * `redirectTo` (PKCE, so it works in the browser that signed up). Supabase answers the same for
+   * an email that already has an account and sends nothing, so nobody learns who has one.
+   */
+  signUp(email: string, password: string, redirectTo: string): Promise<void>;
   /** Email and password. Null when they do not match an account. Throws on an outage. */
   signInWithPassword(email: string, password: string): Promise<AuthUser | null>;
   /** Set the signed-in user's password and mark the account as able to sign in again. */
@@ -50,4 +56,12 @@ export interface AccountAdmin {
 export interface TermsStore {
   /** Record acceptance once. "already" when it was recorded before; nothing changes then. */
   acceptTerms(userId: string): Promise<"accepted" | "already">;
+}
+
+/** Supabase refused a sign-up because new sign-ups are switched off (until launch, docs/PLAN.md F5). */
+export class SignupsDisabledError extends Error {
+  override name = "SignupsDisabledError";
+  constructor() {
+    super("New sign-ups are switched off");
+  }
 }

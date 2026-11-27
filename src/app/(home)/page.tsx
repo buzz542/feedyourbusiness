@@ -124,7 +124,7 @@ function AppPreview() {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[9.5rem_minmax(0,1fr)]">
           <div className="hidden flex-col gap-1 p-3 text-sm sm:flex" aria-hidden="true">
             <span className="mb-3 inline-flex items-center gap-2 font-semibold">
-              <BrandMark className="h-5 w-5" />
+              <BrandMark className="h-4" />
               Your product
             </span>
             <span className="rounded-lg bg-selected px-2.5 py-1.5 text-ink">Today</span>

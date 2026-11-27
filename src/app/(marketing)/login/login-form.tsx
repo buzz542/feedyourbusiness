@@ -1,14 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonClass } from "@/components/ui/button";
 import { type LoginState, loginAction } from "./actions";
 
 const MESSAGES: Record<Exclude<LoginState["kind"], "idle">, string> = {
-  sent: "Check your email for a sign-in link. Open it in this browser.",
   reset_sent:
     "If there is an account for that email, a link to set a new password is on its way. Open it in this browser.",
-  wrong: "That email and password do not match. Try again, or email yourself a sign-in link.",
+  wrong:
+    "That email and password do not match. Try again, or use Forgot your password to set a new one.",
   private_beta:
     "FeedYourBusiness is in private beta. Sign-in is open to invited people only for now.",
   invalid: "Enter a valid email address.",
@@ -16,9 +17,10 @@ const MESSAGES: Record<Exclude<LoginState["kind"], "idle">, string> = {
 };
 
 /**
- * One form, three buttons that share one action (loginAction), told apart by `intent`. Enter in
- * a field presses the first button, so it signs in with the password. The two link buttons skip
- * the browser's checks (formNoValidate), because the password box may be empty for them.
+ * One form, two buttons that share one action (loginAction), told apart by `intent`. Enter in a
+ * field presses the first button, so it signs in with the password. The reset button skips the
+ * browser's checks (formNoValidate), because the password box may be empty for it. New people use
+ * Create an account, a link to /signup.
  */
 export function LoginForm({ next }: { next: string | null }) {
   const [state, submit, pending] = useActionState<LoginState, FormData>(loginAction, {
@@ -56,17 +58,12 @@ export function LoginForm({ next }: { next: string | null }) {
         <Button type="submit" name="intent" value="password" disabled={pending} className="w-full">
           {pending ? "Working" : "Sign in"}
         </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="link"
-          variant="secondary"
-          disabled={pending}
-          formNoValidate
-          className="w-full"
+        <Link
+          href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+          className={buttonClass("secondary", "w-full")}
         >
-          Email me a sign-in link
-        </Button>
+          Create an account
+        </Link>
         <Button
           type="submit"
           name="intent"

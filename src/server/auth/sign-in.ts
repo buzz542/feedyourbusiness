@@ -1,7 +1,14 @@
 import { z } from "zod";
 import type { EmailAllowed } from "./allowlist";
 import { DEFAULT_NEXT_PATH, safeNextPath } from "./next-path";
-import type { AccountAdmin, AuthGateway, AuthUser, EmailTokenType, TermsStore } from "./ports";
+import {
+  type AccountAdmin,
+  type AuthGateway,
+  type AuthUser,
+  type EmailTokenType,
+  SignupsDisabledError,
+  type TermsStore,
+} from "./ports";
 
 /**
  * Sign-in (docs/PLAN.md 4.3, 12.1, 12.10): email link or password, PKCE, and the pre-launch
@@ -132,23 +139,69 @@ export type SetPasswordResult =
   | { kind: "same_as_email" }
   | { kind: "error" };
 
+/** The rules every new password meets, whether it is set after sign-in or chosen at sign-up. */
+export function checkNewPassword(
+  password: unknown,
+  confirm: unknown,
+  email: string | null,
+): Exclude<SetPasswordResult["kind"], "set" | "error"> | null {
+  if (typeof password !== "string" || [...password].length < MIN_PASSWORD_LENGTH)
+    return "too_short";
+  if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) return "too_long";
+  if (password !== confirm) return "mismatch";
+  if (email && password.trim().toLowerCase() === email.toLowerCase()) return "same_as_email";
+  return null;
+}
+
 export async function setNewPassword(
   auth: Pick<AuthGateway, "setPassword">,
   user: { email: string | null },
   form: { password: unknown; confirm: unknown },
 ): Promise<SetPasswordResult> {
   const { password, confirm } = form;
-  if (typeof password !== "string" || [...password].length < MIN_PASSWORD_LENGTH)
-    return { kind: "too_short" };
-  if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) return { kind: "too_long" };
-  if (password !== confirm) return { kind: "mismatch" };
-  if (user.email && password.trim().toLowerCase() === user.email.toLowerCase())
-    return { kind: "same_as_email" };
+  const problem = checkNewPassword(password, confirm, user.email);
+  if (problem) return { kind: problem };
   try {
-    await auth.setPassword(password);
+    await auth.setPassword(password as string);
     return { kind: "set" };
   } catch (error) {
     logFailure("set password", error);
+    return { kind: "error" };
+  }
+}
+
+export type CreateAccountResult =
+  | { kind: "sent" }
+  | { kind: "private_beta" }
+  | { kind: "invalid" }
+  | Exclude<SetPasswordResult, { kind: "set" }>;
+
+/**
+ * Create an account: an email, a password typed twice, and a verification email. The account can
+ * sign in only after the link in that email is opened (Supabase's "confirm email"), and the link
+ * is PKCE, so it works in the browser that signed up. The pre-launch allowlist still applies, and
+ * the answer is the same for an email that already has an account.
+ */
+export async function createAccount(
+  deps: SignInDeps,
+  input: { email: unknown; password: unknown; confirm: unknown; next: string | null | undefined },
+): Promise<CreateAccountResult> {
+  const parsed = Email.safeParse(input.email);
+  if (!parsed.success) return { kind: "invalid" };
+  if (!deps.isAllowed(parsed.data)) return { kind: "private_beta" };
+  const problem = checkNewPassword(input.password, input.confirm, parsed.data);
+  if (problem) return { kind: problem };
+  try {
+    await deps.auth.signUp(
+      parsed.data,
+      input.password as string,
+      callbackUrl(deps.siteUrl, input.next),
+    );
+    return { kind: "sent" };
+  } catch (error) {
+    // New sign-ups are off in Supabase until launch: the same answer as an email off the allowlist.
+    if (error instanceof SignupsDisabledError) return { kind: "private_beta" };
+    logFailure("sign up", error);
     return { kind: "error" };
   }
 }

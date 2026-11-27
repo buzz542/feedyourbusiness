@@ -4,6 +4,7 @@ import type { SignInDeps } from "./sign-in";
 import {
   acceptTerms,
   callbackUrl,
+  createAccount,
   completeSignIn,
   MIN_PASSWORD_LENGTH,
   requestMagicLink,
@@ -467,5 +468,86 @@ describe("requestPasswordReset", () => {
     expect(await requestPasswordReset(deps, { email: "founder@example.test" })).toEqual({
       kind: "error",
     });
+  });
+});
+
+describe("createAccount", () => {
+  const GOOD = "correct horse battery";
+  const input = (over: Record<string, unknown> = {}) => ({
+    email: "founder@example.test",
+    password: GOOD,
+    confirm: GOOD,
+    next: null,
+    ...over,
+  });
+
+  it("signs the person up and has Supabase email a verification link that returns to the callback", async () => {
+    expect(await createAccount(deps, input())).toEqual({ kind: "sent" });
+    expect(auth.signUps).toEqual([
+      { email: "founder@example.test", password: GOOD, redirectTo: `${SITE}/auth/callback` },
+    ]);
+  });
+
+  it("keeps a safe next path through the verification link, and drops an unsafe one", async () => {
+    await createAccount(deps, input({ next: "/app/reply" }));
+    await createAccount(deps, input({ next: "https://evil.example" }));
+    expect(auth.signUps.map((s) => s.redirectTo)).toEqual([
+      `${SITE}/auth/callback?next=%2Fapp%2Freply`,
+      `${SITE}/auth/callback`,
+    ]);
+  });
+
+  it("normalizes the email", async () => {
+    await createAccount(deps, input({ email: "  Founder@Example.TEST " }));
+    expect(auth.signUps[0]!.email).toBe("founder@example.test");
+  });
+
+  it.each([
+    ["an invalid email", { email: "not an email" }, "invalid"],
+    ["no email", { email: undefined }, "invalid"],
+    ["a password under the minimum", { password: "short", confirm: "short" }, "too_short"],
+    ["no password", { password: undefined, confirm: undefined }, "too_short"],
+    ["a password over 72 bytes", { password: "é".repeat(37), confirm: "é".repeat(37) }, "too_long"],
+    ["passwords that differ", { confirm: `${GOOD}!` }, "mismatch"],
+    [
+      "the email as the password",
+      {
+        email: "founder@example.test",
+        password: "founder@example.test",
+        confirm: "founder@example.test",
+      },
+      "same_as_email",
+    ],
+  ])("refuses %s, and sends nothing", async (_name, over, kind) => {
+    expect(await createAccount(deps, input(over))).toEqual({ kind });
+    expect(auth.signUps).toEqual([]);
+  });
+
+  it("is private beta for an email off the allowlist, before any password is looked at", async () => {
+    expect(
+      await createAccount(deps, input({ email: "stranger@example.test", password: "x" })),
+    ).toEqual({
+      kind: "private_beta",
+    });
+    expect(auth.signUps).toEqual([]);
+  });
+
+  it("answers the same whether or not the email already has an account", async () => {
+    auth.existingEmails.add("founder@example.test");
+    expect(await createAccount(deps, input())).toEqual({ kind: "sent" });
+  });
+
+  it("says private beta, not an error, while Supabase has new sign-ups switched off", async () => {
+    auth.signUpsDisabled = true;
+    expect(await createAccount(deps, input())).toEqual({ kind: "private_beta" });
+    expect(auth.signUps).toEqual([]);
+  });
+
+  it("logs the error class only when Supabase fails", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    auth.failNextSend = true;
+    expect(await createAccount(deps, input())).toEqual({ kind: "error" });
+    expect(JSON.stringify(errors.mock.calls)).not.toContain("founder@example.test");
+    expect(JSON.stringify(errors.mock.calls)).not.toContain(GOOD);
   });
 });

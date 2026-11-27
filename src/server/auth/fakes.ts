@@ -1,4 +1,10 @@
-import type { AccountAdmin, AuthGateway, AuthUser, TermsStore } from "./ports";
+import {
+  type AccountAdmin,
+  type AuthGateway,
+  type AuthUser,
+  SignupsDisabledError,
+  type TermsStore,
+} from "./ports";
 
 /** In-memory test doubles for the auth ports. Test code only. */
 
@@ -16,6 +22,9 @@ export class FakeAuthGateway implements AuthGateway {
   /** Passwords by email, as Supabase would hold them (hashed there). */
   passwords = new Map<string, string>();
   resets: Array<{ email: string; redirectTo: string }> = [];
+  signUps: Array<{ email: string; password: string; redirectTo: string }> = [];
+  /** Supabase's "Allow new users to sign up" switched off (until launch, docs/PLAN.md F5). */
+  signUpsDisabled = false;
   /** Emails with an account. Links are sent with shouldCreateUser false, so others fail. */
   existingEmails = new Set<string>();
   private seq = 0;
@@ -27,6 +36,17 @@ export class FakeAuthGateway implements AuthGateway {
     }
     if (!this.existingEmails.has(email)) throw new Error("signups not allowed for otp");
     this.magicLinks.push({ email, redirectTo });
+  }
+
+  async signUp(email: string, password: string, redirectTo: string): Promise<void> {
+    if (this.signUpsDisabled) throw new SignupsDisabledError();
+    if (this.failNextSend) {
+      this.failNextSend = false;
+      throw new Error(`send failed for ${email} with ${password}`);
+    }
+    // As Supabase with email confirmation on: an existing account is answered the same, silently.
+    if (this.existingEmails.has(email)) return;
+    this.signUps.push({ email, password, redirectTo });
   }
 
   async signInWithPassword(email: string, password: string): Promise<AuthUser | null> {

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { BrandMark, Wordmark } from "./brand";
 import { Button, buttonClass } from "./button";
 import { Card } from "./card";
 import { Chip } from "./chip";
@@ -264,5 +265,20 @@ describe("Sheet (mobile drawer and filter sheet)", () => {
         </Sheet>,
       ),
     ).toMatch(/<dialog[^>]*data-side="bottom"/);
+  });
+});
+
+describe("BrandMark (the founder's logo, 27 Nov 2026)", () => {
+  it("is the FYB letters from /brand/fyb-mark.png, painted in the text color of its surface", () => {
+    const out = html(<BrandMark />);
+    expect(out).toContain("/brand/fyb-mark.png");
+    expect(out).toContain('aria-hidden="true"');
+    // Brand blue on the white site, the light text color in the dark app.
+    expect(out).toMatch(/text-\[#1f3a6e\]/);
+    expect(out).toContain("[.theme-dark_&amp;]:text-ink");
+  });
+
+  it("keeps the wordmark's name for assistive technology", () => {
+    expect(html(<Wordmark />)).toContain("FeedYourBusiness");
   });
 });

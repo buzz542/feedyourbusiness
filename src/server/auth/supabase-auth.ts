@@ -3,7 +3,13 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { PASSWORD_SET_KEY, canSignInAgain } from "./credentials";
-import type { AccountAdmin, AuthGateway, AuthUser, TermsStore } from "./ports";
+import {
+  type AccountAdmin,
+  type AuthGateway,
+  type AuthUser,
+  SignupsDisabledError,
+  type TermsStore,
+} from "./ports";
 
 /** Thin adapters over Supabase Auth. Logic lives in sign-in.ts and is tested with fakes. */
 
@@ -31,6 +37,17 @@ export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
         email,
         options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
       });
+      if (error) throw new SupabaseAuthError(error.code);
+    },
+    async signUp(email, password, redirectTo) {
+      // password_set marks the account as able to come back without a link, so the app does not
+      // ask for a password again after the email is verified.
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectTo, data: { [PASSWORD_SET_KEY]: true } },
+      });
+      if (error?.code === "signup_disabled") throw new SignupsDisabledError();
       if (error) throw new SupabaseAuthError(error.code);
     },
     async signInWithPassword(email, password) {
