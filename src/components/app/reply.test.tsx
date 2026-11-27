@@ -17,7 +17,7 @@ import {
 import { linkSources, sources } from "@/sources/registry";
 import { subredditSearchLinks } from "@/sources/subreddit-links";
 import { ConversationDetail } from "./conversation-detail";
-import { FeedError } from "./feed-error";
+import { FeedError, SlowLoading, SLOW_AFTER_MS, SourceProblems } from "./feed-error";
 import { FirstRunProgress } from "./first-run-progress";
 import { REFRESH_FOR_MS, refreshDelay } from "./first-run-refresh";
 import { FilterBar } from "./filter-bar";
@@ -464,6 +464,30 @@ describe("loading, empty and error states", () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain("Try again");
   });
+
+  it("says a server error is ours, and that nothing was lost", () => {
+    const out = visible(renderToStaticMarkup(<FeedError retry={() => undefined} />));
+    expect(out).toContain("Something went wrong on our side");
+    expect(out).toContain("Nothing was lost. Try again in a moment.");
+  });
+
+  it("says which sources could not be collected, apart from the empty state", () => {
+    const html = renderToStaticMarkup(<SourceProblems sources={["reddit", "bluesky"]} />);
+    expect(html).toContain('role="status"');
+    expect(visible(html)).toContain(
+      "We could not collect from Reddit and Bluesky in the last run. Conversations from them may be missing. We try again with the next collection.",
+    );
+    expect(visible(renderToStaticMarkup(<SourceProblems sources={["hackernews"]} />))).toContain(
+      "We could not collect from Hacker News in the last run. Conversations from it may be missing.",
+    );
+    expect(renderToStaticMarkup(<SourceProblems sources={[]} />)).toBe("");
+  });
+
+  it("never leaves loading open-ended: it says when it is slow, with a reload", () => {
+    expect(SLOW_AFTER_MS).toBeLessThanOrEqual(15_000);
+    // Before the wait is up it shows only the skeleton.
+    expect(renderToStaticMarkup(<SlowLoading />)).toBe("");
+  });
 });
 
 describe("first run progress", () => {
@@ -511,6 +535,7 @@ describe("ReplyView", () => {
   const view = (
     raw: Record<string, string>,
     feed: { items: FeedItem[]; total: number; hasMore?: boolean },
+    problems: string[] = [],
   ) =>
     renderToStaticMarkup(
       <ReplyView
@@ -524,9 +549,16 @@ describe("ReplyView", () => {
         subreddits={[]}
         links={[]}
         firstRun={null}
+        sourceProblems={problems}
         setState={setState}
       />,
     );
+
+  it("shows a failed source above an empty feed, so the empty state never hides it", () => {
+    const out = visible(view({ view: "all" }, { items: [], total: 0 }, ["reddit"]));
+    expect(out).toContain("We could not collect from Reddit in the last run.");
+    expect(out).toContain("No conversations to show yet.");
+  });
 
   it("heads the column with the view and what it holds, then how many posts it has", () => {
     const out = visible(view({ view: "saved" }, { items: items.slice(0, 3), total: 3 }));

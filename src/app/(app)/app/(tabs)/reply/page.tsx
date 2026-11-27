@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { requireEntitledUser } from "@/server/auth/entitled";
 import { firstRunActive } from "@/server/pipeline/first-run";
 import { loadFirstRunProgress } from "@/server/pipeline/first-run-server";
+import { loadSourceProblems } from "@/server/pipeline/source-health-server";
 import { isFeedSource, parseFeedParams, withEnabledSource } from "@/server/store/feed";
 import { loadFeed, loadReplyProduct } from "@/server/store/feed-supabase";
 import { createSupabaseServerClient } from "@/server/supabase/server";
@@ -60,8 +61,17 @@ export default async function ReplyPage({
     .map((s) => s.id)
     .filter(isFeedSource);
   const filter = withEnabledSource(parseFeedParams(search), sources);
-  const progress = await loadFirstRunProgress(product.id);
   const now = new Date();
+  const [progress, problems] = await Promise.all([
+    loadFirstRunProgress(product.id),
+    // A convenience: if the jobs cannot be read, the feed shows without the notice.
+    loadSourceProblems(product.id, sources, now).catch((error: unknown) => {
+      console.error(
+        `[reply] source health failed: ${error instanceof Error ? error.name : "UnknownError"}`,
+      );
+      return [];
+    }),
+  ]);
   const feed = await loadFeed(supabase, product.id, filter, now, product.threshold);
 
   return (
@@ -76,6 +86,7 @@ export default async function ReplyPage({
       subreddits={product.subreddits}
       links={linkSources()}
       firstRun={firstRunActive(progress) ? progress : null}
+      sourceProblems={problems}
       setState={setPostState}
     />
   );

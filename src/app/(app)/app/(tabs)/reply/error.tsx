@@ -2,6 +2,10 @@
 
 import { FeedError } from "@/components/app/feed-error";
 
-export default function ReplyError({ reset }: { error: Error; reset: () => void }) {
-  return <FeedError retry={reset} />;
+/**
+ * A server error while the Reply view loads. retry() fetches the page again (Next 16); reset()
+ * would only re-render what failed, so a server error could never recover.
+ */
+export default function ReplyError({ retry }: { error: Error; retry: () => void }) {
+  return <FeedError retry={retry} />;
 }

@@ -12,6 +12,7 @@ import {
   type FeedSource,
 } from "@/server/store/feed";
 import type { LinkSource } from "@/sources/types";
+import { SourceProblems } from "./feed-error";
 import { FeedKeyboard } from "./feed-keyboard";
 import { FilterBar } from "./filter-bar";
 import { FirstRunProgress } from "./first-run-progress";
@@ -72,6 +73,7 @@ export function ReplyView({
   subreddits,
   links,
   firstRun,
+  sourceProblems = [],
   setState,
 }: {
   filter: FeedFilter;
@@ -86,6 +88,8 @@ export function ReplyView({
   links: readonly LinkSource[];
   /** The first run's progress while it runs, otherwise null. */
   firstRun: readonly SourceProgress[] | null;
+  /** Enabled sources whose last collect run failed (integration errors), shown above the feed. */
+  sourceProblems?: readonly string[];
   setState: SetPostState;
 }) {
   const rivalNames = new Map(rivals.map((c) => [c.id, c.name]));
@@ -100,6 +104,7 @@ export function ReplyView({
         <p className="text-sm text-muted">{VIEW_INTROS[filter.view]}</p>
       </header>
       {firstRun ? <FirstRunProgress progress={firstRun} /> : null}
+      <SourceProblems sources={sourceProblems} />
       <FilterBar filter={filter} defaultMin={defaultMin} rivals={rivals} sources={sources} />
       {feed.items.length === 0 ? (
         filtered ? (
