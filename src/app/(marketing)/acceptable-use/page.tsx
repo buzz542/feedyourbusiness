@@ -8,8 +8,8 @@ export default function Page() {
   return (
     <LegalDraft title="Acceptable use">
       <p>
-        AskedFor helps you find people who asked for something like your product, so you can reply
-        to them yourself. Use it the way you would want to be found.
+        FeedYourBusiness helps you find people who asked for something like your product, so you can
+        reply to them yourself. Use it the way you would want to be found.
       </p>
       <Section id="do" title="Do">
         <ul className="flex list-disc flex-col gap-2 pl-5">
@@ -24,7 +24,7 @@ export default function Page() {
           <li>Use fake accounts, or accounts that hide who you are.</li>
           <li>Build contact lists, or collect people&apos;s details from the posts you see.</li>
           <li>Track, profile or contact any person except by replying to their post.</li>
-          <li>Use AskedFor if you are under 18.</li>
+          <li>Use FeedYourBusiness if you are under 18.</li>
         </ul>
       </Section>
       <p>We may suspend an account that breaks this policy.</p>

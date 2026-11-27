@@ -1,5 +1,7 @@
 # AskedFor: build plan (route C)
 
+> **Name (the founder, 27 Nov 2026):** the product is **FeedYourBusiness** (feedyourbusiness.app). "AskedFor" in this plan means FeedYourBusiness; the plan keeps the old name where its sections are pinned. Our robots.txt token is `FeedYourBusiness`, and the old `AskedFor` token is still honoured.
+
 Status: the founder chose route C in conversation with Claude on 14 Oct 2026 ("we will go with C") and
 asked for this plan to hand to a new Claude Code session; Claude wrote it at the founder's request. Handing
 it to the build session is the founder's approval of decisions D1 to D12. It supersedes `docs/BRIEF.md` and

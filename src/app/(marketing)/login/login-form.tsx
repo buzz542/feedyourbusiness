@@ -9,7 +9,8 @@ const MESSAGES: Record<Exclude<LoginState["kind"], "idle">, string> = {
   reset_sent:
     "If there is an account for that email, a link to set a new password is on its way. Open it in this browser.",
   wrong: "That email and password do not match. Try again, or email yourself a sign-in link.",
-  private_beta: "AskedFor is in private beta. Sign-in is open to invited people only for now.",
+  private_beta:
+    "FeedYourBusiness is in private beta. Sign-in is open to invited people only for now.",
   invalid: "Enter a valid email address.",
   error: "Something went wrong. Try again in a minute.",
 };

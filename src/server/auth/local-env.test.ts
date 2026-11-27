@@ -8,7 +8,7 @@ describe("isLocalDevServer", () => {
   });
 
   it.each([
-    [{ NEXT_PUBLIC_SITE_URL: "https://askedfor.app" }],
+    [{ NEXT_PUBLIC_SITE_URL: "https://feedyourbusiness.app" }],
     [{ NEXT_PUBLIC_SITE_URL: "http://localhost:3000", VERCEL_ENV: "production" }],
     [{ NEXT_PUBLIC_SITE_URL: "http://localhost:3000", VERCEL_ENV: "preview" }],
     [{ NEXT_PUBLIC_SITE_URL: "http://localhost.evil.example" }],

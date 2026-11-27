@@ -65,7 +65,7 @@ function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
     since: SINCE,
     budget: 120,
     now: NOW,
-    userAgent: "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)",
+    userAgent: "FeedYourBusiness/1.0 (+https://feedyourbusiness.app; hello@feedyourbusiness.app)",
     sleep: vi.fn(async () => {}),
     credential: (name) => CONFIG[name],
     ...over,
@@ -126,7 +126,7 @@ describe("reddit source", () => {
       expect(init!.method).toBe("POST");
       const headers = new Headers(init!.headers);
       expect(headers.get("authorization")).toBe("Bearer test-token");
-      expect(headers.get("user-agent")).toMatch(/AskedFor/);
+      expect(headers.get("user-agent")).toMatch(/FeedYourBusiness/);
     }
     expect(http.mock.calls.map(([, init]) => JSON.parse(String(init!.body)))).toEqual([
       [{ keyword: "invoice reminders", date: "Past week", num_of_posts: 20 }],

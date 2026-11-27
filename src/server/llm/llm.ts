@@ -11,7 +11,7 @@ import type {
 import { PRICES, type LlmModel } from "./prices";
 
 /**
- * The model wrapper (docs/PLAN.md 8.1). Every model call in AskedFor goes through
+ * The model wrapper (docs/PLAN.md 8.1). Every model call in FeedYourBusiness goes through
  * `callStructured()`:
  *
  *   * a plain request with our own system text and input and a JSON schema output; no tools,

@@ -14,7 +14,7 @@ import {
  *   * Only links on the pasted page's own host (robots rules are per host), and only pages whose
  *     path names what the product does. Pages mostly about people (customers, team, careers,
  *     blog) are never read, not even through a redirect; a pasted one is swapped for the home page.
- *   * The extra pages honor robots.txt for AskedFor and `*` (RFC 9309): a 4xx answer allows them;
+ *   * The extra pages honor robots.txt for FeedYourBusiness and `*` (RFC 9309): a 4xx answer allows them;
  *     a 5xx, a timeout or any refusal reads no extra pages. A page that redirects to a disallowed
  *     path is thrown away.
  *   * At most 5 attempts, failures included, one at a time through fetchOwnSite(), each started only

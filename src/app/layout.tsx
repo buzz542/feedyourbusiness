@@ -6,7 +6,7 @@ import { robotsMeta } from "@/lib/launch";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "AskedFor", template: "%s | AskedFor" },
+  title: { default: "FeedYourBusiness", template: "%s | FeedYourBusiness" },
   description: "Who to reply to today. What to build next.",
   // Noindex until LAUNCH_OPEN=true, with src/app/robots.ts (src/lib/launch.ts).
   robots: robotsMeta(),

@@ -3,7 +3,7 @@ import { toExcerpt } from "./text";
 import type { CollectContext, CollectedPost, CollectSource, RunState } from "./types";
 
 /**
- * Bluesky (docs/PLAN.md 7.5): official and free, through authenticated XRPC from AskedFor's own
+ * Bluesky (docs/PLAN.md 7.5): official and free, through authenticated XRPC from FeedYourBusiness's own
  * account (an app password, F7). Read-only: one createSession, then searchPosts and getPosts. No
  * likes, follows, posts or messages, ever.
  *
@@ -14,7 +14,7 @@ import type { CollectContext, CollectedPost, CollectSource, RunState } from "./t
  *   matched on the post's sort time), limit 1 to 100. Output: posts, an array of postView.
  * - app.bsky.feed.getPosts: uris, at most 25. Output: posts.
  * - Label values: porn, sexual, nudity and graphic-media are adult content; !hide is a moderation
- *   hide; !no-unauthenticated is the author asking not to be shown to logged-out viewers. AskedFor
+ *   hide; !no-unauthenticated is the author asking not to be shown to logged-out viewers. FeedYourBusiness
  *   shows posts outside Bluesky, so both are dropped.
  * - record.createdAt is client-declared, so the posted time is the earlier of it and indexedAt.
  * Re-checked 31 Oct 2026 by web search (docs.bsky.app itself is refused by the build session's proxy):

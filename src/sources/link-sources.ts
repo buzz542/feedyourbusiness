@@ -1,7 +1,7 @@
 import type { LinkSource, SearchLink } from "./types";
 
 /**
- * Link-mode sources. AskedFor never fetches these hosts. It builds a search URL and the user opens
+ * Link-mode sources. FeedYourBusiness never fetches these hosts. It builds a search URL and the user opens
  * it in their own browser.
  *
  * Reddit and X also get a collect source under their own ids ("reddit" through the contracted data

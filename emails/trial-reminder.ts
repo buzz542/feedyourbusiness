@@ -27,8 +27,8 @@ export function renderTrialReminder(input: TrialReminderInput): RenderedEmail {
   const amount = formatMoney(input.price.unitAmount, input.price.currency);
   const every = formatInterval(input.price.interval, input.price.intervalCount);
 
-  const subject = "Your AskedFor trial ends soon";
-  const lead = `Your AskedFor trial ends on ${when}.`;
+  const subject = "Your FeedYourBusiness trial ends soon";
+  const lead = `Your FeedYourBusiness trial ends on ${when}.`;
   const charge =
     `Your card is charged ${amount} then, tax included, and again every ${every} ` +
     "until you cancel.";

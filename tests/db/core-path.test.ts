@@ -418,7 +418,7 @@ describe("domain to feed", () => {
       }),
       ready: () => null,
       monthlyCap: () => null,
-      userAgent: "AskedFor test",
+      userAgent: "FeedYourBusiness test",
       sleep: async () => {},
     });
 

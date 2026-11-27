@@ -138,7 +138,7 @@ export const PLATFORM_DOMAINS: readonly string[] = [
   ...PLATFORM_MIRROR_DOMAINS,
 ];
 
-/** Platforms' web hosts, exactly. Links point here; no request from AskedFor ever does. */
+/** Platforms' web hosts, exactly. Links point here; no request from FeedYourBusiness ever does. */
 export const PLATFORM_WEB_HOSTS: readonly string[] = [
   "x.com",
   "www.x.com",

@@ -198,7 +198,7 @@ describe("network scanner", () => {
 });
 
 describe("URL host scanner", () => {
-  const allowed = new Set(["api.example.test", "askedfor.app"]);
+  const allowed = new Set(["api.example.test", "feedyourbusiness.app"]);
 
   it("flags a URL literal on an unexpected host, and passes allowed ones", () => {
     const findings = findUnexpectedHosts(
@@ -475,15 +475,15 @@ describe("copy scanner", () => {
     "Official APIs only",
     "We only use official APIs",
     "Official API only",
-    "AskedFor is not a scraper",
+    "FeedYourBusiness is not a scraper",
     "We dont scrape",
     // JSX must escape apostrophes (react/no-unescaped-entities), so real pages write entities.
     "We don&apos;t scrape Reddit",
     "We don&rsquo;t scrape Reddit",
     "We don&#39;t scrape Reddit",
     "We don&#x27;t scrape Reddit",
-    "AskedFor doesn&apos;t scrape",
-    "AskedFor does not scrape",
+    "FeedYourBusiness doesn&apos;t scrape",
+    "FeedYourBusiness does not scrape",
     "A scraping-free lead feed",
     "Scrape-free by design",
   ])("flags a claim that hides the data provider (docs/PLAN.md, D12): %s", (phrase) => {

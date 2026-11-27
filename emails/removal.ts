@@ -11,7 +11,7 @@ const html = (paragraphs: readonly string[]) =>
 
 export function renderRemovalReceived(): RenderedEmail {
   const lines = [
-    "We have your request to remove a post from AskedFor.",
+    "We have your request to remove a post from FeedYourBusiness.",
     "We handle every request within 30 days, and we aim to do it within 72 hours. We will email you when it is done.",
     "If you did not ask for this, you can ignore this email.",
   ];

@@ -41,7 +41,7 @@ const HANDLE = /(^|[^a-z0-9_])(@[a-z0-9_]|u\/[a-z0-9_-])/i;
 const refuse = (reason: RefusalReason): ClassifiedInput => ({ kind: "refused", reason });
 
 /** A bare domain is read like a scheme-relative link against https. */
-const HTTPS_BASE = "https://askedfor.app";
+const HTTPS_BASE = "https://feedyourbusiness.app";
 
 function classifyLink(raw: string): ClassifiedInput {
   // This parses what the user pasted and never fetches it; fetchOwnSite() checks it again.

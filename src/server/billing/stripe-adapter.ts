@@ -18,7 +18,7 @@ export function createStripeAdapter(
     client ??
     new Stripe(config.secretKey, {
       maxNetworkRetries: 2,
-      appInfo: { name: "AskedFor" },
+      appInfo: { name: "FeedYourBusiness" },
     });
 
   return {

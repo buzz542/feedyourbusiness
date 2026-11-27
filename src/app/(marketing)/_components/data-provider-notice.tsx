@@ -27,7 +27,7 @@ export function DataProviderNotice({ source = reddit }: { source?: Source }) {
       <p>
         From each post we keep the link, the community, when it was posted, a short excerpt, our own
         labels for it and a keyed hash of the author, never their username. Reddit posts are deleted
-        from AskedFor 7 days after we collect them.
+        from FeedYourBusiness 7 days after we collect them.
       </p>
       <p>
         {`${name} keeps the snapshots it delivers to us for ${retention ?? "a stated period"} after the job completes.`}

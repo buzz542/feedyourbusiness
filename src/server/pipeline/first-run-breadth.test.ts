@@ -80,7 +80,7 @@ function setup(opts: { strong: number; sources: CollectSource[] }) {
     terms: async () => [{ id: "t1", term: "airport taxi" }],
     process: vi.fn(async ({ posts }) => ({ stored: posts.length })),
     monthlyCap: () => null,
-    userAgent: "AskedFor/test",
+    userAgent: "FeedYourBusiness/test",
     firstRun,
   };
   const handlers = { first_run: createCollectHandler(deps), collect: createCollectHandler(deps) };

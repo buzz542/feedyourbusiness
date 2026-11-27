@@ -120,7 +120,7 @@ export function describePlan(profile: PlanProfile, price: PriceInfo | null): Pla
           : "Your subscription is unpaid, so collection has stopped.",
       ],
       banner:
-        "Your last payment did not go through. Update your card to keep using AskedFor. " +
+        "Your last payment did not go through. Update your card to keep using FeedYourBusiness. " +
         "Until then, your feed is paused.",
       // Canceling ends it at once, which stops further attempts to charge the card; there is no
       // paid period left to keep.

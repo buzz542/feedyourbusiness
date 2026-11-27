@@ -8,7 +8,7 @@ const LINK =
   "inline-flex min-h-8 items-center rounded-[3px] border border-control bg-surface px-2 text-xs text-accent underline-offset-2 hover:border-ink hover:underline";
 
 /**
- * One-tap searches on the platforms AskedFor never collects, plus the product's subreddits
+ * One-tap searches on the platforms FeedYourBusiness never collects, plus the product's subreddits
  * (docs/PLAN.md 4.4, 7.8). The user opens each in their own browser; nothing is fetched.
  */
 export function SearchLinksPanel({

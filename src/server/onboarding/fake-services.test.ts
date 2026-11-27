@@ -18,7 +18,7 @@ describe("fakeServicesAllowed", () => {
     ["on Vercel production", { ...local, VERCEL_ENV: "production" }],
     ["on a Vercel preview", { ...local, VERCEL_ENV: "preview" }],
     ["on Vercel development", { ...local, VERCEL_ENV: "development" }],
-    ["against a real site URL", { ...local, NEXT_PUBLIC_SITE_URL: "https://askedfor.app" }],
+    ["against a real site URL", { ...local, NEXT_PUBLIC_SITE_URL: "https://feedyourbusiness.app" }],
     ["against a lookalike", { ...local, NEXT_PUBLIC_SITE_URL: "http://localhost.evil.example" }],
     ["with no site URL", { E2E_FAKE_SERVICES: "1" }],
   ])("is refused when %s", (_, env) => {

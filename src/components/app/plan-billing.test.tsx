@@ -46,7 +46,7 @@ describe("PlanBilling", () => {
   it("shows the past_due banner", () => {
     const html = render({ subscriptionStatus: "past_due" });
     expect(html).toContain('role="alert"');
-    expect(html).toContain("Update your card to keep using AskedFor.");
+    expect(html).toContain("Update your card to keep using FeedYourBusiness.");
   });
 
   it("offers the trial when there is no subscription", () => {

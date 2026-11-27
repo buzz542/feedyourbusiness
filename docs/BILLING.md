@@ -28,7 +28,7 @@ Access follows `profiles.plan`, which only the webhook can change. `trialing` an
 2. **Confirm Managed Payments.** In the Stripe Dashboard check that your account is eligible for Managed
    Payments (https://docs.stripe.com/payments/managed-payments). Note its fees, the countries it supports, how it
    shows tax, and whether it supports free trials. If it does not fit, the brief's fallback is Paddle.
-3. **Create the prices** (test mode first, tax-inclusive, in GBP). The product "AskedFor" gets two:
+3. **Create the prices** (test mode first, tax-inclusive, in GBP). The product "FeedYourBusiness" gets two:
    one recurring monthly price of £39 (`STRIPE_PRICE_ID`), and one one-time price of £1 for the trial
    (`STRIPE_TRIAL_PRICE_ID`). Checkout and `/api/health` refuse any other amount or currency. Then run a
    test checkout and confirm the £1 is charged at checkout and the £39 after the 3-day trial. Confirm
@@ -63,7 +63,7 @@ Access follows `profiles.plan`, which only the webhook can change. `trialing` an
 8. **Test end to end** with Stripe's test cards: start checkout, complete it, and watch `profiles` change
    (`plan = pro`, `subscription_status = trialing`). Cancel from the portal or the cancel route and confirm
    `cancel_at_period_end`. `stripe trigger customer.subscription.created` checks the endpoint answers: the
-   webhook acknowledges it as ignored (200), because a triggered subscription carries no AskedFor user.
+   webhook acknowledges it as ignored (200), because a triggered subscription carries no FeedYourBusiness user.
 
 ## Before going live (you do this yourself, in manual mode)
 

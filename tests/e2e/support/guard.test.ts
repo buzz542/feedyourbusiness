@@ -21,7 +21,7 @@ describe("assertLocalBaseUrl", () => {
   });
 
   it.each([
-    "https://askedfor.app",
+    "https://feedyourbusiness.app",
     "https://askedfor-git-main-buzz542s-projects.vercel.app",
     "http://localhost.evil.example:3000",
     "http://evil.example/localhost",

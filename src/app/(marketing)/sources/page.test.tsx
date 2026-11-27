@@ -64,7 +64,9 @@ describe("sources page", () => {
     const block = text(renderToStaticMarkup(<SourceList sources={[s]} />));
     expect(block).toContain(s.displayName);
     expect(block).toContain(HOW[s.id]!);
-    expect(block).toContain(`Deleted from AskedFor ${s.retentionDays} days after we collect it.`);
+    expect(block).toContain(
+      `Deleted from FeedYourBusiness ${s.retentionDays} days after we collect it.`,
+    );
     expect(block).toMatch(/Switched on\.|Not switched on yet\./);
     if (s.vendor) expect(block).toContain(`Data provider: ${s.vendor.name}.`);
   });

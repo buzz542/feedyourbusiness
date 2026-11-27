@@ -17,18 +17,18 @@ const SECRETS = {
 
 const GOOD_ENV = {
   ...SECRETS,
-  NEXT_PUBLIC_SITE_URL: "https://askedfor.app",
+  NEXT_PUBLIC_SITE_URL: "https://feedyourbusiness.app",
   NEXT_PUBLIC_SUPABASE_URL: "https://hoqbflkszzoojdswbrgy.supabase.co",
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_abc",
   STRIPE_PRICE_ID: "price_abc123",
   STRIPE_TRIAL_PRICE_ID: "price_trial123",
-  EMAIL_FROM: "AskedFor <hello@askedfor.app>",
+  EMAIL_FROM: "FeedYourBusiness <hello@feedyourbusiness.app>",
   VERCEL_ENV: "production",
-  VERCEL_PROJECT_PRODUCTION_URL: "askedfor.app",
+  VERCEL_PROJECT_PRODUCTION_URL: "feedyourbusiness.app",
 };
 
 const GOOD_ENDPOINT: WebhookEndpointInfo = {
-  url: "https://askedfor.app/api/billing/webhook",
+  url: "https://feedyourbusiness.app/api/billing/webhook",
   status: "enabled",
   enabledEvents: [...HANDLED_EVENT_TYPES],
 };
@@ -162,7 +162,11 @@ describe("runHealthChecks", () => {
     });
 
     it("is invalid on a Vercel deployment that points at localhost or plain http", async () => {
-      for (const url of ["http://localhost:3000", "https://localhost", "http://askedfor.app"]) {
+      for (const url of [
+        "http://localhost:3000",
+        "https://localhost",
+        "http://feedyourbusiness.app",
+      ]) {
         const env = withEnv({ NEXT_PUBLIC_SITE_URL: url, VERCEL_ENV: "preview" });
         const report = await runHealthChecks(deps({ env }));
         expect(report.checks.site_url?.status, url).toBe("invalid");
@@ -189,11 +193,13 @@ describe("runHealthChecks", () => {
     });
 
     it("accepts the www twin of the production domain", async () => {
-      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://www.askedfor.app" });
+      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://www.feedyourbusiness.app" });
       const report = await runHealthChecks(
         deps({
           env,
-          endpoints: [{ ...GOOD_ENDPOINT, url: "https://www.askedfor.app/api/billing/webhook" }],
+          endpoints: [
+            { ...GOOD_ENDPOINT, url: "https://www.feedyourbusiness.app/api/billing/webhook" },
+          ],
         }),
       );
       expect(report.checks.site_url?.status).toBe("ok");
@@ -318,16 +324,19 @@ describe("runHealthChecks", () => {
     });
 
     it("matches a host that differs only in case or a default port", async () => {
-      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://AskedFor.app" });
-      const endpoint = { ...GOOD_ENDPOINT, url: "https://askedfor.app:443/api/billing/webhook" };
+      const env = withEnv({ NEXT_PUBLIC_SITE_URL: "https://FeedYourBusiness.app" });
+      const endpoint = {
+        ...GOOD_ENDPOINT,
+        url: "https://feedyourbusiness.app:443/api/billing/webhook",
+      };
       const report = await runHealthChecks(deps({ env, endpoints: [endpoint] }));
       expect(report.checks.stripe_webhook?.status).toBe("ok");
     });
 
     it.each([
-      ["a trailing slash", "https://askedfor.app/api/billing/webhook/"],
-      ["plain http", "http://askedfor.app/api/billing/webhook"],
-      ["the www twin", "https://www.askedfor.app/api/billing/webhook"],
+      ["a trailing slash", "https://feedyourbusiness.app/api/billing/webhook/"],
+      ["plain http", "http://feedyourbusiness.app/api/billing/webhook"],
+      ["the www twin", "https://www.feedyourbusiness.app/api/billing/webhook"],
     ])(
       "names a near miss that would redirect, which Stripe counts as a failure: %s",
       async (_label, url) => {
@@ -341,7 +350,7 @@ describe("runHealthChecks", () => {
     it("accepts an endpoint with a query string, which does not redirect", async () => {
       const endpoint = {
         ...GOOD_ENDPOINT,
-        url: "https://askedfor.app/api/billing/webhook?env=prod",
+        url: "https://feedyourbusiness.app/api/billing/webhook?env=prod",
       };
       const report = await runHealthChecks(deps({ endpoints: [endpoint] }));
       expect(report.checks.stripe_webhook?.status).toBe("ok");
@@ -415,7 +424,7 @@ describe("runHealthChecks", () => {
     });
 
     it("is invalid while EMAIL_FROM is still the placeholder", async () => {
-      const env = withEnv({ EMAIL_FROM: "AskedFor <hello@example.invalid>" });
+      const env = withEnv({ EMAIL_FROM: "FeedYourBusiness <hello@example.invalid>" });
       const report = await runHealthChecks(deps({ env }));
       expect(report.checks.email?.status).toBe("invalid");
     });
@@ -424,7 +433,7 @@ describe("runHealthChecks", () => {
 
 describe("createHealthHandler", () => {
   const request = (headers: Record<string, string> = {}) =>
-    new Request("https://askedfor.app/api/health", { headers });
+    new Request("https://feedyourbusiness.app/api/health", { headers });
 
   it("answers a plain liveness probe without running any check", async () => {
     const run = vi.fn();

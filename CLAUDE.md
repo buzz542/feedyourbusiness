@@ -1,4 +1,4 @@
-# AskedFor
+# FeedYourBusiness
 
 Who to reply to today. What your rivals get wrong. What to build next. Indie makers get a daily list of public posts worth replying to (Reply tab), what their competitors get wrong (Rivals tab) and the patterns in what people ask for (Build tab). FYB is the internal codename.
 

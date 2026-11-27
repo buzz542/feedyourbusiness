@@ -1,8 +1,8 @@
-# AskedFor
+# FeedYourBusiness
 
 Who to reply to today. What your rivals get wrong. What to build next. (Internal codename: FYB.)
 
-AskedFor shows indie makers which public posts are worth replying to, what their competitors get wrong, and
+FeedYourBusiness shows indie makers which public posts are worth replying to, what their competitors get wrong, and
 what to build next. Start with `docs/PLAN.md` (the plan and the rules in force), then `docs/TASKS.md`.
 `docs/BRIEF.md`, `docs/PRD.md` and `docs/PHASE0-FINDINGS.md` are history.
 

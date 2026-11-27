@@ -80,7 +80,7 @@ function handlerFor(src: CollectSource | null, s: DeletionStore, batchSize = 2) 
     store: s,
     budget: new FakeBudget(new FakeJobStore()),
     recheckCap: () => null,
-    userAgent: "AskedFor/test",
+    userAgent: "FeedYourBusiness/test",
     sleep: async () => {},
     batchSize,
   });
@@ -162,7 +162,7 @@ describe("deletion sync", () => {
       store: s,
       budget: new FakeBudget(new FakeJobStore()),
       recheckCap: () => null,
-      userAgent: "AskedFor/test",
+      userAgent: "FeedYourBusiness/test",
       sleep: async () => {},
       credential: (name) => env[name],
     });
@@ -211,7 +211,7 @@ describe("the Reddit deletion re-check", () => {
         store: s,
         budget,
         recheckCap: () => cap,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
         sleep: async () => {},
       }),
     };

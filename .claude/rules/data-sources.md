@@ -36,7 +36,7 @@ allows it. Link sources declare `linkHosts` and implement `searchLinks()`. Regis
 - X: only the official API v2, with a per-product daily read budget (`X_DAILY_READS_PER_PRODUCT`, default 0),
   deletion compliance implemented before it can start, and no model training. Off by default.
 - Hacker News: Algolia HN Search and the Firebase item API. Bluesky: authenticated XRPC from the dedicated
-  AskedFor account, read-only, following the Bluesky Developer Guidelines.
+  FeedYourBusiness account, read-only, following the Bluesky Developer Guidelines.
 - LinkedIn, Facebook, Instagram, TikTok, Threads, YouTube and Discord are link-only, forever, and no vendor
   collects them for us. Product Hunt is not accessed.
 - Link sources never fetch anything. They build a search URL the user opens in their own browser.

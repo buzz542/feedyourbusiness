@@ -205,6 +205,14 @@ describe("robots details (RFC 9309)", () => {
     expect(isAllowedByRobots("User-agent: *\rDisallow: /", "/pricing")).toBe(false);
   });
 
+  it("honours a group for our new name, FeedYourBusiness, and still one for our old name", () => {
+    // Renamed 27 Nov 2026: a site that blocked us under the old name stays blocked.
+    expect(isAllowedByRobots("User-agent: FeedYourBusiness\nDisallow: /x", "/x")).toBe(false);
+    expect(isAllowedByRobots("User-agent: feedyourbusiness/1.0\nDisallow: /x", "/x")).toBe(false);
+    expect(isAllowedByRobots("User-agent: AskedFor\nDisallow: /x", "/x")).toBe(false);
+    expect(isAllowedByRobots("User-agent: FeedYourBusinessMore\nDisallow: /x", "/x")).toBe(true);
+  });
+
   it("matches a token written with a version", () => {
     expect(isAllowedByRobots("User-agent: AskedFor/1.0\nDisallow: /x", "/x")).toBe(false);
   });

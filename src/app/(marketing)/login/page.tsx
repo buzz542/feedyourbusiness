@@ -6,7 +6,8 @@ export const metadata: Metadata = { title: "Sign in" };
 
 const ERRORS: Record<string, string> = {
   link: "That sign-in link did not work. It may have expired or been used already, or been opened in a different browser from the one where you asked for it. Ask for a new one below.",
-  private_beta: "AskedFor is in private beta. Sign-in is open to invited people only for now.",
+  private_beta:
+    "FeedYourBusiness is in private beta. Sign-in is open to invited people only for now.",
 };
 
 export default async function LoginPage({

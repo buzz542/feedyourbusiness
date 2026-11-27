@@ -50,7 +50,7 @@ export default function PricingPage() {
         </Link>
         {isLaunchOpen() ? null : (
           <p className="text-sm text-muted">
-            AskedFor is in private beta. Until launch, sign-in is by invitation.
+            FeedYourBusiness is in private beta. Until launch, sign-in is by invitation.
           </p>
         )}
       </section>

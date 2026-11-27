@@ -64,7 +64,7 @@ describe("robots.txt", () => {
 
 describe("the private beta sentence", () => {
   afterEach(() => vi.unstubAllEnvs());
-  const sentence = "AskedFor is in private beta. Until launch, sign-in is by invitation.";
+  const sentence = "FeedYourBusiness is in private beta. Until launch, sign-in is by invitation.";
 
   it("shows on the landing and pricing pages while closed, and goes when open", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");

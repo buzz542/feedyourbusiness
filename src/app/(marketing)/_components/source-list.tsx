@@ -10,7 +10,8 @@ import type { CollectSource, LinkSource, Source } from "@/sources/types";
  */
 export const HOW: Record<string, string> = {
   hackernews: "Through the official Hacker News search API (run by Algolia) and the item API.",
-  bluesky: "Through the official Bluesky API, from AskedFor's own Bluesky account. Read only.",
+  bluesky:
+    "Through the official Bluesky API, from FeedYourBusiness's own Bluesky account. Read only.",
   reddit:
     "Through Bright Data, a web data company that collects public Reddit pages for us. This is not a data license from Reddit.",
 };
@@ -35,9 +36,9 @@ export const listInWords = (names: readonly string[]) => {
 
 const retention = (days: number) =>
   days === 7
-    ? "Deleted from AskedFor 7 days after we collect it."
+    ? "Deleted from FeedYourBusiness 7 days after we collect it."
     : days === 30
-      ? "Deleted from AskedFor 30 days after we collect it."
+      ? "Deleted from FeedYourBusiness 30 days after we collect it."
       : null;
 
 const isOn = (source: CollectSource) => isEnabled(source) && vendorClearance(source) === "cleared";
@@ -77,9 +78,9 @@ export function SourceList({ sources }: { sources: readonly Source[] }) {
         </h2>
         {links.length > 0 ? (
           <p>
-            For {listInWords(links.map((s) => s.displayName))}, AskedFor gives you one-tap searches
-            for your terms. They open in your own browser. We never fetch or store anything from
-            these searches.
+            For {listInWords(links.map((s) => s.displayName))}, FeedYourBusiness gives you one-tap
+            searches for your terms. They open in your own browser. We never fetch or store anything
+            from these searches.
           </p>
         ) : null}
         <p>

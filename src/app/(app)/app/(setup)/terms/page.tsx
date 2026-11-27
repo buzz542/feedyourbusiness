@@ -16,7 +16,7 @@ export default async function TermsPage() {
     <>
       <h1 className="font-serif text-3xl tracking-tight">Before you start</h1>
       <p className="mt-4 max-w-prose text-muted">
-        AskedFor is for people 18 and older. Please confirm both to continue.
+        FeedYourBusiness is for people 18 and older. Please confirm both to continue.
       </p>
       <TermsForm />
     </>

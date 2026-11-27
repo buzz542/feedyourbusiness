@@ -32,8 +32,10 @@ describe.each([
     );
   });
 
-  it("says Reddit posts are deleted from AskedFor after 7 days", () => {
-    expect(html).toContain("Reddit posts are deleted from AskedFor 7 days after we collect them.");
+  it("says Reddit posts are deleted from FeedYourBusiness after 7 days", () => {
+    expect(html).toContain(
+      "Reddit posts are deleted from FeedYourBusiness 7 days after we collect them.",
+    );
   });
 });
 

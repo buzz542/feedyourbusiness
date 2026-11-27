@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 const ERRORS: Record<string, string> = {
   consent_required: "Check the box to start your trial.",
   subscription_exists: "You already have a subscription. See Settings.",
-  private_beta: "AskedFor is in private beta.",
+  private_beta: "FeedYourBusiness is in private beta.",
 };
 
 /** The consent box and the button to Stripe Checkout (docs/PLAN.md 10.1, 10.2). */

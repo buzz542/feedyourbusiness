@@ -5,7 +5,7 @@ import { OWN_SITE_USER_AGENT } from "@/server/net/own-site";
 
 export const metadata: Metadata = {
   title: "Our site reader",
-  description: "What the AskedFor site reader fetches, why, and how to stop it.",
+  description: "What the FeedYourBusiness site reader fetches, why, and how to stop it.",
 };
 
 /**
@@ -18,11 +18,11 @@ export default function BotPage({ contactLive = CONTACT_EMAIL_LIVE }: { contactL
     <article className="space-y-6">
       <h1 className="font-serif text-3xl tracking-tight">Our site reader</h1>
       <p>
-        When someone sets up AskedFor, they paste the address of their own product&apos;s website.
-        Our site reader reads that page, or the home page if the pasted page is about people, and up
-        to 5 more pages on the same site that say what the product does, such as pricing, features
-        or questions and answers. We use the text to draft a short profile of the product. We keep
-        the profile, never the pages.
+        When someone sets up FeedYourBusiness, they paste the address of their own product&apos;s
+        website. Our site reader reads that page, or the home page if the pasted page is about
+        people, and up to 5 more pages on the same site that say what the product does, such as
+        pricing, features or questions and answers. We use the text to draft a short profile of the
+        product. We keep the profile, never the pages.
       </p>
       <section aria-labelledby="what" className="space-y-3">
         <h2 id="what" className="font-serif text-2xl tracking-tight">
@@ -51,11 +51,11 @@ export default function BotPage({ contactLive = CONTACT_EMAIL_LIVE }: { contactL
         <p>
           The page the person pasted is read because they asked for it, and so is your home page
           when the pasted page is about people. Every other page follows your robots.txt: the group
-          for the token AskedFor if you have one, or else the group for every robot. To keep those
-          pages off limits, add:
+          for the token FeedYourBusiness if you have one, or else the group for every robot. To keep
+          those pages off limits, add:
         </p>
         <pre className="overflow-x-auto rounded-[2px] border border-rule p-3 text-sm">
-          {"User-agent: AskedFor\nDisallow: /"}
+          {"User-agent: FeedYourBusiness\nDisallow: /"}
         </pre>
         <p>It identifies itself with this User-Agent:</p>
         <pre className="overflow-x-auto rounded-[2px] border border-rule p-3 text-sm">
@@ -78,7 +78,7 @@ export default function BotPage({ contactLive = CONTACT_EMAIL_LIVE }: { contactL
           <p>A contact address for the site reader is added here before launch.</p>
         )}
         <p>
-          Where the posts AskedFor shows come from is on our{" "}
+          Where the posts FeedYourBusiness shows come from is on our{" "}
           <Link href="/sources" className="underline">
             sources page
           </Link>

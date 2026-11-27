@@ -34,7 +34,7 @@ function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
     since: SINCE,
     budget: 300,
     now: NOW,
-    userAgent: "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)",
+    userAgent: "FeedYourBusiness/1.0 (+https://feedyourbusiness.app; hello@feedyourbusiness.app)",
     sleep: vi.fn(async () => {}),
     credential: () => undefined,
     ...over,
@@ -84,7 +84,7 @@ describe("hackernews source", () => {
     ]);
     const init = http.mock.calls[0]![1] as RequestInit;
     expect(new Headers(init.headers).get("user-agent")).toMatch(
-      /AskedFor\/1\.0 .*hello@askedfor\.app/,
+      /FeedYourBusiness\/1\.0 .*hello@feedyourbusiness\.app/,
     );
   });
 

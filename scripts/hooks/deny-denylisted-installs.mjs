@@ -24,7 +24,7 @@ const blocked = installTargets(command).filter((name) => isBlockedPackage(name, 
 if (blocked.length > 0) {
   console.error(
     `Blocked: ${blocked.join(", ")} is on the compliance denylist (compliance/denylist.json).\n` +
-      "AskedFor reaches sources only through safeFetch(): official APIs, and the contracted data vendor's REST API (docs/PLAN.md, section 2).\n" +
+      "FeedYourBusiness reaches sources only through safeFetch(): official APIs, and the contracted data vendor's REST API (docs/PLAN.md, section 2).\n" +
       "No scraping SDKs, vendor SDKs or browser automation. If this is a mistake, ask the founder. Do not work around the hook.",
   );
   process.exit(2);

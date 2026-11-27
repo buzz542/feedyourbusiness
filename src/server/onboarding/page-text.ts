@@ -246,7 +246,11 @@ export function extractSameSiteLinks(html: string, base: string): string[] {
   return [...seen];
 }
 
-export const ROBOTS_AGENT = "askedfor";
+/**
+ * Our robots.txt product tokens, lowercase: the name since 27 Nov 2026, and the old one, so a site
+ * that blocked us under it stays blocked.
+ */
+export const ROBOTS_AGENTS: readonly string[] = ["feedyourbusiness", "askedfor"];
 /** robots.txt is read up to this many characters and rules, as RFC 9309 allows (at least 500 KiB). */
 const MAX_ROBOTS_CHARS = 512 * 1024;
 const MAX_ROBOTS_RULES = 2000;
@@ -257,10 +261,10 @@ export interface RobotsRule {
 }
 
 /**
- * The rules that apply to AskedFor (RFC 9309 2.2.1): the groups whose product token is exactly
- * ours, ignoring case and anything after the token (`AskedFor/1.0`), or else the `*` groups.
+ * The rules that apply to us (RFC 9309 2.2.1): the groups whose product token is exactly one of
+ * ours, ignoring case and anything after the token (`FeedYourBusiness/1.0`), or else the `*` groups.
  */
-export function parseRobots(robots: string, agent = ROBOTS_AGENT): RobotsRule[] {
+export function parseRobots(robots: string, agents = ROBOTS_AGENTS): RobotsRule[] {
   const groups: { agents: string[]; rules: RobotsRule[] }[] = [];
   let current: { agents: string[]; rules: RobotsRule[] } | null = null;
   let lastWasAgent = false;
@@ -288,7 +292,7 @@ export function parseRobots(robots: string, agent = ROBOTS_AGENT): RobotsRule[] 
       lastWasAgent = false;
     }
   }
-  const ours = groups.filter((g) => g.agents.includes(agent.toLowerCase()));
+  const ours = groups.filter((g) => g.agents.some((a) => agents.includes(a)));
   const chosen = ours.length ? ours : groups.filter((g) => g.agents.includes("*"));
   return chosen.flatMap((g) => g.rules);
 }
@@ -328,7 +332,7 @@ export function robotsAllows(rules: readonly RobotsRule[], path: string): boolea
   return best ? best.allow : true;
 }
 
-/** True when robots.txt lets AskedFor (or, failing a group for it, `*`) fetch `path`. */
-export function isAllowedByRobots(robots: string, path: string, agent = ROBOTS_AGENT): boolean {
-  return robotsAllows(parseRobots(robots, agent), path);
+/** True when robots.txt lets us (or, failing a group for us, `*`) fetch `path`. */
+export function isAllowedByRobots(robots: string, path: string, agents = ROBOTS_AGENTS): boolean {
+  return robotsAllows(parseRobots(robots, agents), path);
 }

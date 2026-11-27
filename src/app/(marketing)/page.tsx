@@ -4,9 +4,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: { absolute: "AskedFor: who to reply to today" },
+  title: { absolute: "FeedYourBusiness: who to reply to today" },
   description:
-    "AskedFor reads public conversations about the problem you solve and shows you the people worth replying to.",
+    "FeedYourBusiness reads public conversations about the problem you solve and shows you the people worth replying to.",
 };
 
 const EXAMPLE_EXCERPT_BEFORE = "Does anyone know a tool that ";
@@ -16,7 +16,7 @@ const EXAMPLE_EXCERPT_AFTER = "? I am tired of writing reminder emails every wee
 const FAQ: Array<[string, ReactNode]> = [
   [
     "Does it post for me?",
-    "No. AskedFor never posts, replies, votes or messages for you on any platform. You open the post and reply yourself.",
+    "No. FeedYourBusiness never posts, replies, votes or messages for you on any platform. You open the post and reply yourself.",
   ],
   [
     "Does it write replies for me?",
@@ -35,7 +35,7 @@ const FAQ: Array<[string, ReactNode]> = [
   ],
   [
     "What do you store and for how long?",
-    "For each post: the link, the community, when it was posted, a short excerpt, our labels and a keyed hash of the author, never their username. Posts are deleted from AskedFor after 30 days, or 7 days for Reddit.",
+    "For each post: the link, the community, when it was posted, a short excerpt, our labels and a keyed hash of the author, never their username. Posts are deleted from FeedYourBusiness after 30 days, or 7 days for Reddit.",
   ],
   [
     "You show a post I wrote. How do I remove it?",
@@ -103,15 +103,15 @@ export default function Home() {
           Who to reply to today.
         </h1>
         <p className="max-w-[38rem] text-lg leading-relaxed text-muted sm:text-xl">
-          AskedFor reads public conversations about the problem you solve, then shows you the people
-          worth replying to. You reply in your own words, and say you built it.
+          FeedYourBusiness reads public conversations about the problem you solve, then shows you
+          the people worth replying to. You reply in your own words, and say you built it.
         </p>
         <Ctas />
         <div className="flex flex-col gap-1">
           <PriceLine />
           {isLaunchOpen() ? null : (
             <p className="text-sm text-muted">
-              AskedFor is in private beta. Until launch, sign-in is by invitation.
+              FeedYourBusiness is in private beta. Until launch, sign-in is by invitation.
             </p>
           )}
         </div>
@@ -201,7 +201,7 @@ export default function Home() {
         </ul>
         <p className="leading-relaxed">
           We never post, reply or message for you, and we never write your replies. Posts are
-          deleted from AskedFor after 30 days, or 7 days for Reddit.
+          deleted from FeedYourBusiness after 30 days, or 7 days for Reddit.
         </p>
         <p>
           <Link

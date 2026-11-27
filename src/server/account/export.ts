@@ -85,7 +85,7 @@ export function buildAccountExport(source: ExportSource, now: Date): AccountExpo
   return {
     exported_at: now.toISOString(),
     about:
-      "Your AskedFor data. Feed items are links to public posts with our labels; post text is " +
+      "Your FeedYourBusiness data. Feed items are links to public posts with our labels; post text is " +
       "not included.",
     account: { email: source.email, ...pick(source.profile, PROFILE_FIELDS) },
     product: pick(source.product, PRODUCT_FIELDS),

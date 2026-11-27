@@ -20,10 +20,10 @@ export const PROCESSOR_HOSTS = [
   "hoqbflkszzoojdswbrgy.supabase.co",
 ] as const;
 
-/** Our own domains. The brief lists askedfor.app as primary. Not yet purchased. */
+/** Our own domains: feedyourbusiness.app, bought and connected to Vercel in Nov 2026. */
 export const OWN_HOSTS = [
-  "askedfor.app",
-  "www.askedfor.app",
+  "feedyourbusiness.app",
+  "www.feedyourbusiness.app",
   "askedfor.dev",
   "tryaskedfor.com",
   "localhost",

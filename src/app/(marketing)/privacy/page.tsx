@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Privacy notice" };
 
 /**
  * The privacy notice (docs/PLAN.md 2.3, 12.9), drafted for the solicitor: for people who use
- * AskedFor, and the Article 14 notice for people whose public posts it shows. Processors, sources
+ * FeedYourBusiness, and the Article 14 notice for people whose public posts it shows. Processors, sources
  * and vendors come from the code (tests compare the lists).
  */
 export default function Page() {
@@ -22,10 +22,10 @@ export default function Page() {
   return (
     <LegalDraft title="Privacy notice">
       <p>
-        AskedFor shows makers of software public posts where people ask for a tool like theirs, so
-        they can reply in their own words. This notice explains what personal data we handle, why,
-        and your rights. AskedFor is the controller. Our trading name, address and contact email are
-        added here before launch.
+        FeedYourBusiness shows makers of software public posts where people ask for a tool like
+        theirs, so they can reply in their own words. This notice explains what personal data we
+        handle, why, and your rights. FeedYourBusiness is the controller. Our trading name, address
+        and contact email are added here before launch.
       </p>
 
       <Section id="authors" title="If you wrote a public post we show">
@@ -41,11 +41,11 @@ export default function Page() {
           the author&apos;s DID, a public id that leads to their handle.
         </p>
         <p>
-          We keep only posts our classifier rates relevant. Reddit posts are deleted from AskedFor 7
-          days after we collect them, and Hacker News and Bluesky posts after 30 days. We drop
-          Reddit posts from communities about health, sexuality, religion, politics, ethnicity and
-          similar topics, and from user profiles, before they are labeled or stored. We never infer
-          anything sensitive about anyone.
+          We keep only posts our classifier rates relevant. Reddit posts are deleted from
+          FeedYourBusiness 7 days after we collect them, and Hacker News and Bluesky posts after 30
+          days. We drop Reddit posts from communities about health, sexuality, religion, politics,
+          ethnicity and similar topics, and from user profiles, before they are labeled or stored.
+          We never infer anything sensitive about anyone.
         </p>
         <p>
           Why: to show our customers public conversations they can join. Our lawful basis is
@@ -63,7 +63,7 @@ export default function Page() {
 
       <DataProviderNotice />
 
-      <Section id="users" title="If you use AskedFor">
+      <Section id="users" title="If you use FeedYourBusiness">
         <p>
           We keep your email address, your confirmation that you are 18 or older and accept our
           terms, your product profile, search terms and competitors, the posts you save, hide or
@@ -81,8 +81,8 @@ export default function Page() {
           describe your product instead, we send your description.
         </p>
         <p>
-          We record a few actions in our own database to see how AskedFor is used, with no cookies,
-          IP addresses or browser details, and keep them for 13 months.
+          We record a few actions in our own database to see how FeedYourBusiness is used, with no
+          cookies, IP addresses or browser details, and keep them for 13 months.
         </p>
         <p>
           Why: to provide the service you signed up for (contract), to bill you (contract and legal

@@ -9,13 +9,13 @@ export default function Page() {
   return (
     <LegalDraft title="Terms">
       <p>
-        These terms are between you and AskedFor. Our trading name, address and contact email are
-        added here before launch.
+        These terms are between you and FeedYourBusiness. Our trading name, address and contact
+        email are added here before launch.
       </p>
-      <Section id="who" title="Who can use AskedFor">
+      <Section id="who" title="Who can use FeedYourBusiness">
         <p>
-          You must be 18 or older. You use AskedFor for your own product or your company&apos;s, and
-          you follow our{" "}
+          You must be 18 or older. You use FeedYourBusiness for your own product or your
+          company&apos;s, and you follow our{" "}
           <Link href="/acceptable-use" className="underline">
             acceptable use policy
           </Link>
@@ -67,9 +67,9 @@ export default function Page() {
       </Section>
       <Section id="liability" title="Our responsibility to you">
         <p>
-          We work to keep AskedFor running and accurate, but posts come from other people and
-          platforms, and we cannot promise any result from replying to them. Nothing in these terms
-          limits rights you have by law as a consumer.
+          We work to keep FeedYourBusiness running and accurate, but posts come from other people
+          and platforms, and we cannot promise any result from replying to them. Nothing in these
+          terms limits rights you have by law as a consumer.
         </p>
       </Section>
       <Section id="law" title="Law">

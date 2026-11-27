@@ -31,7 +31,7 @@ export function AppFrame({
         <aside className="hidden border-r border-rule bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
           <div className="px-5 pt-6 pb-5">
             <Link href="/app" className="font-serif text-2xl tracking-tight">
-              AskedFor
+              FeedYourBusiness
             </Link>
             {productName ? (
               <p className="mt-0.5 truncate text-sm text-muted" title={productName}>
@@ -52,7 +52,7 @@ export function AppFrame({
         <div className="flex min-h-dvh min-w-0 flex-col">
           <header className="flex items-center gap-3 border-b border-rule bg-panel px-4 py-2 sm:px-6 lg:hidden">
             <Link href="/app" className="font-serif text-xl tracking-tight">
-              AskedFor
+              FeedYourBusiness
             </Link>
             {productName ? (
               <span className="hidden min-w-0 truncate text-sm text-muted sm:inline">

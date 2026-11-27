@@ -7,7 +7,7 @@ import { SourceList } from "../_components/source-list";
 export const metadata: Metadata = {
   title: "Where posts come from",
   description:
-    "Every source AskedFor collects from, how, and for how long, including our Reddit data provider.",
+    "Every source FeedYourBusiness collects from, how, and for how long, including our Reddit data provider.",
 };
 
 /** The sources page (docs/PLAN.md 4.2, 9.6 item 4, D12): exactly the registry, nothing hidden. */
@@ -16,8 +16,9 @@ export default function Page() {
     <article>
       <h1 className="font-serif text-3xl tracking-tight">Where posts come from</h1>
       <p className="mt-4">
-        AskedFor reads public posts about the problem your product solves and shows you the ones
-        worth replying to. This page lists every place those posts come from and how we get them.
+        FeedYourBusiness reads public posts about the problem your product solves and shows you the
+        ones worth replying to. This page lists every place those posts come from and how we get
+        them.
       </p>
       <SourceList sources={sources} />
       <DataProviderNotice />

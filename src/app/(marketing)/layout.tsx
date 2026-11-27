@@ -7,7 +7,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col px-4 sm:px-6">
       <header className="flex items-center gap-6 py-6">
         <Link href="/" className="font-serif text-xl tracking-tight">
-          AskedFor
+          FeedYourBusiness
         </Link>
         <nav aria-label="Site" className="ml-auto flex items-center gap-4 text-sm text-muted">
           <Link href="/pricing" className="hover:text-ink">

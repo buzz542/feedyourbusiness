@@ -48,7 +48,7 @@ describe("privacy notice", () => {
 
   it("says retention by source, the removal form, and the ICO", () => {
     expect(privacy).toContain(
-      "Reddit posts are deleted from AskedFor 7 days after we collect them",
+      "Reddit posts are deleted from FeedYourBusiness 7 days after we collect them",
     );
     expect(privacy).toContain("remove my post form");
     expect(privacy).toContain("Information Commissioner");

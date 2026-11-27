@@ -6,7 +6,7 @@ import type { CollectSource } from "./types";
 
 /** The removal form's lookups (docs/PLAN.md 4.8): each on its own source's host, read-only. */
 
-const UA = "AskedFor/1.0 (test)";
+const UA = "FeedYourBusiness/1.0 (test)";
 
 function recorder(respond: (url: string) => Response) {
   const calls: Array<{ url: string; headers: Record<string, string> }> = [];

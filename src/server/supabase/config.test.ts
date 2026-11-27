@@ -3,7 +3,7 @@ import { sessionCookieOptions } from "./config";
 
 describe("sessionCookieOptions", () => {
   it("keeps the session cookie away from page scripts and on https only in production", () => {
-    expect(sessionCookieOptions({ NEXT_PUBLIC_SITE_URL: "https://askedfor.app" })).toEqual({
+    expect(sessionCookieOptions({ NEXT_PUBLIC_SITE_URL: "https://feedyourbusiness.app" })).toEqual({
       httpOnly: true,
       secure: true,
       sameSite: "lax",

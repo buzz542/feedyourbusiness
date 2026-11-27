@@ -1,6 +1,6 @@
 # Legitimate interests assessment: collecting public posts
 
-Draft, 5 Nov 2026. Controller: AskedFor (trading name and address to be added).
+Draft, 5 Nov 2026. Controller: FeedYourBusiness (trading name and address to be added).
 
 ## 1. Purpose test
 
@@ -8,9 +8,9 @@ Draft, 5 Nov 2026. Controller: AskedFor (trading name and address to be added).
   a tool like theirs, describe the problem they solve, or mention a rival, so they can reply in
   their own words and say they built it. The people posting asked a public question and often want
   answers.
-- **Whose interest.** AskedFor's commercial interest, our customers' interest in reaching people
+- **Whose interest.** FeedYourBusiness's commercial interest, our customers' interest in reaching people
   who asked, and the posters' interest in getting answers.
-- **Lawful and ethical.** AskedFor never posts or replies for anyone, never writes replies, and
+- **Lawful and ethical.** FeedYourBusiness never posts or replies for anyone, never writes replies, and
   bans spam, mass replies, sock puppets and contact lists (acceptable use policy).
 
 ## 2. Necessity test

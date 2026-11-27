@@ -39,7 +39,7 @@ function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
     since: SINCE,
     budget: 300,
     now: NOW,
-    userAgent: "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)",
+    userAgent: "FeedYourBusiness/1.0 (+https://feedyourbusiness.app; hello@feedyourbusiness.app)",
     sleep: vi.fn(async () => {}),
     credential: (name) => CREDENTIALS[name],
     ...over,
@@ -93,7 +93,7 @@ describe("bluesky source", () => {
       expect(url.searchParams.get("sort")).toBe("latest");
       expect(url.searchParams.get("since")).toBe(SINCE.toISOString());
       expect(new Headers(searchInit!.headers).get("authorization")).toMatch(/^Bearer ey/);
-      expect(new Headers(searchInit!.headers).get("user-agent")).toMatch(/AskedFor/);
+      expect(new Headers(searchInit!.headers).get("user-agent")).toMatch(/FeedYourBusiness/);
     }
   });
 

@@ -39,7 +39,7 @@ export function renderDailyPosts(input: {
   const items = input.posts
     .map(
       (p) =>
-        `<li style="margin-bottom:12px"><strong>${escapeHtml(p.where)}</strong>, ${escapeHtml(p.age)} ago, ${escapeHtml(p.category)}<br>${escapeHtml(p.reason)}<br><a href="${escapeHtml(p.cardUrl)}">Open in AskedFor</a></li>`,
+        `<li style="margin-bottom:12px"><strong>${escapeHtml(p.where)}</strong>, ${escapeHtml(p.age)} ago, ${escapeHtml(p.category)}<br>${escapeHtml(p.reason)}<br><a href="${escapeHtml(p.cardUrl)}">Open in FeedYourBusiness</a></li>`,
     )
     .join("");
   const html = `<div style="font-family:system-ui,sans-serif;line-height:1.5;max-width:36rem"><p>Here are today's posts worth replying to. Open each one, reply in your own words, and say you built it.</p><ul style="padding-left:18px">${items}</ul><p><strong>Say you built it.</strong></p><p><a href="${escapeHtml(input.appUrl)}">All posts</a></p><p style="font-size:12px;color:#555"><a href="${escapeHtml(input.unsubscribeUrl)}">Stop these emails</a></p></div>`;
@@ -52,7 +52,7 @@ export function renderFeedReady(input: {
   appUrl: string;
 }): RenderedEmail {
   const total = input.counts.reduce((n, c) => n + c.count, 0);
-  const subject = "Your AskedFor feed is ready";
+  const subject = "Your FeedYourBusiness feed is ready";
   const list = input.counts.filter((c) => c.count > 0);
   const text = [
     total > 0

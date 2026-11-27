@@ -8,7 +8,7 @@ import { RemovalForm } from "./removal-form";
 export const metadata: Metadata = {
   title: "Remove my post",
   description:
-    "Ask AskedFor to delete the posts we hold from you on a platform and never store your posts from it again.",
+    "Ask FeedYourBusiness to delete the posts we hold from you on a platform and never store your posts from it again.",
 };
 
 /** One option per source the form takes, labeled with the registry's display name. */
@@ -22,9 +22,9 @@ export default function Page() {
     <article className="space-y-6">
       <h1 className="font-serif text-3xl tracking-tight">Remove my post</h1>
       <p>
-        If AskedFor holds a post you wrote, you can have it removed. We delete the posts we hold
-        from you on that platform and add you to our suppression list, so we never store your posts
-        from it again.
+        If FeedYourBusiness holds a post you wrote, you can have it removed. We delete the posts we
+        hold from you on that platform and add you to our suppression list, so we never store your
+        posts from it again.
       </p>
       <p>We handle every request within 30 days, and we aim to do it within 72 hours.</p>
       <RemovalForm submit={requestRemoval} sources={FORM_OPTIONS} />

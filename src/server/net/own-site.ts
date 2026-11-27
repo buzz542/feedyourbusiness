@@ -101,7 +101,7 @@ const DEFAULT_MAX_REDIRECTS = 3;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const LOCAL_SUFFIXES = [".local", ".localhost", ".internal", ".lan", ".home.arpa", ".intranet"];
 export const OWN_SITE_USER_AGENT =
-  "AskedFor/1.0 (+https://askedfor.app/bot; reads a product site a user pasted)";
+  "FeedYourBusiness/1.0 (+https://feedyourbusiness.app/bot; reads a product site a user pasted)";
 
 // ---------------------------------------------------------------------------------------------
 // Addresses

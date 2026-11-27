@@ -74,7 +74,7 @@ function setup(src: CollectSource) {
     terms: async () => [{ id: "t1", term: "invoice tool" }],
     process,
     monthlyCap: () => null,
-    userAgent: "AskedFor/test",
+    userAgent: "FeedYourBusiness/test",
     sleep: async () => {},
   };
   const handlers: Record<string, JobHandler> = { collect: createCollectHandler(deps) };
@@ -292,7 +292,7 @@ describe("settling a vendor run that never finishes", () => {
         terms: async () => [{ id: "t1", term: "invoice tool" }],
         process: vi.fn(async () => ({ stored: 0 })),
         monthlyCap: () => null,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
       }),
     };
     const enqueue = () =>
@@ -428,7 +428,7 @@ describe("kill switches and caps", () => {
         ],
         process: vi.fn(async () => ({ stored: 0 })),
         monthlyCap: () => null,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
         sleep: async () => {},
       }),
     };
@@ -464,7 +464,7 @@ describe("kill switches and caps", () => {
         monthlyCap: () => null,
         budgetFor: () => 60,
         costFor: () => 0.0021,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
       }),
     };
     await store.enqueue([
@@ -497,7 +497,7 @@ describe("credentials", () => {
         terms: async () => [{ id: "t1", term: "invoice tool" }],
         process: vi.fn(async () => ({ stored: 0 })),
         monthlyCap: () => null,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
         credential: (name) => env[name],
       }),
     };
@@ -597,7 +597,7 @@ describe("a product that stopped being collectable", () => {
       terms: async () => null, // paused, unconfirmed or no longer entitled since the enqueue
       process: vi.fn(),
       monthlyCap: () => null,
-      userAgent: "AskedFor/test",
+      userAgent: "FeedYourBusiness/test",
     };
     await enqueueCollect(store);
     await runJobs({
@@ -638,7 +638,7 @@ describe("a vendor run in flight when the product stops being collectable", () =
         terms: async () => (collectable ? [{ id: "t1", term: "invoice tool" }] : null),
         process,
         monthlyCap: () => null,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
       }),
     };
     await store.enqueue([
@@ -675,7 +675,7 @@ describe("model spend caps in the collect job (docs/PLAN.md 8.1)", () => {
         terms: async () => [{ id: "t1", term: "invoice tool" }],
         process: vi.fn(async () => ({ stored: 3, refused: 0, capped: "global_daily" as const })),
         monthlyCap: () => null,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
         ...over,
       }),
     };
@@ -755,7 +755,7 @@ describe("collecting Reddit through the vendor (the real module, a fake vendor)"
         return { stored: posts.length };
       },
       monthlyCap: () => 20_000,
-      userAgent: "AskedFor/test",
+      userAgent: "FeedYourBusiness/test",
       sleep: async () => {},
       credential: (name) => CONFIG[name],
     };
@@ -919,7 +919,7 @@ describe("the vendor's monthly cap (docs/PLAN.md 7.3 step 3, 7.7)", () => {
         terms: async () => [{ id: "t1", term: "invoice tool" }],
         process: vi.fn(),
         monthlyCap: () => 30,
-        userAgent: "AskedFor/test",
+        userAgent: "FeedYourBusiness/test",
         sleep: async () => {},
       }),
     };

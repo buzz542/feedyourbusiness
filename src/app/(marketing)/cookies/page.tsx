@@ -8,8 +8,8 @@ export default function Page() {
   return (
     <LegalDraft title="Cookies">
       <p>
-        AskedFor uses only the cookies that signing in needs. We use no advertising, analytics or
-        tracking cookies, so we do not ask for consent to them.
+        FeedYourBusiness uses only the cookies that signing in needs. We use no advertising,
+        analytics or tracking cookies, so we do not ask for consent to them.
       </p>
       <Section id="list" title="The cookies we set">
         <ul className="flex list-disc flex-col gap-2 pl-5">

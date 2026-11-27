@@ -35,7 +35,7 @@ function ctx(http: Http, over: Partial<CollectContext> = {}): CollectContext {
     since: SINCE,
     budget: 200,
     now: NOW,
-    userAgent: "AskedFor/1.0 (+https://askedfor.app; hello@askedfor.app)",
+    userAgent: "FeedYourBusiness/1.0 (+https://feedyourbusiness.app; hello@feedyourbusiness.app)",
     sleep: vi.fn(async () => {}),
     credential: (name) => (name === "X_BEARER_TOKEN" ? "test-bearer" : undefined),
     ...over,
@@ -97,7 +97,7 @@ describe("x source", () => {
     });
     const headers = new Headers(init!.headers);
     expect(headers.get("authorization")).toBe("Bearer test-bearer");
-    expect(headers.get("user-agent")).toMatch(/AskedFor/);
+    expect(headers.get("user-agent")).toMatch(/FeedYourBusiness/);
   });
 
   it("maps posts: status link, decoded excerpt, author id, and drops sensitive, old and repeated posts", async () => {
@@ -270,7 +270,7 @@ describe("deletion compliance gate (docs/PLAN.md 7.6)", () => {
       since: new Date("2026-10-30T00:00:00Z"),
       budget: 100,
       now: new Date("2026-10-31T00:00:00Z"),
-      userAgent: "AskedFor/test",
+      userAgent: "FeedYourBusiness/test",
       sleep: async () => {},
       credential: () => "token",
     };
@@ -302,7 +302,7 @@ describe("a failure after some reads (7.6)", () => {
       since: new Date("2026-10-10T00:00:00Z"),
       budget: 40,
       now: new Date("2026-10-17T12:00:00Z"),
-      userAgent: "AskedFor/test",
+      userAgent: "FeedYourBusiness/test",
       sleep: async () => {},
       credential: () => "token",
     });

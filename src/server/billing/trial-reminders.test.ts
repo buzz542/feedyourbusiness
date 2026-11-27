@@ -281,7 +281,7 @@ describe("trial reminder, time travel on the hourly Pro schedule", () => {
     const { to, subject, text, html } = mailer.sent[0]!;
 
     expect(to).toBe("maker@example.test");
-    expect(subject).toBe("Your AskedFor trial ends soon");
+    expect(subject).toBe("Your FeedYourBusiness trial ends soon");
     expect(text).toContain("£39.00");
     expect(text).toContain("October 20, 2026");
     expect(text).toContain("every month until you cancel");

@@ -19,13 +19,13 @@ const text = html
 
 describe("/bot", () => {
   it("names the robots token and shows how to block it", () => {
-    expect(text).toContain("the token AskedFor");
-    expect(html).toContain("User-agent: AskedFor\nDisallow: /");
+    expect(text).toContain("the token FeedYourBusiness");
+    expect(html).toContain("User-agent: FeedYourBusiness\nDisallow: /");
   });
 
   it("shows the exact User-Agent, which links back to this page", () => {
     expect(html).toContain(OWN_SITE_USER_AGENT);
-    expect(OWN_SITE_USER_AGENT).toContain("https://askedfor.app/bot");
+    expect(OWN_SITE_USER_AGENT).toContain("https://feedyourbusiness.app/bot");
   });
 
   it("shows no contact address until the founder monitors it (F10), then shows it", () => {

@@ -103,7 +103,7 @@ async function runDigest(s: DigestStore, outbox = new Outbox(), payload = {}) {
   const handler = createDigestHandler({
     store: s,
     mailer: () => outbox,
-    siteUrl: () => "https://askedfor.app",
+    siteUrl: () => "https://feedyourbusiness.app",
     secret: () => SECRET,
   });
   // An hour apart, so a retry after a failure is due.
@@ -135,7 +135,7 @@ describe("unsubscribe tokens", () => {
         off.push([userId, list]);
       },
     });
-    const url = `https://askedfor.app/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken(SECRET, USER, "daily"))}`;
+    const url = `https://feedyourbusiness.app/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken(SECRET, USER, "daily"))}`;
     const get = await handler.GET(new Request(url));
     expect(get.status).toBe(200);
     expect(await get.text()).toContain('method="post"');
@@ -167,7 +167,7 @@ describe("daily posts email", () => {
     }
     expect(mail.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
     expect(mail.headers?.["List-Unsubscribe"]).toMatch(
-      /^<https:\/\/askedfor\.app\/api\/unsubscribe\?t=/,
+      /^<https:\/\/feedyourbusiness\.app\/api\/unsubscribe\?t=/,
     );
     expect(jobs.jobs[0]).toMatchObject({ status: "done", payload: { result: "sent" } });
   });
@@ -233,7 +233,7 @@ describe("daily posts email", () => {
     createDigestHandler({
       store: s,
       mailer: () => outbox,
-      siteUrl: () => "https://askedfor.app",
+      siteUrl: () => "https://feedyourbusiness.app",
       secret: () => SECRET,
     });
 
@@ -298,8 +298,8 @@ describe("daily posts email", () => {
   it("renders no excerpt field at all", () => {
     const rendered = renderDailyPosts({
       posts: [],
-      appUrl: "https://askedfor.app/app/reply",
-      unsubscribeUrl: "https://askedfor.app/u",
+      appUrl: "https://feedyourbusiness.app/app/reply",
+      unsubscribeUrl: "https://feedyourbusiness.app/u",
     });
     expect(rendered.text).toContain("Say you built it.");
   });
@@ -349,7 +349,7 @@ describe("first run", () => {
           jobs.jobs.some((j) => j.kind === "first_run" && !["done", "failed"].includes(j.status)),
       }),
       mailer: () => outbox,
-      siteUrl: () => "https://askedfor.app",
+      siteUrl: () => "https://feedyourbusiness.app",
       secret: () => SECRET,
     });
     const progress = () =>
@@ -377,7 +377,7 @@ describe("first run", () => {
       ["reddit", "done"],
     ]);
     expect(outbox.sent).toHaveLength(1);
-    expect(outbox.sent[0]!.subject).toBe("Your AskedFor feed is ready");
+    expect(outbox.sent[0]!.subject).toBe("Your FeedYourBusiness feed is ready");
     expect(outbox.sent[0]!.text).toContain("Looking for a tool: 3");
     expect(outbox.sent[0]!.text).toContain("Say you built it.");
   });
