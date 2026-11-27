@@ -1,6 +1,7 @@
 import { CheckIcon } from "@/components/ui/icons";
 import { SOURCE_LABELS } from "@/server/reply/tips";
 import type { SourceProgress } from "@/server/pipeline/first-run";
+import { FirstRunRefresh } from "./first-run-refresh";
 
 const STATUS: Record<SourceProgress["status"], string> = {
   queued: "Waiting to start",
@@ -11,7 +12,8 @@ const STATUS: Record<SourceProgress["status"], string> = {
 };
 
 /**
- * The first run, by source (docs/PLAN.md 4.3 step 6, 4.9). Refresh shows new results. Each line
+ * The first run, by source (docs/PLAN.md 4.3 step 6, 4.9). The page refreshes itself while it runs
+ * (first-run-refresh.tsx), so posts show as they are stored. Each line
  * says its state in words; the mark beside it only repeats it.
  */
 export function FirstRunProgress({ progress }: { progress: readonly SourceProgress[] }) {
@@ -22,8 +24,10 @@ export function FirstRunProgress({ progress }: { progress: readonly SourceProgre
     >
       <h2 className="font-serif text-lg tracking-tight">Your first collection is running</h2>
       <p className="mt-1 text-muted">
-        Posts appear here as each source finishes. We will email you when your feed is ready.
+        Posts appear here as soon as we store them. This page updates itself while we collect, and
+        we will email you when your feed is ready.
       </p>
+      <FirstRunRefresh />
       <ul className="mt-3 flex flex-col gap-1.5">
         {progress.map((p) => (
           <li key={p.source} className="flex items-center gap-2">

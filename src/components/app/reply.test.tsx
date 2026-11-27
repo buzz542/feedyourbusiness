@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// FirstRunRefresh asks the app router to re-render; a static render has none mounted.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CATEGORY_LABELS, REPLY_TIPS } from "@/server/reply/tips";
@@ -15,6 +18,7 @@ import { linkSources, sources } from "@/sources/registry";
 import { subredditSearchLinks } from "@/sources/subreddit-links";
 import { FeedError } from "./feed-error";
 import { FirstRunProgress } from "./first-run-progress";
+import { REFRESH_FOR_MS, refreshDelay } from "./first-run-refresh";
 import { FilterBar } from "./filter-bar";
 import { age, PostCard, sourceLine, unitRange } from "./post-card";
 import { nextState, PostActions } from "./post-actions";
@@ -463,6 +467,26 @@ describe("first run progress", () => {
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain("Hacker News: Done");
     expect(html).toContain("Reddit: Collecting");
+  });
+
+  it("says posts show as they are stored, and that the page updates itself", () => {
+    const html = renderToStaticMarkup(
+      <FirstRunProgress progress={[{ source: "reddit", status: "waiting" }]} />,
+    );
+    expect(visible(html)).toContain("Posts appear here as soon as we store them");
+    expect(visible(html)).toContain("This page updates itself while we collect");
+  });
+});
+
+describe("first run refresh (posts show as they are stored)", () => {
+  it("checks often at first, then less often, then stops, so it never polls forever", () => {
+    expect(refreshDelay(0)).toBe(15_000);
+    expect(refreshDelay(9 * 60_000)).toBe(15_000);
+    expect(refreshDelay(11 * 60_000)).toBe(60_000);
+    expect(refreshDelay(REFRESH_FOR_MS - 1)).toBe(60_000);
+    expect(refreshDelay(REFRESH_FOR_MS)).toBeNull();
+    // Long enough for Reddit's vendor wait, which can run for two hours.
+    expect(REFRESH_FOR_MS).toBeGreaterThanOrEqual(2 * 60 * 60_000);
   });
 });
 
