@@ -5,8 +5,9 @@
  * stored post scoring STRONG_SCORE or more, posted in the last RECENT_DAYS. With WIDE_MIN_STRONG or
  * more of them the topic is wide: the paid source (Reddit) reads only the past week, and the feed
  * minimum stays at the default 60. With fewer it is niche: Reddit reads the past month, and once
- * every first-run source has finished the feed minimum drops to 50 (only if it is still the
- * default, so a minimum the user set is kept). Later runs read recent posts only.
+ * every first-run source has finished the feed minimum drops to 50 (only where it is 60, the
+ * default: a user who kept 60 through onboarding is moved too, which is what the founder asked;
+ * any other value the user chose is kept). Later runs read recent posts only.
  */
 
 export const STRONG_SCORE = 60;

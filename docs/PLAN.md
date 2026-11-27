@@ -855,7 +855,7 @@ mark a job `failed` with the error class; `/admin` shows it.
    `vendor_usage(source, this month) + units <= BRIGHTDATA_MONTHLY_RECORD_CAP`. If either fails, finish with
    reason `budget` or `monthly_cap` (shown in `/admin`).
 4. `start()`. If pending, store the handle, set `waiting`, `run_after` now plus 2 minutes; later ticks `poll`.
-5. When done: drop NSFW, drop posts older than the window (48 hours for daily runs, 7 days for the first run),
+5. When done: drop NSFW, drop posts older than the window (48 hours for daily runs; on the first run 30 days for the free sources and 7 or 30 days for the paid source, 7.2),
    hash authors (12.5), drop authors on the suppression list (cheap pre-check before paying for the model).
 6. Skip posts this product already has. Posts stored for another product are classified for this one.
 7. Classify in batches of 20 (8.2). Discard relevance below 40 and `not_relevant`.
@@ -1130,7 +1130,7 @@ const Draft = z.object({
 ```
 
 Terms are phrases people actually write ("looking for a tool to", "how do I", "alternative to <rival>"),
-not marketing keywords, with 3 to 6 "alternative to" terms when competitors exist (since 27 Nov 2026, the founder: phrases in the words of someone who needs the product, at least 14 problem or category terms, at most 4 "alternative" and at most 3 brand names alone, and the most common places, platforms or industries named where the product serves them; the save keeps at most 3 brand names and 4 "alternative" terms). After the call:
+not marketing keywords, with up to 4 "alternative to" terms when competitors exist (since 27 Nov 2026, the founder: phrases in the words of someone who needs the product, at least 14 problem or category terms, at most 4 "alternative" and at most 3 brand names alone, and the most common places, platforms or industries named where the product serves them; the save keeps at most 3 brand names and 4 "alternative" terms). After the call:
 suggested subreddits on the sensitive-community list (2.3.7) or starting with `u_` (a user's profile,
 case-insensitive) are dropped; a competitor `domain` on a platform host is dropped (the competitor stays);
 in every text field (name, one-liner, description, audience, terms, competitor names and aliases) a value

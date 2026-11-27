@@ -139,7 +139,7 @@ Fields:
   "alternative" for switching, at most 4 "alternative" phrases ("alternative to <competitor>",
   "<competitor> too expensive"), and at most 3 "competitor" terms for a competitor's name alone.
   When the product serves particular places, platforms or industries, name the most common ones in
-  some phrases ("invoicing for Etsy sellers", "taxi from Athens airport"). No handles, email
+  some phrases ("invoicing for online shop sellers", "taxi from <city> airport"). No handles, email
   addresses or links.
 - subreddits: up to 10 Reddit communities where this audience asks for tools or advice about the
   problem, by name only, without "r/". Never a user's profile. Never a community about health,

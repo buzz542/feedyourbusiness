@@ -129,8 +129,9 @@ const storedWindow = (value: unknown): number | null =>
     : null;
 
 /**
- * How far back a run reads (the founder, 24 Nov 2026): a new product's first run reads a month, so
- * the feed starts full; a daily run reads the last 48 hours. Retention still applies: posts are
+ * How far back a run reads (the founder, 24 and 27 Nov 2026): a first run reads a month, except a
+ * paid source on a wide topic, which reads a week (src/server/pipeline/breadth.ts); a daily run reads
+ * the last 48 hours. Retention still applies: posts are
  * deleted 7 or 30 days after we collect them (D4), whatever their age when read.
  */
 export const FIRST_RUN_WINDOW_HOURS = 30 * 24;
