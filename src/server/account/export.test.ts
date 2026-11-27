@@ -115,7 +115,7 @@ describe("createExportHandler", () => {
     const response = await handler();
     expect(response.status).toBe(200);
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="askedfor-export-2026-11-05.json"',
+      'attachment; filename="feedyourbusiness-export-2026-11-05.json"',
     );
     expect(response.headers.get("cache-control")).toBe("no-store");
     const body = (await response.json()) as { feed: unknown[] };

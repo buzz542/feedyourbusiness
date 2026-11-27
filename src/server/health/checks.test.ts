@@ -181,7 +181,7 @@ describe("runHealthChecks", () => {
     });
 
     it("trusts the setting when both are custom domains (Vercel reports only one of several)", async () => {
-      const env = withEnv({ VERCEL_PROJECT_PRODUCTION_URL: "askedfor.dev" });
+      const env = withEnv({ VERCEL_PROJECT_PRODUCTION_URL: "feedyourbusiness.example" });
       const report = await runHealthChecks(deps({ env }));
       expect(report.checks.site_url?.status).toBe("ok");
     });

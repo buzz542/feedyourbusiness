@@ -247,10 +247,11 @@ export function extractSameSiteLinks(html: string, base: string): string[] {
 }
 
 /**
- * Our robots.txt product tokens, lowercase: the name since 27 Nov 2026, and the old one, so a site
- * that blocked us under it stays blocked.
+ * Our robots.txt product token, lowercase (renamed 27 Nov 2026). The old name is not honored: the
+ * reader never ran publicly under it, so a group for it is likely meant for some other robot, and
+ * letting it replace the `*` group could loosen a site's limits (compliance review, 27 Nov 2026).
  */
-export const ROBOTS_AGENTS: readonly string[] = ["feedyourbusiness", "askedfor"];
+export const ROBOTS_AGENTS: readonly string[] = ["feedyourbusiness"];
 /** robots.txt is read up to this many characters and rules, as RFC 9309 allows (at least 500 KiB). */
 const MAX_ROBOTS_CHARS = 512 * 1024;
 const MAX_ROBOTS_RULES = 2000;

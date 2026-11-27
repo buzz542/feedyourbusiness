@@ -20,14 +20,8 @@ export const PROCESSOR_HOSTS = [
   "hoqbflkszzoojdswbrgy.supabase.co",
 ] as const;
 
-/** Our own domains: feedyourbusiness.app, bought and connected to Vercel in Nov 2026. */
-export const OWN_HOSTS = [
-  "feedyourbusiness.app",
-  "www.feedyourbusiness.app",
-  "askedfor.dev",
-  "tryaskedfor.com",
-  "localhost",
-] as const;
+/** Our own domains: feedyourbusiness.app (connected to Vercel, per the founder, Nov 2026). */
+export const OWN_HOSTS = ["feedyourbusiness.app", "www.feedyourbusiness.app", "localhost"] as const;
 
 /** Namespaces and specs that show up as string literals but are never requested. */
 export const STANDARDS_HOSTS = ["www.w3.org", "schema.org", "json-schema.org"] as const;

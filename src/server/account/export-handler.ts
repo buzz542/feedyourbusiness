@@ -22,7 +22,7 @@ export function createExportHandler(deps: ExportDeps) {
       const body = buildAccountExport(await deps.load(user.id, user.email), now);
       const day = now.toISOString().slice(0, 10);
       return json(200, body, {
-        "content-disposition": `attachment; filename="askedfor-export-${day}.json"`,
+        "content-disposition": `attachment; filename="feedyourbusiness-export-${day}.json"`,
       });
     } catch (error) {
       (deps.log ?? console.error)(

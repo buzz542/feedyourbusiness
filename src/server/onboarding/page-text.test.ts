@@ -127,7 +127,7 @@ describe("isAllowedByRobots", () => {
     Disallow: /*.pdf$
     Allow: /private/ok
 
-    User-agent: AskedFor
+    User-agent: FeedYourBusiness
     Disallow: /pricing
   `;
 
@@ -147,17 +147,17 @@ describe("isAllowedByRobots", () => {
 
   it.each([
     ["an empty User-agent line", "User-agent:\nAllow: /\n\nUser-agent: *\nDisallow: /"],
-    ["a token that is part of ours", "User-agent: ask\nAllow: /\n\nUser-agent: *\nDisallow: /"],
+    ["a token that is part of ours", "User-agent: feed\nAllow: /\n\nUser-agent: *\nDisallow: /"],
     [
       "a token that contains ours",
-      "User-agent: AskedForMore\nAllow: /\n\nUser-agent: *\nDisallow: /",
+      "User-agent: FeedYourBusinessMore\nAllow: /\n\nUser-agent: *\nDisallow: /",
     ],
   ])("does not take %s for our group", (_label, robotsTxt) => {
     expect(isAllowedByRobots(robotsTxt, "/pricing")).toBe(false);
   });
 
   it("matches our token in any case", () => {
-    expect(isAllowedByRobots("User-agent: ASKEDFOR\nDisallow: /x", "/x")).toBe(false);
+    expect(isAllowedByRobots("User-agent: FEEDYOURBUSINESS\nDisallow: /x", "/x")).toBe(false);
   });
 
   it("allows everything when the file is empty or has no group for us", () => {
@@ -205,16 +205,18 @@ describe("robots details (RFC 9309)", () => {
     expect(isAllowedByRobots("User-agent: *\rDisallow: /", "/pricing")).toBe(false);
   });
 
-  it("honours a group for our new name, FeedYourBusiness, and still one for our old name", () => {
-    // Renamed 27 Nov 2026: a site that blocked us under the old name stays blocked.
+  it("uses a group for our name, FeedYourBusiness, but not one for our old name", () => {
+    // Renamed 27 Nov 2026. A group for the old name is someone else's robot: the * group applies.
     expect(isAllowedByRobots("User-agent: FeedYourBusiness\nDisallow: /x", "/x")).toBe(false);
     expect(isAllowedByRobots("User-agent: feedyourbusiness/1.0\nDisallow: /x", "/x")).toBe(false);
-    expect(isAllowedByRobots("User-agent: AskedFor\nDisallow: /x", "/x")).toBe(false);
+    expect(
+      isAllowedByRobots("User-agent: AskedFor\nAllow: /\n\nUser-agent: *\nDisallow: /", "/x"),
+    ).toBe(false);
     expect(isAllowedByRobots("User-agent: FeedYourBusinessMore\nDisallow: /x", "/x")).toBe(true);
   });
 
   it("matches a token written with a version", () => {
-    expect(isAllowedByRobots("User-agent: AskedFor/1.0\nDisallow: /x", "/x")).toBe(false);
+    expect(isAllowedByRobots("User-agent: FeedYourBusiness/1.0\nDisallow: /x", "/x")).toBe(false);
   });
 
   it("matches wildcards the way the RFC does", () => {

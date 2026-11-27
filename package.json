@@ -2,7 +2,7 @@
   "name": "askedfor",
   "version": "0.0.0",
   "private": true,
-  "description": "AskedFor (codename FYB): who to reply to today, what to build next.",
+  "description": "FeedYourBusiness (codename FYB): who to reply to today, what to build next.",
   "engines": {
     "node": ">=22.12.0 <23"
   },
