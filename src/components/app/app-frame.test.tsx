@@ -31,6 +31,7 @@ describe("currentNavItem", () => {
     expect(currentNavItem("/app/reply", "hidden")).toBe("hidden");
     expect(currentNavItem("/app/reply", "nope")).toBe("today");
     expect(currentNavItem("/app/settings", null)).toBe("settings");
+    expect(currentNavItem("/app/product", null)).toBe("product");
     expect(currentNavItem("/app/rivals", null)).toBeNull();
     expect(currentNavItem(null, null)).toBeNull();
   });
@@ -41,13 +42,14 @@ describe("ViewNavList", () => {
     <ViewNavList variant="panel" current="saved" counts={COUNTS} />,
   );
 
-  it("lists the views with their counts, then Settings, each to its own address", () => {
+  it("lists the views with their counts, then Product and Settings, each to its own address", () => {
     expect(links(panel)).toEqual([
       ["/app/reply", "Today 12 conversations"],
       ["/app/reply?view=all", "All conversations 40 conversations"],
       ["/app/reply?view=saved", "Saved 3 conversations"],
       ["/app/reply?view=replied", "Replied 5 conversations"],
       ["/app/reply?view=hidden", "Hidden 2 conversations"],
+      ["/app/product", "Product"],
       ["/app/settings", "Settings"],
     ]);
   });
@@ -62,6 +64,13 @@ describe("ViewNavList", () => {
       <ViewNavList variant="panel" current={null} counts={{ ...COUNTS, hidden: 1 }} />,
     );
     expect(links(out)).toContainEqual(["/app/reply?view=hidden", "Hidden 1 conversation"]);
+  });
+
+  it("marks Product on the product page", () => {
+    const out = renderToStaticMarkup(
+      <ViewNavList variant="panel" current="product" counts={COUNTS} />,
+    );
+    expect(currentHrefs(out)).toEqual(["/app/product"]);
   });
 
   it("marks Settings on the settings page", () => {
@@ -90,6 +99,7 @@ describe("ViewNavList", () => {
       "Saved",
       "Replied",
       "Hidden",
+      "Product",
       "Settings",
     ]);
     expect(out).not.toContain("aria-current");
@@ -113,6 +123,7 @@ describe("AppFrame", () => {
     expect(html.match(/<nav[^>]*aria-label="Main"/g)).toHaveLength(2);
     expect(html).toContain("Invoicer");
     expect(html).toContain("Settings");
+    expect(html).toContain('href="/app/product"');
   });
 
   it("keeps the legal links in reach", () => {

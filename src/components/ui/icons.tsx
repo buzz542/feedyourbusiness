@@ -100,6 +100,14 @@ export const SettingsIcon = (p: IconProps) => (
   </Icon>
 );
 
+/** A box: the product the feed is about. */
+export const ProductIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.5 5L8 2.5 13.5 5v6L8 13.5 2.5 11z" />
+    <path d="M2.5 5L8 7.5 13.5 5M8 7.5v6" />
+  </Icon>
+);
+
 export const SearchIcon = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="7" cy="7" r="4.25" />

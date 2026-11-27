@@ -5,11 +5,11 @@ import { Wordmark } from "@/components/ui/brand";
 import type { ViewCounts } from "@/lib/feed-views";
 import { AccountMenu } from "./account-menu";
 import { FeedCountsProvider } from "./feed-counts";
-import { SettingsLink, ViewNav } from "./view-nav";
+import { TopBarLink, ViewNav } from "./view-nav";
 
 /**
  * The app frame (docs/PLAN.md 9.5). Wide screens (1024px and up): a fixed side panel with the
- * wordmark, the product, Today, All, Saved, Replied, Hidden and Settings, and the account, with
+ * wordmark, the product, Today, All, Saved, Replied, Hidden, Product and Settings, and the account, with
  * the page in the main column. Narrow screens (iPad portrait and phones): a top bar with Settings
  * and the account, one column, and a tab bar of the views at the bottom.
  */
@@ -64,7 +64,8 @@ export function AppFrame({
               </span>
             ) : null}
             <div className="ml-auto flex items-center gap-1">
-              <SettingsLink />
+              <TopBarLink item="product" />
+              <TopBarLink item="settings" />
               <AccountMenu email={email} />
             </div>
           </header>

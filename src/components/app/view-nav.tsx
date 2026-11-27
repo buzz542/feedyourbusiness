@@ -7,6 +7,7 @@ import { cx } from "@/components/ui/cx";
 import {
   AllIcon,
   HiddenIcon,
+  ProductIcon,
   RepliedIcon,
   SavedIcon,
   SettingsIcon,
@@ -16,7 +17,7 @@ import { FEED_VIEWS, type FeedView, type ViewCounts } from "@/lib/feed-views";
 import { useFeedCounts } from "./feed-counts";
 import { VIEW_LABELS } from "./view-labels";
 
-export type NavItem = FeedView | "settings";
+export type NavItem = FeedView | "product" | "settings";
 
 const ICONS: Record<NavItem, ComponentType<{ size?: number }>> = {
   today: TodayIcon,
@@ -24,6 +25,7 @@ const ICONS: Record<NavItem, ComponentType<{ size?: number }>> = {
   saved: SavedIcon,
   replied: RepliedIcon,
   hidden: HiddenIcon,
+  product: ProductIcon,
   settings: SettingsIcon,
 };
 
@@ -33,6 +35,7 @@ export const viewHref = (view: FeedView): string =>
 /** Which item the address is on: a Reply view (Today by default), Settings, or neither. */
 export function currentNavItem(pathname: string | null, view: string | null): NavItem | null {
   if (pathname === "/app/settings" || pathname?.startsWith("/app/settings/")) return "settings";
+  if (pathname === "/app/product") return "product";
   if (pathname !== "/app/reply") return null;
   return (FEED_VIEWS as readonly string[]).includes(view ?? "") ? (view as FeedView) : "today";
 }
@@ -54,8 +57,9 @@ function Count({ value, badge }: { value: number; badge?: boolean }) {
 }
 
 /**
- * The views and Settings (docs/PLAN.md 9.5). "panel" is the side panel on wide screens; "bar" is
- * the tab bar at the bottom of narrow ones, with the five views (Settings is in the top bar). The
+ * The views, then Product and Settings (docs/PLAN.md 9.5). "panel" is the side panel on wide
+ * screens; "bar" is the tab bar at the bottom of narrow ones, with the five views (Product and
+ * Settings are in the top bar). The
  * current item has aria-current, a heavier weight and a bar in the accent color, never color alone.
  */
 export function ViewNavList({
@@ -77,7 +81,12 @@ export function ViewNavList({
       count: counts?.[view],
     }),
   );
-  if (variant === "panel") items.push({ id: "settings", href: "/app/settings", label: "Settings" });
+  // The lower nav (the founder's brief): Product, then Settings.
+  if (variant === "panel")
+    items.push(
+      { id: "product", href: "/app/product", label: "Product" },
+      { id: "settings", href: "/app/settings", label: "Settings" },
+    );
 
   return (
     <nav aria-label="Main" className={className}>
@@ -90,7 +99,7 @@ export function ViewNavList({
               key={item.id}
               className={cx(
                 variant === "bar" && "flex-1",
-                variant === "panel" && item.id === "settings" && "mt-6",
+                variant === "panel" && item.id === "product" && "mt-6",
               )}
             >
               <Link
@@ -166,20 +175,21 @@ export function ViewNav({ variant, className }: { variant: "panel" | "bar"; clas
   );
 }
 
-/** Settings in the top bar on narrow screens, marked when it is the current page. */
-export function SettingsLink() {
-  const on = currentNavItem(usePathname(), null) === "settings";
+/** Product or Settings in the top bar on narrow screens, marked when it is the current page. */
+export function TopBarLink({ item }: { item: "product" | "settings" }) {
+  const on = currentNavItem(usePathname(), null) === item;
+  const Icon = ICONS[item];
   return (
     <Link
-      href="/app/settings"
+      href={`/app/${item}`}
       aria-current={on ? "page" : undefined}
       className={cx(
         "inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-sm",
         on ? "bg-selected font-semibold text-ink" : "text-muted hover:text-ink",
       )}
     >
-      <SettingsIcon />
-      Settings
+      <Icon />
+      {item === "product" ? "Product" : "Settings"}
     </Link>
   );
 }

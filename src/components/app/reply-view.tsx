@@ -31,14 +31,16 @@ const VIEW_INTROS: Record<FeedView, string> = {
 };
 
 /** What to do next when a view is empty (docs/PLAN.md 4.9; the founder's brief, 27 Nov 2026). */
-const EMPTY: Record<FeedView, { title: string; body: string }> = {
+const EMPTY: Record<FeedView, { title: string; body: string; review?: true }> = {
   today: {
     title: "Nothing new today.",
-    body: "New conversations arrive each morning. Look through All conversations, or run the searches below.",
+    body: "New conversations arrive each morning. Look through All conversations, check that your product description clearly explains the problem you solve, or run the searches below.",
+    review: true,
   },
   all: {
     title: "No conversations to show yet.",
-    body: "They show up here once we collect matches for your product. Try a lower minimum match, or run the searches below.",
+    body: "Check that your product description clearly explains the problem you solve. You can also try a lower minimum match, or run the searches below.",
+    review: true,
   },
   saved: {
     title: "Your saved conversations will appear here.",
@@ -112,7 +114,18 @@ export function ReplyView({
             Try fewer filters, or a lower minimum match.
           </EmptyState>
         ) : (
-          <EmptyState title={empty.title}>{empty.body}</EmptyState>
+          <EmptyState
+            title={empty.title}
+            action={
+              empty.review ? (
+                <Link href="/app/product" className={buttonClass("secondary")}>
+                  Review product
+                </Link>
+              ) : undefined
+            }
+          >
+            {empty.body}
+          </EmptyState>
         )
       ) : (
         <>

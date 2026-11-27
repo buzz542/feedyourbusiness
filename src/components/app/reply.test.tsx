@@ -552,6 +552,28 @@ describe("ReplyView", () => {
     expect(out).not.toContain("data-feed-card");
   });
 
+  it.each(["today", "all"])(
+    "offers Review product when %s has no conversations, as the brief says",
+    (v) => {
+      const out = view({ view: v }, { items: [], total: 0 });
+      expect(out).toMatch(/<a[^>]*href="\/app\/product"[^>]*>Review product<\/a>/);
+      if (v === "all")
+        expect(visible(out)).toContain(
+          "Check that your product description clearly explains the problem you solve.",
+        );
+    },
+  );
+
+  it("does not offer Review product for saved, replied or hidden, or when filters hide posts", () => {
+    const raws: Record<string, string>[] = [
+      { view: "saved" },
+      { view: "hidden" },
+      { view: "all", source: "bluesky" },
+    ];
+    for (const raw of raws)
+      expect(view(raw, { items: [], total: 0 })).not.toContain("Review product");
+  });
+
   it("offers to clear the filters when they match nothing, keeping the view", () => {
     const out = view({ view: "saved", source: "bluesky" }, { items: [], total: 0 });
     expect(visible(out)).toContain("No conversations match these filters.");
