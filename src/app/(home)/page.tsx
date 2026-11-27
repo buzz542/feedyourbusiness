@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/ui/brand";
 import { isLaunchOpen } from "@/lib/launch";
+import { CtaLink, ExampleViewed } from "@/app/(marketing)/_components/tracked";
 
 const DESCRIPTION =
   "FeedYourBusiness finds public conversations about the problem your product solves. See why each one matches, then reply in your own words.";
@@ -77,21 +78,15 @@ const FAQ: Array<[string, ReactNode]> = [
 ];
 
 /** One primary action everywhere (the brief): start the trial when sign-up is open, else sign in. */
-function PrimaryCta() {
-  return isLaunchOpen() ? (
-    <Link
+function PrimaryCta({ placement }: { placement: "hero" | "pricing" | "final" }) {
+  return (
+    <CtaLink
+      placement={placement}
       href="/login?next=%2Fapp"
       className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent-fill px-6 text-base font-medium text-accent-ink hover:opacity-90"
     >
-      Start your trial
-    </Link>
-  ) : (
-    <Link
-      href="/login?next=%2Fapp"
-      className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent-fill px-6 text-base font-medium text-accent-ink hover:opacity-90"
-    >
-      Sign in with your invitation
-    </Link>
+      {isLaunchOpen() ? "Start your trial" : "Sign in with your invitation"}
+    </CtaLink>
   );
 }
 
@@ -199,7 +194,7 @@ export default function Home() {
           </h1>
           <p className="max-w-[34rem] text-lg leading-relaxed text-muted">{DESCRIPTION}</p>
           <div className="flex flex-wrap gap-3">
-            <PrimaryCta />
+            <PrimaryCta placement="hero" />
             <a
               href="#example"
               className="inline-flex min-h-11 items-center justify-center rounded-full border border-control bg-surface px-6 text-base font-medium hover:border-ink"
@@ -209,9 +204,9 @@ export default function Home() {
           </div>
           <Terms />
         </div>
-        <div id="example" className="scroll-mt-28">
+        <ExampleViewed id="example" className="scroll-mt-28">
           <AppPreview />
-        </div>
+        </ExampleViewed>
       </section>
 
       <section aria-labelledby="how" className="flex scroll-mt-28 flex-col gap-10">
@@ -323,7 +318,7 @@ export default function Home() {
             <li>£39 a month, tax included where it applies. Prices in pounds sterling.</li>
           </ul>
           <div>
-            <PrimaryCta />
+            <PrimaryCta placement="pricing" />
           </div>
         </div>
       </section>
@@ -358,7 +353,7 @@ export default function Home() {
         <p className="text-lg text-muted">
           See where people are discussing the problem your product solves.
         </p>
-        <PrimaryCta />
+        <PrimaryCta placement="final" />
         <Terms />
       </section>
     </div>

@@ -27,3 +27,12 @@ export async function setPostState(input: {
   // No revalidation: the card stays on screen with its Undo; the next visit reads the new state.
   return result;
 }
+
+/**
+ * A user's first opened conversation (the founder's redesign brief): recorded once, by the
+ * database (events_first_once); later calls change nothing. No post id or text is recorded.
+ */
+export async function markConversationOpened(): Promise<void> {
+  const user = await requireAppUser("/app/reply");
+  await track(createSupabaseEventStore(), "first_conversation_opened", user.id);
+}

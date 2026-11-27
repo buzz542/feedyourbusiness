@@ -11,7 +11,7 @@ import { isFeedSource, parseFeedParams, withEnabledSource } from "@/server/store
 import { loadFeed, loadReplyProduct } from "@/server/store/feed-supabase";
 import { createSupabaseServerClient } from "@/server/supabase/server";
 import { collectSources, linkSources } from "@/sources/registry";
-import { setPostState } from "./actions";
+import { markConversationOpened, setPostState } from "./actions";
 
 export const metadata: Metadata = { title: "Reply" };
 export const dynamic = "force-dynamic";
@@ -88,6 +88,7 @@ export default async function ReplyPage({
       firstRun={firstRunActive(progress) ? progress : null}
       sourceProblems={problems}
       setState={setPostState}
+      markOpened={markConversationOpened}
     />
   );
 }

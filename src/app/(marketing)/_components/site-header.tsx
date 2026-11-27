@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Wordmark } from "@/components/ui/brand";
 import { isLaunchOpen } from "@/lib/launch";
+import { CtaLink } from "./tracked";
 
 /**
  * The site navigation (the founder's redesign brief, 27 Nov 2026): a centered, rounded, pale-grey
@@ -38,12 +39,13 @@ export function SiteHeader() {
         {/* To pricing, never straight to checkout: every page shows this button, and the full
             price and trial terms must sit beside the action that starts a paid trial. */}
         {open ? (
-          <Link
+          <CtaLink
+            placement="nav"
             href="/pricing"
             className="inline-flex min-h-9 items-center rounded-full bg-accent-fill px-4 text-sm font-medium whitespace-nowrap text-accent-ink hover:opacity-90"
           >
             Start your trial
-          </Link>
+          </CtaLink>
         ) : null}
       </nav>
     </header>

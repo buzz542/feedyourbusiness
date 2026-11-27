@@ -78,7 +78,9 @@ export async function saveProductProfile(
   if (plan.addTerms.length > 0) {
     const added = await client
       .from("search_terms")
-      .insert(plan.addTerms.map((t) => ({ product_id: productId, term: t.term, intent: t.intent })));
+      .insert(
+        plan.addTerms.map((t) => ({ product_id: productId, term: t.term, intent: t.intent })),
+      );
     if (added.error) throw new ProductProfileError();
   }
 }

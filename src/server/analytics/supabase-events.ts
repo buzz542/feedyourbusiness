@@ -16,6 +16,8 @@ export function createSupabaseEventStore(): EventStore {
       const { error } = await createSupabaseAdminClient()
         .from("events")
         .insert({ name: row.name, user_id: row.userId, props: row.props });
+      // A unique violation is a first-time event already recorded (events_first_once): done.
+      if (error?.code === "23505") return;
       if (error) throw new EventInsertError(error.code);
     },
   };

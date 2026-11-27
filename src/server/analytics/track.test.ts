@@ -49,8 +49,21 @@ describe("track", () => {
         "digest_opened",
         "subscription_canceled",
         "account_deleted",
+        "cta_clicked",
+        "example_viewed",
+        "first_conversation_opened",
+        "first_conversation_saved",
       ].sort(),
     );
+  });
+
+  it("labels a CTA click by where the button sits, from a fixed list only", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = new FakeEventStore();
+    for (const placement of ["nav", "hero", "pricing", "final"] as const)
+      expect(await track(store, "cta_clicked", null, { placement })).toBe(true);
+    expect(await track(store, "cta_clicked", null, { placement: "footer" as never })).toBe(false);
+    expect(store.rows.map((r) => r.props.placement)).toEqual(["nav", "hero", "pricing", "final"]);
   });
 
   it.each(["page_viewed", "", "SIGNED_UP", "signed_up "])(

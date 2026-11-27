@@ -31,6 +31,8 @@ export function createPostStateAction(deps: PostStateDeps) {
     const ok = await deps.setState(parsed.data.id, parsed.data.state);
     const event = EVENTS[parsed.data.state];
     if (ok && event) await deps.track(event, userId);
+    // A user's first save (the founder's redesign brief); the database keeps one per user.
+    if (ok && parsed.data.state === "saved") await deps.track("first_conversation_saved", userId);
     return { ok };
   };
 }

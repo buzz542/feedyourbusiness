@@ -1438,6 +1438,12 @@ rate limits: `HMAC(APP_HMAC_SECRET, "<UTC day>:<ip>")`, so they change daily.
 Only the `events` table, written server-side, with no cookies, IPs or user agents. `/admin` computes
 activation, weekly active users, replies per user per week and trial-to-paid from it.
 
+The founder's redesign brief (27 Nov 2026) adds four names (migration `events_redesign`): `cta_clicked`
+with the CTA's placement (nav, hero, pricing or final) and `example_viewed`, both recorded with no user
+from the homepage through a server action; and `first_conversation_opened` (View conversation or Details)
+and `first_conversation_saved`, which a unique index keeps to one each per user. "Signup completed" is the
+existing `signed_up`. No conversation text, post id or personal data is in any payload.
+
 ### 12.7 Rate limits
 
 Preview: 3 per IP hash per day and `PREVIEW_DAILY_CAP` overall. Removal form: 5 per IP hash per day. Sign-in:

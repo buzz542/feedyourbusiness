@@ -11,6 +11,17 @@ type Pressable = Exclude<State, "new">;
 
 export type SetPostState = (input: { id: string; state: State }) => Promise<{ ok: boolean }>;
 
+/** Records the user's first opened conversation (the database keeps one); best effort. */
+export type MarkOpened = () => Promise<unknown>;
+
+/** Asked once per page load: the event is a user's first open, so more would only repeat it. */
+let openedAsked = false;
+function askOpened(markOpened: MarkOpened | undefined) {
+  if (!markOpened || openedAsked) return;
+  openedAsked = true;
+  markOpened().catch(() => undefined);
+}
+
 const DONE: Record<State, string> = {
   new: "Moved back.",
   saved: "Saved.",
@@ -45,6 +56,7 @@ export function PostActions({
   open,
   counted,
   detail,
+  markOpened,
 }: {
   id: string;
   state: State;
@@ -53,6 +65,8 @@ export function PostActions({
   counted?: { createdAt: string; relevance: number };
   /** The conversation detail, shown in a dialog from the Details button (the founder's brief). */
   detail?: ReactNode;
+  /** Called when the conversation is opened: View conversation, or Details. */
+  markOpened?: MarkOpened;
 }) {
   const { moved } = useFeedCounts();
   const [state, setLocal] = useState<State>(initial);
@@ -109,6 +123,11 @@ export function PostActions({
       className="flex flex-wrap items-center gap-2"
       data-state={state}
       aria-busy={pending || undefined}
+      // View conversation (clicked, or o) and Details both open the conversation.
+      onClickCapture={(event) => {
+        if ((event.target as HTMLElement).closest('[data-action="open"], [data-action="details"]'))
+          askOpened(markOpened);
+      }}
     >
       {open}
       {toggles}

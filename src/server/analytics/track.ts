@@ -24,6 +24,12 @@ export const EVENT_NAMES = [
   "digest_opened",
   "subscription_canceled",
   "account_deleted",
+  // The founder's redesign brief, 27 Nov 2026 (migration events_redesign). The first two have no
+  // user; the last two are kept to one each per user by the database.
+  "cta_clicked",
+  "example_viewed",
+  "first_conversation_opened",
+  "first_conversation_saved",
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];
@@ -52,6 +58,8 @@ const Props = z.strictObject({
   list: z.enum(["daily", "weekly"]).optional(),
   count: z.number().int().min(0).max(1_000_000).optional(),
   first: z.boolean().optional(),
+  /** Where the primary CTA sits on the homepage. */
+  placement: z.enum(["nav", "hero", "pricing", "final"]).optional(),
 });
 
 export type EventProps = z.input<typeof Props>;

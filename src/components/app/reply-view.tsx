@@ -17,7 +17,7 @@ import { FeedKeyboard } from "./feed-keyboard";
 import { FilterBar } from "./filter-bar";
 import { FirstRunProgress } from "./first-run-progress";
 import { PostCard } from "./post-card";
-import type { SetPostState } from "./post-actions";
+import type { MarkOpened, SetPostState } from "./post-actions";
 import { SearchLinksPanel } from "./search-links-panel";
 import { VIEW_LABELS } from "./view-labels";
 
@@ -75,6 +75,7 @@ export function ReplyView({
   firstRun,
   sourceProblems = [],
   setState,
+  markOpened,
 }: {
   filter: FeedFilter;
   defaultMin: number;
@@ -91,6 +92,8 @@ export function ReplyView({
   /** Enabled sources whose last collect run failed (integration errors), shown above the feed. */
   sourceProblems?: readonly string[];
   setState: SetPostState;
+  /** Records the user's first opened conversation (first_conversation_opened). */
+  markOpened?: MarkOpened;
 }) {
   const rivalNames = new Map(rivals.map((c) => [c.id, c.name]));
   const filtered = activeFilterCount(filter, defaultMin) > 0;
@@ -154,6 +157,7 @@ export function ReplyView({
                   now={now}
                   rivalName={item.competitorId ? rivalNames.get(item.competitorId) : null}
                   setState={setState}
+                  markOpened={markOpened}
                 />
               </li>
             ))}

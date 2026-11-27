@@ -5,7 +5,7 @@ import { ChevronIcon, ExternalIcon, TipIcon } from "@/components/ui/icons";
 import { CATEGORY_LABELS, DISCLOSURE, REPLY_TIPS, SOURCE_LABELS } from "@/server/reply/tips";
 import type { FeedItem } from "@/server/store/feed";
 import { ConversationDetail } from "./conversation-detail";
-import { PostActions, type SetPostState } from "./post-actions";
+import { PostActions, type MarkOpened, type SetPostState } from "./post-actions";
 import { age, sourceLine, unitRange } from "./post-card-parts";
 
 export { age, sourceLine, unitRange };
@@ -31,11 +31,13 @@ export function PostCard({
   now,
   rivalName,
   setState,
+  markOpened,
 }: {
   item: FeedItem;
   now: Date;
   rivalName?: string | null;
   setState: SetPostState;
+  markOpened?: MarkOpened;
 }) {
   const range = unitRange(item.excerpt, item.highlightStart, item.highlightEnd);
   const rival = rivalName ?? item.toolMentioned;
@@ -95,6 +97,7 @@ export function PostCard({
           state={item.state}
           setState={setState}
           counted={{ createdAt: item.createdAt, relevance: item.relevance }}
+          markOpened={markOpened}
           detail={<ConversationDetail item={item} now={now} rivalName={rivalName ?? null} />}
           open={
             <a
