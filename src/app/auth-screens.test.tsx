@@ -161,3 +161,20 @@ describe("the set-password form", () => {
     expect(html).toContain("Save password");
   });
 });
+
+describe("the set-password form checks what the server checks, and shows it", () => {
+  it("turns off the browser's own checks, so a short password shows our message on every phone", async () => {
+    const { PasswordForm } = await import("@/app/(app)/app/(setup)/password/password-form");
+    const html = renderToStaticMarkup(createElement(PasswordForm));
+    expect(html).toMatch(/<form[^>]*noValidate/);
+    expect(html).toMatch(/<p[^>]*role="status"[^>]*aria-live="polite"/);
+  });
+});
+
+describe("the sign-up form checks what the server checks, and shows it", () => {
+  it("turns off the browser's own checks there too", async () => {
+    const { SignupForm } = await import("@/app/(marketing)/signup/signup-form");
+    const html = renderToStaticMarkup(createElement(SignupForm, { next: null }));
+    expect(html).toMatch(/<form[^>]*noValidate/);
+  });
+});

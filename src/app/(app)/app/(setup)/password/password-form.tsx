@@ -19,7 +19,7 @@ export function PasswordForm() {
   });
 
   return (
-    <form action={save} className="mt-8 max-w-sm space-y-3">
+    <form action={save} noValidate className="mt-8 max-w-sm space-y-3">
       <label htmlFor="password" className="block text-sm font-medium">
         Password
       </label>

@@ -33,7 +33,7 @@ export function SignupForm({ next }: { next: string | null }) {
 
   return (
     <div className="mt-8 max-w-sm space-y-6">
-      <form action={submit} className="space-y-3">
+      <form action={submit} noValidate className="space-y-3">
         {next ? <input type="hidden" name="next" value={next} /> : null}
         <label htmlFor="email" className="block text-sm font-medium">
           Email
