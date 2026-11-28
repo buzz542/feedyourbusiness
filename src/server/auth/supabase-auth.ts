@@ -50,6 +50,30 @@ export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
       if (error?.code === "signup_disabled") throw new SignupsDisabledError();
       if (error) throw new SupabaseAuthError(error.code);
     },
+    async verifySignupCode(email, code) {
+      // type "signup" matches the email Supabase sent for sign-up. No PKCE cookie is involved, so
+      // the code works on a different device from the one that signed up; verifying sets the session.
+      const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: "signup" });
+      if (error || !data.user) {
+        // A wrong, expired or used code reads as "not that code"; an outage still throws.
+        if (
+          !error ||
+          ["otp_expired", "otp_disabled", "validation_failed"].includes(error.code ?? "")
+        )
+          return null;
+        if (error.status && error.status >= 400 && error.status < 500) return null;
+        throw new SupabaseAuthError(error.code);
+      }
+      return toAuthUser(data.user);
+    },
+    async resendSignupCode(email, redirectTo) {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: redirectTo },
+      });
+      if (error) throw new SupabaseAuthError(error.code);
+    },
     async signInWithPassword(email, password) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {

@@ -17,8 +17,8 @@ export default async function SignupPage({
     <>
       <h1 className="font-serif text-3xl tracking-tight">Create an account</h1>
       <p className="mt-4 max-w-prose text-muted">
-        Enter your email and choose a password. We email you a link to verify your address. Then we
-        ask you to confirm your age and accept the{" "}
+        Enter your email and choose a password. We email you a six digit code to verify your
+        address. Then we ask you to confirm your age and accept the{" "}
         <Link href="/terms" className="underline underline-offset-4">
           Terms
         </Link>{" "}

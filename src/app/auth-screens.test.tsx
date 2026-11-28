@@ -89,10 +89,52 @@ describe("the create-account form", () => {
     expect(tags(html, "button")).toHaveLength(1);
     expect(html).toContain("Create account");
     expect(html).toMatch(/<a[^>]*href="\/login\?next=%2Fapp%2Freply"[^>]*>Sign in<\/a>/);
-    expect(html).toContain("We email you a link to verify your address");
+    expect(html).toContain("We email you a six digit code to verify your address");
+    expect(html).not.toContain("link to verify");
     expect(
       tags(html, "input").some((i) => i.includes('name="next"') && i.includes("/app/reply")),
     ).toBe(true);
+  });
+});
+
+describe("the verification code step", () => {
+  const render = async (next: string | null = null) => {
+    const { CodeStep } = await import("@/app/(marketing)/signup/signup-form");
+    return renderToStaticMarkup(createElement(CodeStep, { email: "maker@example.test", next }));
+  };
+
+  it("asks for the six digit code from the email, in one box a phone can fill from the message", async () => {
+    const html = await render();
+    const code = tags(html, "input").find((i) => i.includes('name="code"'))!;
+    expect(code).toContain('inputMode="numeric"');
+    expect(code).toContain('autoComplete="one-time-code"');
+    // Seven, so "123 456" and "123-456" fit; the server ignores the space and the dash.
+    expect(code).toContain('maxLength="7"');
+    expect(code).toContain("required");
+    expect(html).toMatch(/<label[^>]*>Verification code<\/label>/);
+    expect(html).toContain("maker@example.test");
+    expect(html).toContain("six digit code");
+  });
+
+  it("carries the email and next path, and offers Verify first so Enter verifies, then a new code", async () => {
+    const html = await render("/app/reply");
+    const inputs = tags(html, "input");
+    expect(inputs.some((i) => i.includes('name="email"') && i.includes("maker@example.test"))).toBe(
+      true,
+    );
+    expect(inputs.some((i) => i.includes('name="next"') && i.includes("/app/reply"))).toBe(true);
+    const buttons = tags(html, "button");
+    expect(buttons.map((b) => /value="(\w+)"/.exec(b)?.[1])).toEqual(["verify", "resend"]);
+    expect(buttons[1]).toContain("formNoValidate");
+    expect(html).toContain("Verify and continue");
+    expect(html).toContain("Send a new code");
+  });
+
+  it("has no paragraph about already having an account, and no link to open", async () => {
+    const html = await render();
+    expect(html).not.toContain("Already have an account");
+    expect(html).not.toContain("Forgot your password");
+    expect(html).not.toContain("Open it in this browser");
   });
 });
 

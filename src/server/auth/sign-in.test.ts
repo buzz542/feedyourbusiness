@@ -10,7 +10,9 @@ import {
   requestMagicLink,
   requestPasswordReset,
   setNewPassword,
+  resendSignupCode,
   signInWithPassword,
+  verifySignupCode,
 } from "./sign-in";
 import { parseAllowlist } from "./allowlist";
 
@@ -549,5 +551,137 @@ describe("createAccount", () => {
     expect(await createAccount(deps, input())).toEqual({ kind: "error" });
     expect(JSON.stringify(errors.mock.calls)).not.toContain("founder@example.test");
     expect(JSON.stringify(errors.mock.calls)).not.toContain(GOOD);
+  });
+});
+
+describe("verifySignupCode", () => {
+  const GOOD = "correct horse battery";
+  const signUp = async () => {
+    await createAccount(deps, {
+      email: "founder@example.test",
+      password: GOOD,
+      confirm: GOOD,
+      next: null,
+    });
+  };
+  const verify = (over: Record<string, unknown> = {}) =>
+    verifySignupCode(deps, {
+      email: "founder@example.test",
+      code: auth.lastCode,
+      next: null,
+      ...over,
+    });
+
+  it("signs the person in with the emailed code, from any device, and goes to the app", async () => {
+    await signUp();
+    expect(await verify()).toEqual({ kind: "ok", path: "/app" });
+    expect(auth.signedIn?.email).toBe("founder@example.test");
+  });
+
+  it("goes on to a safe next path, never an unsafe one", async () => {
+    await signUp();
+    expect(await verify({ next: "/app/reply" })).toEqual({ kind: "ok", path: "/app/reply" });
+    await signUp();
+    expect(await verify({ next: "https://evil.example" })).toEqual({ kind: "ok", path: "/app" });
+  });
+
+  it("accepts the code as typed: spaces and a dash are ignored, and the email's case", async () => {
+    await signUp();
+    const spaced = `${auth.lastCode!.slice(0, 3)} ${auth.lastCode!.slice(3)}`;
+    expect(await verify({ code: ` ${spaced} `, email: " Founder@Example.TEST " })).toEqual({
+      kind: "ok",
+      path: "/app",
+    });
+  });
+
+  it.each([
+    ["too short", "12345"],
+    ["too long", "1234567"],
+    ["letters", "abcdef"],
+    ["empty", ""],
+    ["not text", 123456],
+    ["missing", undefined],
+  ])("refuses a code that is %s before asking Supabase", async (_name, code) => {
+    await signUp();
+    expect(await verify({ code })).toEqual({ kind: "invalid" });
+    expect(auth.signedIn).toBeNull();
+  });
+
+  it("says wrong for a code that does not match, and signs nobody in", async () => {
+    await signUp();
+    const other = auth.lastCode === "000000" ? "111111" : "000000";
+    expect(await verify({ code: other })).toEqual({ kind: "wrong" });
+    expect(auth.signedIn).toBeNull();
+  });
+
+  it("treats a code used once as wrong the second time", async () => {
+    await signUp();
+    const code = auth.lastCode;
+    await verify();
+    auth.signedIn = null;
+    expect(await verify({ code })).toEqual({ kind: "wrong" });
+  });
+
+  it("is private beta for an email off the allowlist, and an invalid email is invalid", async () => {
+    expect(
+      await verifySignupCode(deps, { email: "stranger@example.test", code: "123456", next: null }),
+    ).toEqual({
+      kind: "private_beta",
+    });
+    expect(await verifySignupCode(deps, { email: "nope", code: "123456", next: null })).toEqual({
+      kind: "invalid",
+    });
+  });
+
+  it("logs the error class only when Supabase fails", async () => {
+    await signUp();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    auth.failNextSignIn = true;
+    expect(await verify()).toEqual({ kind: "error" });
+    expect(JSON.stringify(errors.mock.calls)).not.toContain("founder@example.test");
+    expect(JSON.stringify(errors.mock.calls)).not.toContain(auth.lastCode!);
+  });
+});
+
+describe("resendSignupCode", () => {
+  it("sends a new code to an allowed email, and the old one stops working", async () => {
+    await createAccount(deps, {
+      email: "founder@example.test",
+      password: "correct horse battery",
+      confirm: "correct horse battery",
+      next: null,
+    });
+    const first = auth.lastCode;
+    expect(await resendSignupCode(deps, { email: "founder@example.test", next: null })).toEqual({
+      kind: "sent",
+    });
+    expect(auth.resends).toEqual([
+      { email: "founder@example.test", redirectTo: `${SITE}/auth/callback` },
+    ]);
+    expect(auth.lastCode).not.toBe(first);
+    expect(
+      await verifySignupCode(deps, { email: "founder@example.test", code: first, next: null }),
+    ).toEqual({
+      kind: "wrong",
+    });
+  });
+
+  it("refuses an invalid email or one off the allowlist, and sends nothing", async () => {
+    expect(await resendSignupCode(deps, { email: "nope", next: null })).toEqual({
+      kind: "invalid",
+    });
+    expect(await resendSignupCode(deps, { email: "stranger@example.test", next: null })).toEqual({
+      kind: "private_beta",
+    });
+    expect(auth.resends).toEqual([]);
+  });
+
+  it("logs the error class only when Supabase fails", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    auth.failNextSend = true;
+    expect(await resendSignupCode(deps, { email: "founder@example.test", next: null })).toEqual({
+      kind: "error",
+    });
+    expect(JSON.stringify(errors.mock.calls)).not.toContain("founder@example.test");
   });
 });

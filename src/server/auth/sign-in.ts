@@ -206,6 +206,61 @@ export async function createAccount(
   }
 }
 
+export type VerifyCodeResult =
+  | { kind: "ok"; path: string }
+  | { kind: "wrong" }
+  | { kind: "invalid" }
+  | { kind: "private_beta" }
+  | { kind: "error" };
+
+/** What people type: spaces and dashes are ignored, so "123 456" and "123-456" work. */
+const SIGNUP_CODE = /^\d{6}$/;
+
+/**
+ * Finish a sign-up with the six digit code from the verification email. The code works from any
+ * device, so it does not matter that the email was opened on a phone and the sign-up started on
+ * an iPad. Verifying signs the person in. The allowlist applies; a wrong, expired or used code
+ * answers the same way.
+ */
+export async function verifySignupCode(
+  deps: SignInDeps,
+  input: { email: unknown; code: unknown; next: string | null | undefined },
+): Promise<VerifyCodeResult> {
+  const email = Email.safeParse(input.email);
+  if (!email.success) return { kind: "invalid" };
+  if (!deps.isAllowed(email.data)) return { kind: "private_beta" };
+  const code = typeof input.code === "string" ? input.code.replace(/[\s-]/g, "") : "";
+  if (!SIGNUP_CODE.test(code)) return { kind: "invalid" };
+  try {
+    const user = await deps.auth.verifySignupCode(email.data, code);
+    if (!user) return { kind: "wrong" };
+    return { kind: "ok", path: safeNextPath(input.next) };
+  } catch (error) {
+    logFailure("verify sign-up code", error);
+    return { kind: "error" };
+  }
+}
+
+export type ResendCodeResult =
+  { kind: "sent" } | { kind: "private_beta" } | { kind: "invalid" } | { kind: "error" };
+
+/** Email a new code to an account that has not verified yet; the old code stops working. */
+export async function resendSignupCode(
+  deps: SignInDeps,
+  input: { email: unknown; next: string | null | undefined },
+): Promise<ResendCodeResult> {
+  const email = Email.safeParse(input.email);
+  if (!email.success) return { kind: "invalid" };
+  if (!deps.isAllowed(email.data)) return { kind: "private_beta" };
+  try {
+    await deps.auth.resendSignupCode(email.data, callbackUrl(deps.siteUrl, input.next));
+    return { kind: "sent" };
+  } catch (error) {
+    logFailure("resend sign-up code", error);
+    return { kind: "error" };
+  }
+}
+
 /** Handle `/auth/callback`. Returns the path to redirect to. */
 export async function completeSignIn(
   deps: SignInDeps,

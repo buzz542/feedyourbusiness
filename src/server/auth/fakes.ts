@@ -25,6 +25,17 @@ export class FakeAuthGateway implements AuthGateway {
   signUps: Array<{ email: string; password: string; redirectTo: string }> = [];
   /** Supabase's "Allow new users to sign up" switched off (until launch, docs/PLAN.md F5). */
   signUpsDisabled = false;
+  /** The verification code last emailed, and the codes outstanding by email. */
+  lastCode: string | null = null;
+  signupCodes = new Map<string, string>();
+  resends: Array<{ email: string; redirectTo: string }> = [];
+  private codeSeq = 0;
+
+  private issueCode(email: string): void {
+    // Six digits, different every time, like Supabase's token.
+    this.lastCode = String(100000 + ++this.codeSeq * 7919).slice(0, 6);
+    this.signupCodes.set(email, this.lastCode);
+  }
   /** Emails with an account. Links are sent with shouldCreateUser false, so others fail. */
   existingEmails = new Set<string>();
   private seq = 0;
@@ -47,6 +58,34 @@ export class FakeAuthGateway implements AuthGateway {
     // As Supabase with email confirmation on: an existing account is answered the same, silently.
     if (this.existingEmails.has(email)) return;
     this.signUps.push({ email, password, redirectTo });
+    this.issueCode(email);
+  }
+
+  async verifySignupCode(email: string, code: string): Promise<AuthUser | null> {
+    if (this.failNextSignIn) {
+      this.failNextSignIn = false;
+      throw new Error(`verify failed for ${email} with ${code}`);
+    }
+    if (this.signupCodes.get(email) !== code) return null;
+    this.signupCodes.delete(email);
+    const user: AuthUser = {
+      id: `user-${++this.seq}`,
+      email,
+      createdAt: new Date("2026-10-01T00:00:00Z"),
+      canSignInAgain: true,
+    };
+    this.accounts.set(user.id, user);
+    this.signedIn = user;
+    return user;
+  }
+
+  async resendSignupCode(email: string, redirectTo: string): Promise<void> {
+    if (this.failNextSend) {
+      this.failNextSend = false;
+      throw new Error(`send failed for ${email}`);
+    }
+    this.resends.push({ email, redirectTo });
+    this.issueCode(email);
   }
 
   async signInWithPassword(email: string, password: string): Promise<AuthUser | null> {

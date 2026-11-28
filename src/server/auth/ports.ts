@@ -26,6 +26,13 @@ export interface AuthGateway {
    * an email that already has an account and sends nothing, so nobody learns who has one.
    */
   signUp(email: string, password: string, redirectTo: string): Promise<void>;
+  /**
+   * Finish a sign-up with the code from the verification email. It works from any device (no PKCE
+   * cookie), and signs the person in on success. Null when the code is wrong, expired or used.
+   */
+  verifySignupCode(email: string, code: string): Promise<AuthUser | null>;
+  /** Email a new verification code to an account that has not verified yet. */
+  resendSignupCode(email: string, redirectTo: string): Promise<void>;
   /** Email and password. Null when they do not match an account. Throws on an outage. */
   signInWithPassword(email: string, password: string): Promise<AuthUser | null>;
   /** Set the signed-in user's password and mark the account as able to sign in again. */
