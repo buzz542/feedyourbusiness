@@ -172,15 +172,15 @@ export async function setNewPassword(
 
 export type CreateAccountResult =
   | { kind: "sent" }
+  | { kind: "already_exists" }
   | { kind: "private_beta" }
   | { kind: "invalid" }
   | Exclude<SetPasswordResult, { kind: "set" }>;
 
 /**
- * Create an account: an email, a password typed twice, and a verification email. The account can
- * sign in only after the link in that email is opened (Supabase's "confirm email"), and the link
- * is PKCE, so it works in the browser that signed up. The pre-launch allowlist still applies, and
- * the answer is the same for an email that already has an account.
+ * Create an account: an email, a password typed twice, and a verification code by email. The code
+ * step signs the person in (verifySignupCode). The pre-launch allowlist still applies. An email
+ * that already has an account is told so (already_exists), and no code is sent.
  */
 export async function createAccount(
   deps: SignInDeps,
@@ -192,12 +192,13 @@ export async function createAccount(
   const problem = checkNewPassword(input.password, input.confirm, parsed.data);
   if (problem) return { kind: problem };
   try {
-    await deps.auth.signUp(
+    const outcome = await deps.auth.signUp(
       parsed.data,
       input.password as string,
       callbackUrl(deps.siteUrl, input.next),
     );
-    return { kind: "sent" };
+    // An account with this email exists already: say so, and send no code.
+    return outcome === "exists" ? { kind: "already_exists" } : { kind: "sent" };
   } catch (error) {
     // New sign-ups are off in Supabase until launch: the same answer as an email off the allowlist.
     if (error instanceof SignupsDisabledError) return { kind: "private_beta" };

@@ -5,7 +5,9 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { type CodeState, type SignupState, codeAction, signupAction } from "./actions";
 
-const MESSAGES: Record<Exclude<SignupState["kind"], "idle" | "sent">, string> = {
+export const CREATE_MESSAGES: Record<Exclude<SignupState["kind"], "idle" | "sent">, string> = {
+  already_exists:
+    "There is already an account under this email. Sign in instead, or use Forgot your password if you need a new one.",
   invalid: "Enter a valid email address.",
   too_short: "Use a password of at least ten characters.",
   too_long: "That password is too long. Use fewer than seventy characters.",
@@ -81,7 +83,7 @@ export function SignupForm({ next }: { next: string | null }) {
         </Button>
         <p className="text-sm text-muted">We email you a six digit code to verify your address.</p>
         <p role="status" aria-live="polite" className="min-h-6 text-sm">
-          {state.kind === "idle" ? "" : MESSAGES[state.kind]}
+          {state.kind === "idle" ? "" : CREATE_MESSAGES[state.kind]}
         </p>
       </form>
       <p className="text-sm text-muted">

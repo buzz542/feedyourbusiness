@@ -49,16 +49,17 @@ export class FakeAuthGateway implements AuthGateway {
     this.magicLinks.push({ email, redirectTo });
   }
 
-  async signUp(email: string, password: string, redirectTo: string): Promise<void> {
+  async signUp(email: string, password: string, redirectTo: string): Promise<"created" | "exists"> {
     if (this.signUpsDisabled) throw new SignupsDisabledError();
     if (this.failNextSend) {
       this.failNextSend = false;
       throw new Error(`send failed for ${email} with ${password}`);
     }
-    // As Supabase with email confirmation on: an existing account is answered the same, silently.
-    if (this.existingEmails.has(email)) return;
+    // As Supabase with email confirmation on: an existing account gets no email and no new user.
+    if (this.existingEmails.has(email)) return "exists";
     this.signUps.push({ email, password, redirectTo });
     this.issueCode(email);
+    return "created";
   }
 
   async verifySignupCode(email: string, code: string): Promise<AuthUser | null> {

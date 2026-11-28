@@ -22,10 +22,9 @@ export interface AuthGateway {
   sendMagicLink(email: string, redirectTo: string): Promise<void>;
   /**
    * Create an account with a password and have Supabase email a verification link that returns to
-   * `redirectTo` (PKCE, so it works in the browser that signed up). Supabase answers the same for
-   * an email that already has an account and sends nothing, so nobody learns who has one.
+   * `redirectTo` (PKCE, so it works in the browser that signed up). An email that already has an account gets "exists" and no email, so the form can say so.
    */
-  signUp(email: string, password: string, redirectTo: string): Promise<void>;
+  signUp(email: string, password: string, redirectTo: string): Promise<"created" | "exists">;
   /**
    * Finish a sign-up with the code from the verification email. It works from any device (no PKCE
    * cookie), and signs the person in on success. Null when the code is wrong, expired or used.

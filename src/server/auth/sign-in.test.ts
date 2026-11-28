@@ -534,9 +534,10 @@ describe("createAccount", () => {
     expect(auth.signUps).toEqual([]);
   });
 
-  it("answers the same whether or not the email already has an account", async () => {
+  it("says there is already an account under this email, and sends no code", async () => {
     auth.existingEmails.add("founder@example.test");
-    expect(await createAccount(deps, input())).toEqual({ kind: "sent" });
+    expect(await createAccount(deps, input())).toEqual({ kind: "already_exists" });
+    expect(auth.signUps).toEqual([]);
   });
 
   it("says private beta, not an error, while Supabase has new sign-ups switched off", async () => {

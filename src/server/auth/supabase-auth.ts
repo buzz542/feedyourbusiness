@@ -2,7 +2,7 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/server/supabase/admin";
 import { createSupabaseServerClient } from "@/server/supabase/server";
-import { PASSWORD_SET_KEY, canSignInAgain } from "./credentials";
+import { PASSWORD_SET_KEY, canSignInAgain, isRepeatSignUp } from "./credentials";
 import {
   type AccountAdmin,
   type AuthGateway,
@@ -12,6 +12,9 @@ import {
 } from "./ports";
 
 /** Thin adapters over Supabase Auth. Logic lives in sign-in.ts and is tested with fakes. */
+
+/** Supabase's codes for "an account with this email already exists". */
+const ALREADY_EXISTS = new Set(["email_exists", "user_already_exists"]);
 
 class SupabaseAuthError extends Error {
   override name = "SupabaseAuthError";
@@ -42,13 +45,16 @@ export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
     async signUp(email, password, redirectTo) {
       // password_set marks the account as able to come back without a link, so the app does not
       // ask for a password again after the email is verified.
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: redirectTo, data: { [PASSWORD_SET_KEY]: true } },
       });
       if (error?.code === "signup_disabled") throw new SignupsDisabledError();
+      if (error && ALREADY_EXISTS.has(error.code ?? "")) return "exists";
       if (error) throw new SupabaseAuthError(error.code);
+      if (data.user && isRepeatSignUp(data.user)) return "exists";
+      return "created";
     },
     async verifySignupCode(email, code) {
       // type "signup" matches the email Supabase sent for sign-up. No PKCE cookie is involved, so
@@ -116,9 +122,6 @@ export async function createSupabaseAuthGateway(): Promise<AuthGateway> {
     },
   };
 }
-
-/** Supabase's codes for "an account with this email already exists". */
-const ALREADY_EXISTS = new Set(["email_exists", "user_already_exists"]);
 
 export function createSupabaseAccountAdmin(): AccountAdmin {
   return {

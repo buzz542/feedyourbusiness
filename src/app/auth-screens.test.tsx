@@ -84,6 +84,15 @@ describe("the create-account form", () => {
       expect(html).toMatch(new RegExp(`<label[^>]*>${label}</label>`));
   });
 
+  it("says when the email already has an account, and sends the person to sign in", async () => {
+    const { SignupForm } = await import("@/app/(marketing)/signup/signup-form");
+    const { CREATE_MESSAGES } = await import("@/app/(marketing)/signup/signup-form");
+    expect(CREATE_MESSAGES.already_exists).toBe(
+      "There is already an account under this email. Sign in instead, or use Forgot your password if you need a new one.",
+    );
+    expect(SignupForm).toBeTypeOf("function");
+  });
+
   it("has one Create account button, a way back to sign in, and says a verification email is sent", async () => {
     const html = await render("/app/reply");
     expect(tags(html, "button")).toHaveLength(1);

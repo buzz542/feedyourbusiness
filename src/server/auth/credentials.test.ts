@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PASSWORD_SET_KEY, canSignInAgain } from "./credentials";
+import { PASSWORD_SET_KEY, canSignInAgain, isRepeatSignUp } from "./credentials";
 
 /** Whether an account can come back without an email link (the set-password step). */
 
@@ -16,5 +16,20 @@ describe("canSignInAgain", () => {
   it("needs the flag to be exactly true, not a truthy string", () => {
     for (const value of ["true", 1, "yes", null])
       expect(canSignInAgain({ user_metadata: { [PASSWORD_SET_KEY]: value } })).toBe(false);
+  });
+});
+
+describe("isRepeatSignUp", () => {
+  it("is true when Supabase returns no identities: an account with this email already exists", () => {
+    expect(isRepeatSignUp({ identities: [] })).toBe(true);
+  });
+
+  it("is false for a new account, which has an identity", () => {
+    expect(isRepeatSignUp({ identities: [{ provider: "email" }] })).toBe(false);
+  });
+
+  it("is false when the answer does not say, so a new account is never refused", () => {
+    expect(isRepeatSignUp({})).toBe(false);
+    expect(isRepeatSignUp({ identities: null })).toBe(false);
   });
 });
