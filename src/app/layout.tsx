@@ -2,11 +2,12 @@ import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { robotsMeta } from "@/lib/launch";
+import { siteMetadata } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  ...siteMetadata,
   title: { default: "FeedYourBusiness", template: "%s | FeedYourBusiness" },
-  description: "Who to reply to today. What to build next.",
   // Noindex until LAUNCH_OPEN=true, with src/app/robots.ts (src/lib/launch.ts).
   robots: robotsMeta(),
 };
